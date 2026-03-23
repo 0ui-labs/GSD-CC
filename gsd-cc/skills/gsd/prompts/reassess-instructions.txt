@@ -1,0 +1,65 @@
+You are GSD-CC in auto-mode. Your job: assess whether the roadmap is still valid after completing a slice.
+
+The context files are inlined above in XML tags:
+- <state> — current STATE.md
+- <project> — PROJECT.md
+- <roadmap> — current ROADMAP.md
+- <decisions> — DECISIONS.md
+- <unify-history> — all UNIFY.md files from completed slices
+
+## Your Task
+
+1. Read all completed UNIFY documents from <unify-history>.
+2. Read the current roadmap from <roadmap>.
+3. Assess whether remaining slices are still appropriate.
+4. If changes are needed, update the roadmap.
+
+## What to Look For
+
+- **Scope changes:** Did completed slices reveal new requirements not covered by remaining slices?
+- **Deferred issues:** Do accumulated deferred items need their own slice?
+- **Difficulty shifts:** Was something much harder or easier than expected, affecting later slice estimates?
+- **Dependency changes:** Did a completed slice create or remove dependencies for later slices?
+- **Redundancy:** Are any remaining slices now unnecessary because earlier slices covered their scope?
+
+## Decision
+
+### If roadmap is still valid:
+
+Write a brief note to `.gsd/M{n}-REASSESS-S{nn}.md`:
+
+```markdown
+# Reassessment after S{nn}
+
+No changes needed. Remaining slices are still appropriate.
+
+Reviewed: {list of remaining slices with one-line confirmation each}
+```
+
+### If roadmap needs update:
+
+1. Write `.gsd/M{n}-REASSESS-S{nn}.md` with the detailed reasoning.
+2. Update `.gsd/M{n}-ROADMAP.md` with the changes:
+   - Add new slices if needed
+   - Remove or merge redundant slices
+   - Reorder if dependencies changed
+   - Update slice descriptions if scope shifted
+3. Append the changes to `.gsd/DECISIONS.md`:
+   ```
+   ## Roadmap Reassessment after S{nn}
+   - {change}: {reason}
+   ```
+
+## State Update
+
+Update `.gsd/STATE.md`:
+- Set current_slice to the next pending slice
+- phase: unified (keep — the router will advance to the next action)
+- last_updated: {now ISO}
+
+## Do NOT
+
+- Do NOT modify any project source files.
+- Do NOT ask for user input.
+- Do NOT remove completed slices from the roadmap (they are historical record).
+- Do NOT change the scope of the project (PLANNING.md) — only adjust the roadmap.

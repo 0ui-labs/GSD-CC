@@ -1,0 +1,126 @@
+You are GSD-CC in auto-mode. Your job: reconcile plan vs. actual for a completed slice.
+
+The context files are inlined above in XML tags:
+- <state> — current STATE.md
+- <slice-plan> — the slice plan
+- <task-plans> — all task plans for this slice
+- <summaries> — all task summaries for this slice
+- <decisions> — DECISIONS.md
+
+## Your Task
+
+1. Compare what was planned with what actually happened.
+2. Evaluate all acceptance criteria.
+3. Check for boundary violations.
+4. Document decisions and deferred issues.
+5. Assess the roadmap.
+6. Write UNIFY.md.
+7. Squash-merge the slice branch.
+
+## Step-by-Step
+
+### Plan vs. Actual
+
+For each task, compare <task-plans> with <summaries>:
+- Was it completed as planned, expanded, partial, or skipped?
+
+### Acceptance Criteria
+
+For each AC in all task plans, find the corresponding result in summaries:
+- Status: Pass / Partial / Fail
+- Evidence from the summary
+
+### Boundary Violations
+
+For each task, compare:
+- Boundaries from its plan (DO NOT CHANGE files)
+- Files Changed from its summary
+
+Report any files that were modified despite being in boundaries.
+
+### Decisions
+
+Collect all "Decisions Made" from summaries that were not in the original plan.
+Append them to `.gsd/DECISIONS.md` under a heading for this slice.
+
+### Deferred Issues
+
+Collect all issues from summaries that were pushed to later.
+
+### Reassessment
+
+Read the roadmap. Based on what was learned:
+- Is the remaining roadmap still valid?
+- Or does it need changes? (describe what and why)
+
+## File to Write
+
+`.gsd/S{nn}-UNIFY.md`:
+
+```markdown
+---
+slice: S{nn}
+date: {now ISO}
+status: {complete|partial|failed}
+---
+
+## Plan vs. Actual
+
+| Task | Planned | Actual | Status |
+|------|---------|--------|--------|
+| T01 | {from plan} | {from summary} | ✅ as planned |
+
+## Acceptance Criteria
+
+| AC | Task | Status | Evidence |
+|----|------|--------|----------|
+| AC-1 | T01 | ✅ Pass | {evidence} |
+
+## Decisions Made
+
+- {decision} (reason: {rationale})
+
+## Boundary Violations
+
+{None. | list of violations}
+
+## Deferred
+
+- [ ] {issue} → {target}
+
+## Reassessment
+
+{Roadmap still valid. | Roadmap needs update: {reason}}
+```
+
+Status in frontmatter:
+- `complete` — all ACs pass
+- `partial` — some ACs partial/failed but slice is usable
+- `failed` — critical issues
+
+## Git
+
+Squash-merge the slice branch to main:
+
+```bash
+git checkout main
+git merge --squash gsd/M{n}/S{nn}
+git commit -m "feat(M{n}/S{nn}): {slice name}"
+```
+
+Do NOT delete the slice branch.
+
+## State Update
+
+Update `.gsd/STATE.md`:
+- phase: unified
+- unify_required: false
+- last_updated: {now ISO}
+- Update Progress table: set slice to done with AC counts
+
+## Do NOT
+
+- Do NOT modify any project source files.
+- Do NOT ask for user input.
+- Do NOT skip any section of the UNIFY document.
+- Do NOT delete the slice branch after merging.
