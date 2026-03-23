@@ -130,36 +130,9 @@ You only need `/gsd` — it routes automatically. Power users can jump directly:
 
 ## How It Works
 
-```
-You describe what you want to build
-        │
-        ▼
-┌─────────────────┐
-│      SEED        │  Type-driven ideation — asks the right
-│    (Ideation)    │  questions based on your project type
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│      PLAN        │  Decomposes into Milestones → Slices → Tasks
-│   (Structure)    │  with BDD acceptance criteria & boundaries
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│     EXECUTE      │  Fresh Claude Code session per task
-│   (Build)        │  via `claude -p` — no context rot
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│      UNIFY       │  Formal closure: planned vs. actual,
-│   (Close)        │  deviations logged, knowledge preserved
-└────────┬────────┘
-         │
-         ▼
-      Next task (auto-dispatched)
-```
+<p align="center">
+  <img src="flow-2.jpg" alt="The SEED → PLAN → EXECUTE → UNIFY Cycle" width="100%"/>
+</p>
 
 ### State on Disk
 
