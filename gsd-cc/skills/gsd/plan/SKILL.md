@@ -1,0 +1,250 @@
+---
+name: gsd-plan
+description: >
+  Research, decompose, and plan the current slice. Produces task plans
+  with BDD acceptance criteria and explicit boundaries. Use when /gsd
+  routes here, when user says /gsd-plan, or when a slice needs planning.
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+---
+
+# /gsd-plan — Slice Planning
+
+You turn a slice description into a set of executable task plans. Each task gets BDD acceptance criteria and explicit boundaries. The result is a set of files that `/gsd-apply` or `auto-loop.sh` can execute without ambiguity.
+
+## Step 1: Load Context
+
+Read these files (all that exist):
+
+1. `.gsd/STATE.md` — get `current_slice`, `milestone`, `rigor`, `project_type`
+2. `.gsd/M001-ROADMAP.md` — find the current slice description
+3. `.gsd/PLANNING.md` — overall project context
+4. `.gsd/DECISIONS.md` — all decisions made so far
+5. `.gsd/S{nn}-CONTEXT.md` — discuss phase output (if it exists)
+6. `.gsd/type.json` — rigor and type config
+
+## Step 2: Research
+
+Before decomposing, understand the codebase and ecosystem. Spawn a **read-only research subagent** (or do it yourself if subagents aren't available):
+
+### What to Research
+
+1. **Codebase scan** — What files exist? What's the project structure? What patterns are established?
+2. **Stack analysis** — What dependencies are installed? What frameworks are in use?
+3. **Existing code** — What's already built from previous slices? What interfaces exist that this slice must integrate with?
+4. **Ecosystem check** — Are there libraries that solve parts of this slice? What's the idiomatic approach for this stack?
+
+### Research Output
+
+Write `.gsd/M{n}-RESEARCH.md` (one per milestone, append if it exists):
+
+```markdown
+## Research for S{nn}
+
+### Codebase State
+{What exists, file structure, patterns observed}
+
+### Relevant Interfaces
+{Functions, types, APIs that this slice must work with}
+
+### Dependencies
+{Installed packages, available tools}
+
+### Recommendations
+{Libraries to use, patterns to follow, pitfalls to avoid}
+```
+
+**Research is read-only.** Do not create or modify any project files during research. Only write to `.gsd/`.
+
+## Step 3: Decompose into Tasks
+
+Break the slice into tasks. Follow these iron rules:
+
+### Iron Rules
+
+1. **A task that doesn't fit in one context window is two tasks.** If you need more than ~15 files of context + output, split it.
+2. **1-7 tasks per slice.** If you have more than 7, the slice is too big — tell the user and suggest splitting the slice.
+3. **Tasks are ordered by dependency.** T01 creates foundations, T02 builds on them, etc.
+4. **Each task is independently verifiable.** After completing T01, you can prove it works before starting T02.
+
+### For Each Task, Define:
+
+#### `<name>`
+Short, descriptive name. "Core types and interfaces", not "Do stuff".
+
+#### `<files>`
+List every file this task will create or modify. Be specific — full paths.
+
+#### `<acceptance_criteria>`
+**MANDATORY.** At least one AC per task. Every AC uses BDD format:
+
+```xml
+<ac id="AC-1">
+  Given {precondition — what state exists before}
+  When {action — what the code does}
+  Then {outcome — what must be true after}
+</ac>
+```
+
+Good ACs are:
+- **Testable** — you can write a test or run a command to verify
+- **Specific** — "returns a 400 status with error message" not "handles errors"
+- **Independent** — each AC tests one behavior
+
+#### `<action>`
+Step-by-step instructions. Numbered list. Concrete enough that Claude Code can execute them without guessing. Reference the ACs: "Write tests covering AC-1 and AC-2."
+
+#### `<boundaries>`
+**MANDATORY.** List files that this task MUST NOT change:
+
+```xml
+<boundaries>
+  DO NOT CHANGE:
+  - src/types.ts (read-only, owned by T01)
+  - package.json (no new deps without approval)
+  - .gsd/ (do not modify state files during execution)
+</boundaries>
+```
+
+If there are no restrictions, explicitly state: "No boundary restrictions for this task."
+
+Every file created by a previous task that this task should not modify MUST be listed here.
+
+#### `<verify>`
+The command or check that proves the ACs pass. Must reference AC IDs:
+
+```xml
+<verify>npm test -- --grep "parser" (AC-1, AC-2)</verify>
+```
+
+#### `<done>`
+One sentence: what must be true when this task is complete.
+
+## Step 4: Write Plan Files
+
+### Slice Plan: `.gsd/S{nn}-PLAN.md`
+
+Overview of the entire slice:
+
+```markdown
+# S{nn} — {Slice Name}
+
+## Overview
+{What this slice delivers, 2-3 sentences}
+
+## Tasks
+
+| Task | Name | Files | ACs |
+|------|------|-------|-----|
+| T01  | {name} | {count} files | {count} ACs |
+| T02  | {name} | {count} files | {count} ACs |
+...
+
+## All Acceptance Criteria
+
+| AC | Task | Criterion |
+|----|------|-----------|
+| AC-1 | T01 | {Given/When/Then summary} |
+| AC-2 | T01 | {Given/When/Then summary} |
+| AC-3 | T02 | {Given/When/Then summary} |
+...
+
+## Boundaries
+
+{Consolidated list of all boundary restrictions across tasks}
+
+## Dependencies
+
+T01 → T02 → T03 (or describe the actual graph)
+```
+
+### Per-Task Plans: `.gsd/S{nn}-T{nn}-PLAN.md`
+
+One file per task, using the PLAN.xml template format:
+
+```xml
+<task id="S{nn}-T{nn}" type="auto">
+  <name>{task name}</name>
+
+  <files>
+    {file list}
+  </files>
+
+  <acceptance_criteria>
+    <ac id="AC-{n}">
+      Given {precondition}
+      When {action}
+      Then {outcome}
+    </ac>
+  </acceptance_criteria>
+
+  <action>
+    1. {step}
+    2. {step}
+    ...
+  </action>
+
+  <boundaries>
+    DO NOT CHANGE:
+    - {file} ({reason})
+  </boundaries>
+
+  <verify>{command} (AC-{n}, AC-{m})</verify>
+  <done>{completion criteria}</done>
+</task>
+```
+
+## Step 5: Quality Gate
+
+Before finishing, check against `checklists/planning-ready.md`:
+
+Read: `~/.claude/skills/gsd/checklists/planning-ready.md`
+(or `./.claude/skills/gsd/checklists/planning-ready.md`)
+
+Verify ALL of these:
+
+- [ ] Every task has at least 1 acceptance criterion
+- [ ] Every AC has Given/When/Then format
+- [ ] Every task has a boundaries section
+- [ ] No "TBD", "TODO", or "later" in action or files fields
+- [ ] Task count per slice: 1-7
+- [ ] Every task has a `<verify>` that references at least one AC
+- [ ] No circular dependencies between tasks
+- [ ] Each task fits in one context window (~15 files of context + output)
+
+If any check fails, fix it before proceeding. Do not skip the quality gate.
+
+## Step 6: Create Git Branch
+
+Create a branch for this slice:
+
+```bash
+git checkout -b gsd/M{n}/S{nn}
+```
+
+If the branch already exists (resuming), check it out.
+
+## Step 7: Update STATE.md
+
+```
+current_slice: S{nn}
+current_task: T01
+phase: plan-complete
+```
+
+## Step 8: Confirm
+
+```
+Planning complete for S{nn}: {slice name}
+
+  {n} tasks, {m} acceptance criteria
+  Boundaries defined for all tasks
+  Quality gate passed
+
+  .gsd/S{nn}-PLAN.md          — slice overview
+  .gsd/S{nn}-T01-PLAN.md      — {task 1 name}
+  .gsd/S{nn}-T02-PLAN.md      — {task 2 name}
+  ...
+  Branch: gsd/M{n}/S{nn}
+
+Next: type /gsd to execute. (manual or auto)
+```
