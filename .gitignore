@@ -3,3 +3,4 @@ node_modules/
 *.log
 .gsd/auto.lock
 .docs
+docs/MARKETING-PLAN.md
