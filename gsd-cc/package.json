@@ -1,0 +1,24 @@
+{
+  "name": "gsd-cc",
+  "version": "0.1.0",
+  "description": "Get Shit Done on Claude Code — structured AI development with your Max plan",
+  "bin": {
+    "gsd-cc": "./bin/install.js"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "ai-development",
+    "project-management",
+    "gsd",
+    "claude",
+    "coding-agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gsd-cc/gsd-cc"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
