@@ -139,7 +139,7 @@ function install(isGlobal) {
 
   console.log(`  ${green}✓${reset} Installed ${fileCount} files to ${label}`);
   console.log(`
-  ${green}Done.${reset} Open Claude Code and type ${cyan}/gsd${reset} to start.
+  ${green}Done.${reset} Open Claude Code and type ${cyan}/gsd-cc${reset} to start.
 `);
 }
 

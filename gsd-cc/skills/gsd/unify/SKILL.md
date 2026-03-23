@@ -1,17 +1,17 @@
 ---
-name: gsd-unify
+name: gsd-cc-unify
 description: >
   Mandatory reconciliation after all tasks in a slice are done. Compares
   plan vs. actual, documents decisions and deviations, checks boundary
-  violations, squash-merges the slice branch. Use when /gsd routes here
-  (mandatory), when user says /gsd-unify, or when phase is apply-complete.
+  violations, squash-merges the slice branch. Use when /gsd-cc routes here
+  (mandatory), when user says /gsd-cc-unify, or when phase is apply-complete.
   CANNOT be skipped.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
-# /gsd-unify — Mandatory Reconciliation
+# /gsd-cc-unify — Mandatory Reconciliation
 
-UNIFY is not optional. It runs after every slice. The `/gsd` router blocks all other actions until UNIFY is complete. This is the single most important quality mechanism in GSD-CC.
+UNIFY is not optional. It runs after every slice. The `/gsd-cc` router blocks all other actions until UNIFY is complete. This is the single most important quality mechanism in GSD-CC.
 
 ## Why UNIFY Exists
 
@@ -226,5 +226,5 @@ UNIFY complete for S{nn}.
   Merged: gsd/M{n}/S{nn} → main
   Commit: feat(M{n}/S{nn}): {slice name}
 
-Next: type /gsd to continue with the next slice.
+Next: type /gsd-cc to continue with the next slice.
 ```

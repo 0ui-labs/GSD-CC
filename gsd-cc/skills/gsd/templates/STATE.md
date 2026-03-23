@@ -19,18 +19,18 @@ last_updated: {{ISO_DATE}}
 
 ## Acceptance Criteria Tracking
 
-<!-- Updated by /gsd-apply after each task -->
+<!-- Updated by /gsd-cc-apply after each task -->
 
 | AC    | Slice | Task | Status  | Evidence |
 |-------|-------|------|---------|----------|
 
 ## Boundaries Active
 
-<!-- Copied from current slice plan, enforced by /gsd-apply -->
+<!-- Copied from current slice plan, enforced by /gsd-cc-apply -->
 
 ## Decisions This Slice
 
-<!-- Appended by /gsd-discuss and during execution -->
+<!-- Appended by /gsd-cc-discuss and during execution -->
 
 ## Deferred
 

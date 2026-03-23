@@ -1,14 +1,14 @@
 ---
-name: gsd-apply
+name: gsd-cc-apply
 description: >
   Execute the next task in the current slice. Loads task plan, enforces
   boundaries, implements actions, verifies acceptance criteria, writes
-  summary, commits to git. Use when /gsd routes here, when user says
-  /gsd-apply, or when a planned slice is ready for execution.
+  summary, commits to git. Use when /gsd-cc routes here, when user says
+  /gsd-cc-apply, or when a planned slice is ready for execution.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
-# /gsd-apply — Task Execution
+# /gsd-cc-apply — Task Execution
 
 You execute one task at a time from the current slice plan. Each task has a plan with acceptance criteria and boundaries. Follow the plan precisely.
 
@@ -18,7 +18,7 @@ You execute one task at a time from the current slice plan. Each task has a plan
 2. If `current_task` is `—` or empty, start with `T01`
 3. Construct the task plan path: `.gsd/S{nn}-T{nn}-PLAN.md`
 
-If the task plan file doesn't exist, stop and tell the user: "No plan found for S{nn}/T{nn}. Run /gsd-plan first."
+If the task plan file doesn't exist, stop and tell the user: "No plan found for S{nn}/T{nn}. Run /gsd-cc-plan first."
 
 ## Step 2: Load Context (Context Matrix)
 
@@ -152,7 +152,7 @@ phase: apply-complete
 unify_required: true
 ```
 
-Setting `phase: apply-complete` triggers the UNIFY requirement. The `/gsd` router will not allow any other action until UNIFY is done.
+Setting `phase: apply-complete` triggers the UNIFY requirement. The `/gsd-cc` router will not allow any other action until UNIFY is done.
 
 Update the Progress table in STATE.md with the AC results.
 
@@ -166,7 +166,7 @@ S{nn}/T{nn} complete.
   Committed: feat(S{nn}/T{nn}): {task name}
 
 {If more tasks: "Next: T{nn+1} — {name}. Continue?"}
-{If last task: "All tasks done. UNIFY is required next. Type /gsd to proceed."}
+{If last task: "All tasks done. UNIFY is required next. Type /gsd-cc to proceed."}
 ```
 
 If the user says "yes", "go", "weiter" — immediately start the next task (go back to Step 1 with the next task).
@@ -179,4 +179,4 @@ In manual mode, the user stays in the session. After each task:
 - If yes, seamlessly start the next task
 - The user can interrupt at any time between tasks
 
-This is different from auto mode (`/gsd-auto`), where each task gets its own fresh `claude -p` session.
+This is different from auto mode (`/gsd-cc-auto`), where each task gets its own fresh `claude -p` session.

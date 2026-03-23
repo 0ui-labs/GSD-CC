@@ -1,14 +1,14 @@
 ---
-name: gsd
+name: gsd-cc
 description: >
   GSD project management. Reads .gsd/STATE.md and suggests the one
-  next action. Use when user types /gsd, mentions project planning,
+  next action. Use when user types /gsd-cc, mentions project planning,
   milestones, slices, or tasks. Also triggers when no .gsd/ exists
   and user wants to start a new project.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
-# /gsd — Main Router
+# /gsd-cc — Main Router
 
 You are the GSD-CC router. Your job is to read the current project state and suggest **exactly one** next action. Not a menu. Not "what do you want to do?". One clear recommendation.
 
@@ -47,7 +47,7 @@ IF .gsd/auto.lock exists:
 ```
 IF .gsd/ does not exist:
   → "No project found. What do you want to build?"
-  → Delegate to /gsd-seed for ideation.
+  → Delegate to /gsd-cc-seed for ideation.
 ```
 
 ### Ideation Done, No Roadmap
@@ -63,15 +63,15 @@ IF .gsd/PLANNING.md exists AND no M*-ROADMAP.md exists:
 IF M*-ROADMAP.md exists AND there are slices without a S*-PLAN.md:
   → Find the first unplanned slice.
   → "Next up: S{nn} — {slice name}. Plan it in detail?"
-  → On confirmation: delegate to /gsd-plan.
+  → On confirmation: delegate to /gsd-cc-plan.
 ```
 
 ### Plan Ready, Not Executed
 ```
 IF S*-PLAN.md exists for current slice AND no T*-SUMMARY.md files for it:
   → "S{nn} is planned with {n} tasks. Execute manually or auto?"
-  → "manual" → delegate to /gsd-apply
-  → "auto" → delegate to /gsd-auto
+  → "manual" → delegate to /gsd-cc-apply
+  → "auto" → delegate to /gsd-cc-auto
 ```
 
 ### Execution In Progress
@@ -79,7 +79,7 @@ IF S*-PLAN.md exists for current slice AND no T*-SUMMARY.md files for it:
 IF some T*-SUMMARY.md exist but not all tasks are done:
   → Find next incomplete task.
   → "S{nn}/T{nn} is next: {task name}. Continue?"
-  → On confirmation: delegate to /gsd-apply for that task.
+  → On confirmation: delegate to /gsd-cc-apply for that task.
 ```
 
 ### UNIFY Required (MANDATORY — NO ESCAPE)
@@ -88,7 +88,7 @@ IF all tasks for current slice have SUMMARY.md files
    AND no S*-UNIFY.md exists for that slice:
   → "All tasks for S{nn} are done. UNIFY is required before moving on."
   → Do NOT offer alternatives. Do NOT let the user skip.
-  → Delegate to /gsd-unify immediately.
+  → Delegate to /gsd-cc-unify immediately.
 ```
 
 ### UNIFY Done, Next Slice
@@ -136,15 +136,15 @@ Execute S01? (manual or auto)
 ## Delegating to Sub-Skills
 
 When routing to a sub-skill, tell the user what you're doing and then invoke the skill:
-- Ideation → `/gsd-seed`
-- Discussion → `/gsd-discuss`
-- Planning → `/gsd-plan`
-- Execution → `/gsd-apply`
-- Reconciliation → `/gsd-unify`
-- Auto mode → `/gsd-auto`
-- Status overview → `/gsd-status`
+- Ideation → `/gsd-cc-seed`
+- Discussion → `/gsd-cc-discuss`
+- Planning → `/gsd-cc-plan`
+- Execution → `/gsd-cc-apply`
+- Reconciliation → `/gsd-cc-unify`
+- Auto mode → `/gsd-cc-auto`
+- Status overview → `/gsd-cc-status`
 
-Power users can invoke these directly. But the default path only needs `/gsd` + Enter.
+Power users can invoke these directly. But the default path only needs `/gsd-cc` + Enter.
 
 ## Roadmap Creation
 

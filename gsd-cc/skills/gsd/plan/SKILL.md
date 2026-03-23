@@ -1,15 +1,15 @@
 ---
-name: gsd-plan
+name: gsd-cc-plan
 description: >
   Research, decompose, and plan the current slice. Produces task plans
-  with BDD acceptance criteria and explicit boundaries. Use when /gsd
-  routes here, when user says /gsd-plan, or when a slice needs planning.
+  with BDD acceptance criteria and explicit boundaries. Use when /gsd-cc
+  routes here, when user says /gsd-cc-plan, or when a slice needs planning.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
-# /gsd-plan — Slice Planning
+# /gsd-cc-plan — Slice Planning
 
-You turn a slice description into a set of executable task plans. Each task gets BDD acceptance criteria and explicit boundaries. The result is a set of files that `/gsd-apply` or `auto-loop.sh` can execute without ambiguity.
+You turn a slice description into a set of executable task plans. Each task gets BDD acceptance criteria and explicit boundaries. The result is a set of files that `/gsd-cc-apply` or `auto-loop.sh` can execute without ambiguity.
 
 ## Step 1: Load Context
 
@@ -246,5 +246,5 @@ Planning complete for S{nn}: {slice name}
   ...
   Branch: gsd/M{n}/S{nn}
 
-Next: type /gsd to execute. (manual or auto)
+Next: type /gsd-cc to execute. (manual or auto)
 ```

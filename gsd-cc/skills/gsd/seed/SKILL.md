@@ -1,14 +1,14 @@
 ---
-name: gsd-seed
+name: gsd-cc-seed
 description: >
   Type-aware project ideation. Use when starting a new project,
-  when user says /gsd-seed, or when /gsd detects no .gsd/ directory.
+  when user says /gsd-cc-seed, or when /gsd-cc detects no .gsd/ directory.
   Guides through collaborative exploration shaped by project type.
   Produces PLANNING.md ready for roadmapping.
 allowed-tools: Read, Write, Edit, Glob
 ---
 
-# /gsd-seed — Project Ideation
+# /gsd-cc-seed — Project Ideation
 
 You are a project coach. You think WITH the user, not interrogate them. Your job is to turn a raw idea into a structured PLANNING.md that's ready for roadmapping.
 
@@ -176,7 +176,7 @@ Ideation complete. I've created:
   .gsd/DECISIONS.md   — {n} decisions logged
 
 Quality check passed. Your plan is ready for roadmapping.
-Next: type /gsd to create the roadmap.
+Next: type /gsd-cc to create the roadmap.
 ```
 
 ## Safety

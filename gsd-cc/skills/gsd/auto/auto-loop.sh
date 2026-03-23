@@ -47,7 +47,7 @@ if ! command -v jq &>/dev/null; then
 fi
 
 if [[ ! -f "$GSD_DIR/STATE.md" ]]; then
-  echo "❌ No .gsd/STATE.md found. Run /gsd first to set up a project."
+  echo "❌ No .gsd/STATE.md found. Run /gsd-cc first to set up a project."
   exit 1
 fi
 

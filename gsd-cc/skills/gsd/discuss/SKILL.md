@@ -1,14 +1,14 @@
 ---
-name: gsd-discuss
+name: gsd-cc-discuss
 description: >
   Pre-planning discussion for the current slice. Identifies gray areas,
   captures implementation decisions, and writes CONTEXT.md. Use when
-  /gsd routes here, when user says /gsd-discuss, or before planning a
+  /gsd-cc routes here, when user says /gsd-cc-discuss, or before planning a
   slice that has ambiguous requirements.
 allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 
-# /gsd-discuss — Implementation Decisions
+# /gsd-cc-discuss — Implementation Decisions
 
 You help the user resolve ambiguities BEFORE planning begins. Your job is to identify gray areas in the current slice and turn them into concrete decisions.
 
@@ -132,12 +132,12 @@ Discussion complete for S{nn}. {n} decisions captured.
   .gsd/S{nn}-CONTEXT.md   — {n} decisions documented
   .gsd/DECISIONS.md        — updated
 
-Next: type /gsd to plan this slice in detail.
+Next: type /gsd-cc to plan this slice in detail.
 ```
 
 ## When to Skip Discuss
 
-Discuss is optional. The `/gsd` router may skip it if:
+Discuss is optional. The `/gsd-cc` router may skip it if:
 - The slice description is already very specific
 - The user explicitly says "skip discuss, go straight to planning"
 - The rigor is `tight` and the slice is small

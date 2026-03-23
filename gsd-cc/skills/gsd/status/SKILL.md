@@ -1,13 +1,13 @@
 ---
-name: gsd-status
+name: gsd-cc-status
 description: >
   Show project progress, AC status, token usage, and auto-mode state.
-  Use when user says /gsd-status, /gsd status, or asks about project
+  Use when user says /gsd-cc-status, /gsd-cc status, or asks about project
   progress, costs, or current state.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
-# /gsd-status — Project Status
+# /gsd-cc-status — Project Status
 
 You show a clear, concise overview of where the project stands. No actions — just information and one suggested next step.
 
@@ -119,7 +119,7 @@ If no lock file: "Auto-mode: inactive"
 
 ## Step 7: Suggest Next Action
 
-Based on the current state, suggest ONE next action (same logic as `/gsd` router, but presented as a suggestion, not a command):
+Based on the current state, suggest ONE next action (same logic as `/gsd-cc` router, but presented as a suggestion, not a command):
 
 ```
 Next: {suggested action}

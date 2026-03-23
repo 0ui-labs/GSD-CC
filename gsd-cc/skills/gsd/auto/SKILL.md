@@ -1,13 +1,13 @@
 ---
-name: gsd-auto
+name: gsd-cc-auto
 description: >
   Start auto-mode. Dispatches tasks via claude -p in fresh sessions.
-  Use when user says /gsd-auto, /gsd auto, or chooses "auto" when
-  /gsd offers manual vs. auto execution.
+  Use when user says /gsd-cc-auto, /gsd-cc auto, or chooses "auto" when
+  /gsd-cc offers manual vs. auto execution.
 allowed-tools: Read, Write, Bash, Glob
 ---
 
-# /gsd-auto — Auto-Mode
+# /gsd-cc-auto — Auto-Mode
 
 You start the auto-loop that executes tasks autonomously, each in a fresh context window.
 
@@ -17,13 +17,13 @@ Before starting, verify ALL of these:
 
 ### .gsd/STATE.md exists
 ```
-If not: "No project set up. Run /gsd first."
+If not: "No project set up. Run /gsd-cc first."
 ```
 
 ### At least one slice is planned
 ```
 Check for S*-PLAN.md files.
-If none: "No slice is planned yet. Run /gsd to plan first."
+If none: "No slice is planned yet. Run /gsd-cc to plan first."
 ```
 
 ### jq is installed
@@ -118,12 +118,12 @@ Auto-mode finished.
   Completed: {n} tasks across {m} slices
   Status: {milestone complete | stopped at S{nn}/T{nn} | error}
 
-  Type /gsd-status for full details.
-  Type /gsd to continue from where auto-mode stopped.
+  Type /gsd-cc-status for full details.
+  Type /gsd-cc to continue from where auto-mode stopped.
 ```
 
 ## Interrupting Auto-Mode
 
 The user can interrupt auto-mode with Ctrl+C. The trap in auto-loop.sh cleans up the lock file. When they return:
-- `/gsd` will detect the state and offer to resume
+- `/gsd-cc` will detect the state and offer to resume
 - No work is lost — completed tasks are committed to git

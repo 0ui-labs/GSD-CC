@@ -86,7 +86,7 @@ npx gsd-cc --uninstall
 ```
 
 ```
-> /gsd
+> /gsd-cc
 
   No .gsd/ directory found. Let's start a new project.
   What are you building?
@@ -102,31 +102,31 @@ npx gsd-cc --uninstall
 After 8-10 minutes of guided exploration, you have a `PLANNING.md`. From there:
 
 ```
-> /gsd              → creates the roadmap
-> /gsd              → plans the first slice (tasks with ACs + boundaries)
-> /gsd              → "Execute? manual or auto?"
+> /gsd-cc           → creates the roadmap
+> /gsd-cc           → plans the first slice (tasks with ACs + boundaries)
+> /gsd-cc           → "Execute? manual or auto?"
 > auto              → runs tasks autonomously, UNIFY after each slice
 ```
 
 Come back hours later:
 ```
-> /gsd              → "Welcome back. M001 — 4 of 6 slices complete."
+> /gsd-cc           → "Welcome back. M001 — 4 of 6 slices complete."
 ```
 
 ### Commands
 
-You only need `/gsd` — it routes automatically. Power users can jump directly:
+You only need `/gsd-cc` — it routes automatically. Power users can jump directly:
 
 | Command | Phase | What it does |
 |---------|-------|-------------|
-| `/gsd` | Router | Reads state, suggests ONE next action |
-| `/gsd-seed` | Ideation | Type-driven project exploration (coach mode) |
-| `/gsd-discuss` | Discussion | Resolve ambiguities before planning |
-| `/gsd-plan` | Planning | Research + decompose into tasks with ACs |
-| `/gsd-apply` | Execution | Execute tasks with boundary enforcement |
-| `/gsd-unify` | Reconciliation | Plan vs. actual comparison (mandatory) |
-| `/gsd-auto` | Auto-mode | Autonomous execution via `claude -p` |
-| `/gsd-status` | Overview | Progress, ACs, token usage, auto-mode state |
+| `/gsd-cc` | Router | Reads state, suggests ONE next action |
+| `/gsd-cc-seed` | Ideation | Type-driven project exploration (coach mode) |
+| `/gsd-cc-discuss` | Discussion | Resolve ambiguities before planning |
+| `/gsd-cc-plan` | Planning | Research + decompose into tasks with ACs |
+| `/gsd-cc-apply` | Execution | Execute tasks with boundary enforcement |
+| `/gsd-cc-unify` | Reconciliation | Plan vs. actual comparison (mandatory) |
+| `/gsd-cc-auto` | Auto-mode | Autonomous execution via `claude -p` |
+| `/gsd-cc-status` | Overview | Progress, ACs, token usage, auto-mode state |
 
 ## How It Works
 
@@ -170,7 +170,7 @@ This means you can close Claude Code, come back tomorrow, and pick up exactly wh
 
 ## Vision
 
-**Short-term:** A working skill system you install with `npx gsd-cc`, type `/gsd` in Claude Code, and immediately start structured, quality-assured development — manual or autonomous.
+**Short-term:** A working skill system you install with `npx gsd-cc`, type `/gsd-cc` in Claude Code, and immediately start structured, quality-assured development — manual or autonomous.
 
 **Mid-term:** The system people use when building serious software with Claude Code. Not demos, not todo apps — products. Projects that span weeks, touch dozens of files, and require consistent quality.
 
@@ -187,7 +187,7 @@ types/my-saas/
 └── loadout.md    # Recommended tools and libraries
 ```
 
-Next time `/gsd-seed` runs, your type is available. See the built-in types (`application`, `workflow`, `utility`, `client`, `campaign`) for examples.
+Next time `/gsd-cc-seed` runs, your type is available. See the built-in types (`application`, `workflow`, `utility`, `client`, `campaign`) for examples.
 
 ## Acknowledgments
 
