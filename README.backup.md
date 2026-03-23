@@ -68,65 +68,22 @@ GSD-CC consists of Markdown files and a Bash script. No dependencies that go sta
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
 - Claude Code **Max Plan** (recommended for autonomous mode)
-- **Git** initialized in your project
-- **jq** installed (`brew install jq`) — required for auto-mode
 
 ### Installation
 
 ```bash
-npx gsd-cc            # Install globally (default)
-npx gsd-cc --local    # Install to current project only
-npx gsd-cc --uninstall
+npx gsd-cc
 ```
 
-### Quick Start
+### Usage
 
-```bash
-~/my-project $ claude
-```
+Inside Claude Code, type:
 
 ```
-> /gsd
-
-  No .gsd/ directory found. Let's start a new project.
-  What are you building?
-
-> A REST API for a booking system with React frontend
-
-  Got it. That's an application project.
-  Setting rigor to deep — architecture matters here.
-
-  Let's explore this together. I'll ask about 8 areas...
+/gsd
 ```
 
-After 8-10 minutes of guided exploration, you have a `PLANNING.md`. From there:
-
-```
-> /gsd              → creates the roadmap
-> /gsd              → plans the first slice (tasks with ACs + boundaries)
-> /gsd              → "Execute? manual or auto?"
-> auto              → runs tasks autonomously, UNIFY after each slice
-```
-
-Come back hours later:
-```
-> /gsd              → "Welcome back. M001 — 4 of 6 slices complete."
-```
-
-### Commands
-
-You only need `/gsd` — it routes automatically. Power users can jump directly:
-
-| Command | Phase | What it does |
-|---------|-------|-------------|
-| `/gsd` | Router | Reads state, suggests ONE next action |
-| `/gsd-seed` | Ideation | Type-driven project exploration (coach mode) |
-| `/gsd-discuss` | Discussion | Resolve ambiguities before planning |
-| `/gsd-plan` | Planning | Research + decompose into tasks with ACs |
-| `/gsd-apply` | Execution | Execute tasks with boundary enforcement |
-| `/gsd-unify` | Reconciliation | Plan vs. actual comparison (mandatory) |
-| `/gsd-auto` | Auto-mode | Autonomous execution via `claude -p` |
-| `/gsd-status` | Overview | Progress, ACs, token usage, auto-mode state |
+This launches the GSD-CC router skill which guides you through the workflow — from ideation to structured planning to execution.
 
 ## How It Works
 
@@ -202,19 +159,6 @@ This means you can close Claude Code, come back tomorrow, and pick up exactly wh
 **Mid-term:** The system people use when building serious software with Claude Code. Not demos, not todo apps — products. Projects that span weeks, touch dozens of files, and require consistent quality.
 
 **Long-term:** An open standard for AI-powered project planning. The `.gsd/` disk format, the task plan XML with acceptance criteria and boundaries, the UNIFY concept — all of it is agent-agnostic. If a better agent than Claude Code appears tomorrow, you migrate the skills. The planning artifacts, project structure, and decision history stay.
-
-## Adding Custom Project Types
-
-Drop 3 files into `~/.claude/skills/gsd/seed/types/your-type/`:
-
-```
-types/my-saas/
-├── guide.md      # Conversation sections (Explore/Suggest/Skip-Condition)
-├── config.md     # rigor: deep | sections: 8 | demeanor: strategic
-└── loadout.md    # Recommended tools and libraries
-```
-
-Next time `/gsd-seed` runs, your type is available. See the built-in types (`application`, `workflow`, `utility`, `client`, `campaign`) for examples.
 
 ## Acknowledgments
 
