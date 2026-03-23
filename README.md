@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/header.svg" alt="GSD-CC — Get Shit Done with Claude Code" width="100%"/>
+  <img src="hero.jpg" alt="GSD-CC — Get Shit Done with Claude Code" width="100%"/>
 </p>
 
 <p align="center">
