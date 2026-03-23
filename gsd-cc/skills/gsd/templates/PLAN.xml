@@ -1,0 +1,65 @@
+<!--
+  GSD-CC Task Plan Template
+
+  Usage: Copy this template for each task as .gsd/S{nn}-T{nn}-PLAN.md
+
+  Fields:
+  - id:   Slice + Task identifier (e.g. S01-T02)
+  - type: "manual" (user present) or "auto" (auto-loop dispatch)
+  - name: Short descriptive name for the task
+
+  Rules:
+  - Every task MUST have at least one <ac> in acceptance_criteria
+  - Every <ac> MUST use Given/When/Then format
+  - Every task MUST have a <boundaries> section (can state "none")
+  - <verify> MUST reference at least one AC by id
+  - No "TBD", "TODO", or "later" in <action> or <files>
+  - If a task doesn't fit in one context window, split it into two tasks
+-->
+
+<task id="S01-T01" type="auto">
+  <name>{{TASK_NAME}}</name>
+
+  <files>
+    <!-- Files this task will create or modify -->
+    {{FILE_1}}
+    {{FILE_2}}
+  </files>
+
+  <acceptance_criteria>
+    <ac id="AC-1">
+      Given {{PRECONDITION}}
+      When {{ACTION}}
+      Then {{EXPECTED_OUTCOME}}
+    </ac>
+    <ac id="AC-2">
+      Given {{PRECONDITION}}
+      When {{ACTION}}
+      Then {{EXPECTED_OUTCOME}}
+    </ac>
+  </acceptance_criteria>
+
+  <action>
+    <!-- Step-by-step instructions for what to build -->
+    1. {{STEP_1}}
+    2. {{STEP_2}}
+    3. Write tests covering AC-1 and AC-2
+  </action>
+
+  <boundaries>
+    <!-- Files that MUST NOT be changed by this task -->
+    DO NOT CHANGE:
+    - {{FILE_OWNED_BY_OTHER_TASK}} (read-only, owned by T{{nn}})
+    - {{LOCKED_FILE}} (no modifications without approval)
+  </boundaries>
+
+  <verify>
+    <!-- How to verify acceptance criteria are met -->
+    {{VERIFY_COMMAND}} (AC-1, AC-2)
+  </verify>
+
+  <done>
+    <!-- Definition of done — what must be true when this task is complete -->
+    {{COMPLETION_CRITERIA}}
+  </done>
+</task>
