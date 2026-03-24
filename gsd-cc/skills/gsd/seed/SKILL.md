@@ -122,10 +122,10 @@ Use the template from `~/.claude/skills/gsd-cc-shared/templates/PLANNING.md` (or
 - Vision (from their initial description + refinements)
 - Users (from user/auth discussions)
 - Requirements v1, v2, Out of Scope (from exploration)
-- Tech Stack (from their preferences or your suggestions)
-- Architecture Decisions (key choices made during exploration)
 - Phase Breakdown (high-level, not detailed yet)
 - Open Questions (anything unresolved)
+
+**Do NOT ask about tech stack.** That's a separate phase (`/gsd-cc-stack`) that comes after Seed. Seed focuses on WHAT we're building, not HOW.
 
 Set the frontmatter: project name, type, rigor, date.
 

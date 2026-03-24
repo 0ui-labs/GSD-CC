@@ -66,10 +66,16 @@ IF .gsd/ does not exist:
   → If they just describe their project → delegate to /gsd-cc-seed with their description
 ```
 
-### Ideation Done, No Roadmap
+### Seed Done, No Stack
 ```
-IF .gsd/PLANNING.md exists AND no M*-ROADMAP.md exists:
-  → "Your plan is ready. Shall I create a roadmap with milestones and slices?"
+IF .gsd/PLANNING.md exists AND no .gsd/STACK.md exists:
+  → Delegate to /gsd-cc-stack for tech stack discussion.
+```
+
+### Stack Done, No Roadmap
+```
+IF .gsd/STACK.md exists AND no M*-ROADMAP.md exists:
+  → "Your plan and tech stack are ready. Shall I create a roadmap with milestones and slices?"
   → On confirmation: read PLANNING.md and PROJECT.md, create M001-ROADMAP.md
     with slices, update STATE.md.
 ```
@@ -194,6 +200,7 @@ Execute S01? (manual or auto)
 
 When routing to a sub-skill, tell the user what you're doing and then invoke the skill:
 - Import concept → `/gsd-cc-ingest`
+- Tech stack → `/gsd-cc-stack`
 - Vision document → `/gsd-cc-vision`
 - Decision profile → `/gsd-cc-profile`
 - Brainstorming → `/gsd-cc-ideate`
