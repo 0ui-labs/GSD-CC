@@ -23,6 +23,7 @@ Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All out
 3. Read `.gsd/PLANNING.md` — for overall project context
 4. Read `.gsd/DECISIONS.md` — for decisions already made
 5. Read `.gsd/type.json` — for project type and rigor
+6. Read `.gsd/VISION.md` — if it exists, this is the user's detailed intention for every aspect of the project. Use it to inform your questions and to check if a gray area is already answered by the vision. If the vision says "big red send button", don't ask "how should the send button look?" — it's already decided.
 
 ## Step 2: Identify Gray Areas
 

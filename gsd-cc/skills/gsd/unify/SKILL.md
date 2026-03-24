@@ -40,6 +40,7 @@ Read ALL of these:
 | `.gsd/S{nn}-T{nn}-PLAN.md` | Per-task plans (all tasks in slice) |
 | `.gsd/S{nn}-T{nn}-SUMMARY.md` | What actually happened (all tasks in slice) |
 | `.gsd/DECISIONS.md` | Existing decisions |
+| `.gsd/VISION.md` | User's original intentions (if it exists) |
 
 Use `Glob` to find all matching files for the current slice.
 
@@ -163,7 +164,33 @@ Roadmap needs update:
 
 If the roadmap needs an update, describe what should change but do NOT modify the roadmap file. That happens in the next planning phase.
 
-## Step 8: Quality Gate
+## Step 8: Vision Alignment Check
+
+If `.gsd/VISION.md` exists, compare what was built in this slice against the user's original intentions:
+
+For each vision detail that relates to this slice:
+
+```
+Vision Alignment:
+
+| Vision Detail | What User Wanted | What Was Built | Alignment |
+|--------------|-----------------|----------------|-----------|
+| {detail}     | {user's words}  | {what we did}  | ✓ Aligned / ⚠ Adjusted / ✗ Deviated |
+
+Adjustments:
+- {detail}: Vision said "{user's words}". Implemented as {what we did}
+  because {technical reason}. Result is {how close to the original intent}.
+
+Deviations:
+- {detail}: Vision said "{user's words}". Could not implement because
+  {reason}. Alternative: {what we did instead}. Recommendation: {keep as-is / revisit later}.
+```
+
+This section is critical for auto-mode transparency. The user should be able to read this and immediately see where their vision was honored and where it wasn't — and why.
+
+If no VISION.md exists, skip this step.
+
+## Step 9: Quality Gate
 
 Check against `checklists/unify-complete.md`:
 

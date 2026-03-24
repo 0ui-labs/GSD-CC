@@ -34,8 +34,11 @@ Load ONLY these files — nothing else:
 | `.gsd/S{nn}-PLAN.md` | Slice overview for context |
 | `.gsd/DECISIONS.md` | Decisions that affect implementation |
 | `.gsd/S{nn}-T{prev}-SUMMARY.md` | Previous task summaries (all that exist for this slice) |
+| `.gsd/VISION.md` | User's detailed intentions (if it exists) — check alignment during implementation |
 
 **Do NOT load:** PLANNING.md, ROADMAP.md, PROJECT.md, RESEARCH.md, CONTEXT.md, or files from other slices. These are not needed during execution and waste context window space.
+
+**Vision alignment:** If the task implements something described in VISION.md, ensure the implementation matches the user's intention. If you must deviate, note it in the task summary: "Vision says X, implemented Y because Z."
 
 ## Step 3: Read and Announce the Plan
 

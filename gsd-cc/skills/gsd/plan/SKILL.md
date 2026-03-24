@@ -25,6 +25,7 @@ Read these files (all that exist):
 4. `.gsd/DECISIONS.md` — all decisions made so far
 5. `.gsd/S{nn}-CONTEXT.md` — discuss phase output (if it exists)
 6. `.gsd/type.json` — rigor and type config
+7. `.gsd/VISION.md` — if it exists, the user's detailed intentions. Acceptance criteria should align with vision details. If a task implements something the user described in the vision, reference it.
 
 ## Step 2: Research
 
