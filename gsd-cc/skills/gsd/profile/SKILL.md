@@ -30,73 +30,99 @@ If `.gsd/PROFILE.md` already exists, ask: "You already have a profile. Update it
 
 Go deep. This interview should take 15-25 minutes. Don't rush. Ask ONE question at a time. Follow up on interesting answers. The goal is to understand the person, not fill out a form.
 
-### Section 1: Background & Context
+**CRITICAL: Adapt your language to the user's level.** The questions below are guidelines, not scripts. A senior engineer can handle "monolith or microservices?" A first-time builder needs "should it start simple or be built for growth from day one?" Read the room from the first answer and adjust everything that follows.
 
-- "What's your technical background? Self-taught, bootcamp, CS degree, something else?"
-- "How long have you been building software?"
-- "What's the biggest project you've shipped?"
-- "Do you code full-time or is this a side project / business tool?"
+### Section 1: Who Are You?
 
-Adapt the rest of the interview based on their level. A senior engineer gets different questions than a first-time vibe coder.
+Start casual. Get a feel for who you're talking to.
 
-### Section 2: Architecture & Design Philosophy
+- "Tell me a bit about yourself — do you build software for a living, or is this more of a side thing?"
+- "Have you built something before that you were proud of? What was it?"
+- "How do you usually work — do you plan everything first, or do you figure it out as you go?"
 
-- "When you start a new project, what do you set up first?"
-- "Monolith or microservices — and why?"
-- "How do you feel about ORMs? Raw SQL? Query builders?"
-- "REST, GraphQL, tRPC, gRPC — what's your instinct and why?"
-- "How much abstraction is too much? When does DRY become harmful?"
-- "Do you prefer convention over configuration (Rails-style) or explicit control (Express-style)?"
-- "What's a popular pattern or tool that you think is overrated?"
-- "What's an unpopular opinion you hold about software architecture?"
+**Based on their answers, determine their level:**
+- **Beginner/Vibe Coder:** No CS background, maybe built a few things with AI help, thinks in terms of "I want it to do X" not "I need an API endpoint"
+- **Intermediate:** Has shipped a few projects, knows some frameworks, has opinions but not strong ones
+- **Advanced:** Years of experience, strong opinions, can discuss tradeoffs in depth
 
-### Section 3: Tech Stack Preferences
+**Adapt ALL following questions to their level.** The sections below show both styles — pick the right one.
 
-- "What languages do you reach for? What languages do you avoid?"
-- "Frontend framework preference? Why?"
-- "Database preference? SQL vs NoSQL — when and why?"
-- "How do you feel about TypeScript? Strict mode?"
-- "Testing: TDD, test-after, or 'I'll add tests when it breaks'?"
-- "CSS approach: Tailwind, CSS modules, styled-components, vanilla?"
-- "Package preferences: do you prefer fewer dependencies or best-in-class for each need?"
+### Section 2: How Do You Like Things Built?
 
-### Section 4: Quality & Standards
+**For beginners:**
+- "When you imagine your project — should it be simple and just work, or do you want it built so it can grow into something bigger later?"
+- "Do you care about what's under the hood, or just that it works?"
+- "If Claude has to pick between two ways to build something — one is quicker but messier, one takes longer but is cleaner — which would you prefer?"
+- "Are there apps or tools you use that you think are really well made? What do you like about them?"
+- "Is there software you've used that frustrated you? What was annoying about it?"
 
-- "What does 'done' mean to you? When is code ready to ship?"
-- "How much error handling is enough? Do you handle every edge case upfront or ship and iterate?"
-- "Logging and observability: how much do you add from the start?"
-- "Performance: optimize early or only when there's a measured problem?"
-- "Security: what do you always do, what do you skip for MVPs?"
-- "Code comments: a lot, a little, or 'the code should speak for itself'?"
+**For advanced users:**
+- "What drives your architecture decisions — simplicity, scalability, developer experience, something else?"
+- "Where do you fall on the 'build it right vs. ship it fast' spectrum? Does it depend on context?"
+- "What's a popular approach that you think is overrated?"
+- "What's an unpopular opinion you hold about how software should be built?"
 
-### Section 5: Process & Decision-Making
+### Section 3: Tools & Technologies
 
-- "When you face two valid approaches, how do you decide? Gut feeling? Research? Ask someone?"
-- "How do you handle scope creep? Are you strict about MVP or do you let features grow?"
-- "When something isn't working, how long do you try before switching approaches?"
-- "What makes you rage-quit a library or tool?"
-- "What's a mistake you've made that changed how you build things?"
+**For beginners:**
+- "Do you have a preference for how things look? Modern and clean? Colorful? Simple?"
+- "Is this going to be a website, an app, something that runs on your computer, or something else?"
+- "Have you used or heard about specific tools or languages that you'd like to use — or avoid?"
+- "Do you want Claude to pick the best tools, or do you want to have a say?"
 
-### Section 6: Aesthetics & UX (if relevant)
+**For advanced users:**
+- "What's your go-to stack? What do you reach for by default?"
+- "Any technologies you refuse to use? Why?"
+- "How do you feel about dependencies — fewer is better, or best tool for each job?"
+- "Testing philosophy — when and how much?"
 
-- "How important is UI polish for v1?"
-- "Do you prefer minimal/clean or feature-rich/dense interfaces?"
-- "Mobile-first or desktop-first?"
-- "Dark mode?"
-- "What apps or websites do you think are really well-designed?"
+### Section 4: Quality & "Good Enough"
 
-### Section 7: Red Lines & Non-Negotiables
+**For beginners:**
+- "When would you say something is 'done'? When it works? When it looks nice? When it handles weird situations?"
+- "If something goes wrong while someone uses your app — should it crash, show an error message, or try to fix itself?"
+- "How polished does it need to be for version 1? Perfect, or good enough to use?"
+- "Is speed important? Should it feel instant?"
 
-- "What should Claude NEVER do in your projects?"
-- "What patterns or approaches are absolute no-gos for you?"
-- "Any libraries or tools you refuse to use? Why?"
-- "Is there anything where you'd rather have ugly-but-working than clean-but-incomplete?"
+**For advanced users:**
+- "What's your bar for shipping? What's your bar for 'done done'?"
+- "Error handling strategy — defensive from day one, or add as needed?"
+- "Performance — optimize early or measure first?"
+- "Security baseline — what do you always do, what do you defer?"
 
-### Section 8: Wildcards
+### Section 5: How You Think & Decide
 
-- "If you could mass-delete one concept from modern software development, what would it be?"
-- "What do beginners understand better than experts?"
-- "Is there a 'wrong' way of doing things that you secretly think is fine?"
+**For everyone (adapt tone):**
+- "When there's no obvious right answer — how do you usually decide? Gut feeling? Research? Ask someone?"
+- "Have you ever built something and halfway through realized you should have done it differently? What happened?"
+- "What makes you give up on a tool or approach and try something else?"
+- "Is there something about how things are usually done that you think is stupid or overcomplicated?"
+
+### Section 6: Look & Feel
+
+**For everyone:**
+- "How important is it that it looks good — on a scale from 'who cares, it just needs to work' to 'design is everything'?"
+- "When you think of apps you love using — what's the vibe? Clean and minimal? Packed with features? Playful?"
+- "Phone first or computer first?"
+- "Any apps or websites that you think nailed the design?"
+
+### Section 7: Things You Don't Want
+
+**For beginners:**
+- "Is there anything where you'd say 'I definitely don't want that'?"
+- "Any features or behaviors in apps that annoy you? Things you'd never put in your own project?"
+- "Anything that Claude should absolutely not decide on its own — something where it should always ask you first?"
+
+**For advanced users:**
+- "Hard no-gos — patterns, tools, approaches?"
+- "Anything where you'd rather have ugly-but-working than clean-but-incomplete?"
+- "What should Claude never do without asking?"
+
+### Section 8: The Fun Ones
+
+- "If you could change one thing about how software is built today, what would it be?"
+- "Is there something that 'everyone knows is wrong' that you secretly think is fine?"
+- "What do people who are new to this understand better than the experts?"
 
 ## Generating PROFILE.md
 
