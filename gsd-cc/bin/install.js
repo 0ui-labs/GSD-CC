@@ -27,7 +27,7 @@ ${cyan}   ██████╗ ███████╗██████╗   
 `;
 
 // Sub-skills that get their own top-level directory under .claude/skills/
-const SUB_SKILLS = ['apply', 'auto', 'discuss', 'plan', 'seed', 'status', 'unify', 'update'];
+const SUB_SKILLS = ['apply', 'auto', 'discuss', 'help', 'plan', 'seed', 'status', 'tutorial', 'unify', 'update'];
 
 // Shared directories that go into gsd-cc-shared/
 const SHARED_DIRS = ['checklists', 'prompts', 'templates'];

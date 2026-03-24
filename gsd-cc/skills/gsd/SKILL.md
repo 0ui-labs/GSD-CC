@@ -148,6 +148,8 @@ When routing to a sub-skill, tell the user what you're doing and then invoke the
 - Auto mode → `/gsd-cc-auto`
 - Status overview → `/gsd-cc-status`
 - Update skills → `/gsd-cc-update`
+- Help → `/gsd-cc-help`
+- Tutorial → `/gsd-cc-tutorial`
 
 Power users can invoke these directly. But the default path only needs `/gsd-cc` + Enter.
 
