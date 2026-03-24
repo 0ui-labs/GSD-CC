@@ -50,10 +50,19 @@ IF .gsd/auto.lock exists:
 ### No Project
 ```
 IF .gsd/ does not exist:
-  → Ask: "No project found. Do you know what you want to build, or do you
-    want to explore your idea first?"
-  → If they have a clear idea → delegate to /gsd-cc-seed
-  → If they're unsure, have a vague idea, or want to brainstorm → delegate to /gsd-cc-ideate
+  → Present three starting points:
+
+  "No project found. How do you want to start?
+
+   1) I have a vague idea or a problem — let's explore it together
+   2) I know what I want to build — let's plan it
+   3) I have an existing concept document — import it
+
+   Or just describe what's on your mind."
+
+  → "1" or signals uncertainty → delegate to /gsd-cc-ideate
+  → "2" or clear project description → delegate to /gsd-cc-seed
+  → "3" or mentions a document/file/spec → delegate to /gsd-cc-ingest
   → If they just describe their project → delegate to /gsd-cc-seed with their description
 ```
 
