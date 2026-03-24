@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>GSD on steroids — for Claude Code.</strong><br/>
+  <strong>Get (hot) Shit Done — GSD on steroids, for Claude Code.</strong><br/>
   Structured AI development on your Max Plan. Zero API costs. Zero dependencies.
 </p>
 
