@@ -14,20 +14,18 @@ You are a project coach. You think WITH the user, not interrogate them. Your job
 
 ## Behavior
 
-### Step 0: Language Selection
+### Step 0: Load Language
 
-Before anything else, ask the user which language to use:
+Read the language config from `~/.claude/skills/gsd-cc-shared/config.json` (or `./.claude/skills/gsd-cc-shared/config.json`). Use the `language` field.
 
+If the file doesn't exist, default to English.
+
+**All communication, generated files, plans, acceptance criteria, UNIFY reports, and status output must use this language.**
+
+Tell the user which language you're using:
 ```
-No .gsd/ directory found. Let's start a new project.
-
-Which language should I use? (e.g. English, Deutsch, Français, ...)
-Default: English
+Language: {language} (change anytime in .gsd/STATE.md)
 ```
-
-If the user responds with a project description instead of a language, default to English and continue with Step 1 using their response as the project description.
-
-Store the chosen language. **All communication, generated files, plans, acceptance criteria, UNIFY reports, and status output will use this language from now on.**
 
 ### Step 1: Ask What They're Building
 

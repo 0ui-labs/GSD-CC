@@ -156,9 +156,43 @@ function install(isGlobal) {
   }
 
   console.log(`  ${green}✓${reset} Installed ${fileCount} files to ${label}`);
+}
+
+/**
+ * Write language config
+ */
+function writeLanguageConfig(isGlobal, language) {
+  const skillsBase = getSkillsBase(isGlobal);
+  const configDir = path.join(skillsBase, 'gsd-cc-shared');
+  fs.mkdirSync(configDir, { recursive: true });
+  const configPath = path.join(configDir, 'config.json');
+  fs.writeFileSync(configPath, JSON.stringify({ language }, null, 2) + '\n');
+}
+
+/**
+ * Prompt for language, then finish
+ */
+function promptLanguage(isGlobal) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
   console.log(`
-  ${green}Done.${reset} Open Claude Code and type ${cyan}/gsd-cc${reset} to start.
+  ${yellow}Which language should GSD-CC use?${reset}
+  ${dim}(e.g. English, Deutsch, Français, Español, ...)${reset}
+  ${dim}You can change this later per project in .gsd/STATE.md${reset}
 `);
+
+  rl.question(`  Language ${dim}[English]${reset}: `, (answer) => {
+    rl.close();
+    const language = answer.trim() || 'English';
+    writeLanguageConfig(isGlobal, language);
+    console.log(`  ${green}✓${reset} Language set to ${cyan}${language}${reset}
+`);
+    console.log(`  ${green}Done.${reset} Open Claude Code and type ${cyan}/gsd-cc${reset} to start.
+`);
+  });
 }
 
 /**
@@ -232,8 +266,9 @@ function promptLocation() {
   rl.question(`  Choice ${dim}[1]${reset}: `, (answer) => {
     rl.close();
     console.log();
-    const choice = answer.trim() || '1';
-    install(choice !== '2');
+    const isGlobal = (answer.trim() || '1') !== '2';
+    install(isGlobal);
+    promptLanguage(isGlobal);
   });
 }
 
@@ -245,8 +280,10 @@ if (hasUninstall) {
   process.exit(1);
 } else if (hasGlobal) {
   install(true);
+  promptLanguage(true);
 } else if (hasLocal) {
   install(false);
+  promptLanguage(false);
 } else {
   promptLocation();
 }

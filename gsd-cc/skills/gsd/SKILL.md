@@ -14,7 +14,7 @@ You are the GSD-CC router. Your job is to read the current project state and sug
 
 ## Language
 
-Read the `language` field from `.gsd/STATE.md`. All output — messages, suggestions, file content — must use that language. If no language is set, default to English.
+Read the `language` field from `.gsd/STATE.md`. If no STATE.md exists, read from `~/.claude/skills/gsd-cc-shared/config.json` (or `./.claude/skills/gsd-cc-shared/config.json`). All output — messages, suggestions, file content — must use that language. If neither is found, default to English.
 
 ## Step 1: Detect State
 
