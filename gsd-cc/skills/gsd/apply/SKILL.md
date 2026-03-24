@@ -160,27 +160,47 @@ Setting `phase: apply-complete` triggers the UNIFY requirement. The `/gsd-cc` ro
 
 Update the Progress table in STATE.md with the AC results.
 
-## Step 10: Report and Continue
+## Step 10: Report and End Session
+
+After completing a task, report results and instruct the user to start a fresh session:
 
 ```
-S{nn}/T{nn} complete.
+✓ S{nn}/T{nn} complete.
 
   AC-1: Pass ✓
   AC-2: Pass ✓
   Committed: feat(S{nn}/T{nn}): {task name}
 
-{If more tasks: "Next: T{nn+1} — {name}. Continue?"}
-{If last task: "All tasks done. UNIFY is required next. Type /gsd-cc to proceed."}
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for the next task:   │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  I'll know exactly where we left off.       │
+└─────────────────────────────────────────────┘
 ```
 
-If the user says "yes", "go", "weiter" — immediately start the next task (go back to Step 1 with the next task).
+If this was the LAST task in the slice:
+```
+✓ S{nn}/T{nn} complete — all tasks in this slice are done.
 
-## Multi-Task Flow
+  UNIFY is required before the next slice.
 
-In manual mode, the user stays in the session. After each task:
-- Report results
-- Ask if they want to continue
-- If yes, seamlessly start the next task
-- The user can interrupt at any time between tasks
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for UNIFY:           │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  UNIFY will run automatically.              │
+└─────────────────────────────────────────────┘
+```
 
-This is different from auto mode (`/gsd-cc-auto`), where each task gets its own fresh `claude -p` session.
+## Why Fresh Sessions?
+
+**Do NOT offer to continue in the same session.** Each task must run in a fresh context window. This prevents context rot — the core problem GSD-CC solves. The state on disk (STATE.md, summaries, plans) ensures perfect continuity between sessions. A fresh session means Claude reads only what's needed for the next task, not the accumulated noise of previous tasks.
+
+This applies equally to manual mode and auto mode. The only difference is that auto mode starts fresh sessions automatically via `claude -p`, while manual mode requires the user to do it themselves.
