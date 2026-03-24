@@ -84,10 +84,10 @@ Resolve the script location:
 
 ```bash
 # Check local first, then global
-if [[ -f ".claude/skills/gsd/auto/auto-loop.sh" ]]; then
-  SCRIPT=".claude/skills/gsd/auto/auto-loop.sh"
-elif [[ -f "$HOME/.claude/skills/gsd/auto/auto-loop.sh" ]]; then
-  SCRIPT="$HOME/.claude/skills/gsd/auto/auto-loop.sh"
+if [[ -f ".claude/skills/gsd-cc-auto/auto-loop.sh" ]]; then
+  SCRIPT=".claude/skills/gsd-cc-auto/auto-loop.sh"
+elif [[ -f "$HOME/.claude/skills/gsd-cc-auto/auto-loop.sh" ]]; then
+  SCRIPT="$HOME/.claude/skills/gsd-cc-auto/auto-loop.sh"
 fi
 ```
 

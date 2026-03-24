@@ -15,8 +15,8 @@ You update GSD-CC to the latest version by running the installer.
 Check where GSD-CC is installed:
 
 ```
-1. Check ~/.claude/skills/gsd/SKILL.md (global)
-2. Check ./.claude/skills/gsd/SKILL.md (local)
+1. Check ~/.claude/skills/gsd-cc/SKILL.md (global)
+2. Check ./.claude/skills/gsd-cc/SKILL.md (local)
 ```
 
 Use `Glob` to find which exists. If both exist, update both.

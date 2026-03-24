@@ -167,14 +167,14 @@ If the roadmap needs an update, describe what should change but do NOT modify th
 
 Check against `checklists/unify-complete.md`:
 
-Read: `~/.claude/skills/gsd/checklists/unify-complete.md`
-(or `./.claude/skills/gsd/checklists/unify-complete.md`)
+Read: `~/.claude/skills/gsd-cc-shared/checklists/unify-complete.md`
+(or `./.claude/skills/gsd-cc-shared/checklists/unify-complete.md`)
 
 Verify ALL items pass. If any fails, fix the UNIFY document before proceeding.
 
 ## Step 9: Write UNIFY.md
 
-Write `.gsd/S{nn}-UNIFY.md` using the template from `templates/UNIFY.md`. Include all sections from Steps 2-7.
+Write `.gsd/S{nn}-UNIFY.md` using the template from `~/.claude/skills/gsd-cc-shared/templates/UNIFY.md` (or `./.claude/skills/gsd-cc-shared/templates/UNIFY.md`). Include all sections from Steps 2-7.
 
 Set frontmatter:
 ```yaml

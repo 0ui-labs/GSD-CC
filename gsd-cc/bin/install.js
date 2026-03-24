@@ -26,6 +26,12 @@ ${cyan}   ██████╗ ███████╗██████╗   
   Get Shit Done on Claude Code ${dim}v${pkg.version}${reset}
 `;
 
+// Sub-skills that get their own top-level directory under .claude/skills/
+const SUB_SKILLS = ['apply', 'auto', 'discuss', 'plan', 'seed', 'status', 'unify', 'update'];
+
+// Shared directories that go into gsd-cc-shared/
+const SHARED_DIRS = ['checklists', 'prompts', 'templates'];
+
 // Parse args
 const args = process.argv.slice(2);
 const hasGlobal = args.includes('--global') || args.includes('-g');
@@ -39,8 +45,8 @@ if (hasHelp) {
   console.log(`  ${yellow}Usage:${reset} npx gsd-cc [options]
 
   ${yellow}Options:${reset}
-    ${cyan}-g, --global${reset}      Install globally to ~/.claude/skills/gsd/ ${dim}(default)${reset}
-    ${cyan}-l, --local${reset}       Install locally to ./.claude/skills/gsd/
+    ${cyan}-g, --global${reset}      Install globally to ~/.claude/skills/ ${dim}(default)${reset}
+    ${cyan}-l, --local${reset}       Install locally to ./.claude/skills/
     ${cyan}--uninstall${reset}       Remove GSD-CC skills
     ${cyan}-h, --help${reset}        Show this help message
 
@@ -88,13 +94,13 @@ function removeDir(dir) {
 }
 
 /**
- * Resolve target directory
+ * Resolve skills base directory
  */
-function getTargetDir(isGlobal) {
+function getSkillsBase(isGlobal) {
   if (isGlobal) {
-    return path.join(os.homedir(), '.claude', 'skills', 'gsd');
+    return path.join(os.homedir(), '.claude', 'skills');
   }
-  return path.join(process.cwd(), '.claude', 'skills', 'gsd');
+  return path.join(process.cwd(), '.claude', 'skills');
 }
 
 /**
@@ -102,10 +108,10 @@ function getTargetDir(isGlobal) {
  */
 function install(isGlobal) {
   const skillsSrc = path.join(__dirname, '..', 'skills', 'gsd');
-  const targetDir = getTargetDir(isGlobal);
+  const skillsBase = getSkillsBase(isGlobal);
   const label = isGlobal
-    ? targetDir.replace(os.homedir(), '~')
-    : targetDir.replace(process.cwd(), '.');
+    ? skillsBase.replace(os.homedir(), '~')
+    : skillsBase.replace(process.cwd(), '.');
 
   if (!fs.existsSync(skillsSrc)) {
     console.error(`  ${red}Error:${reset} Skills source not found at ${skillsSrc}`);
@@ -114,28 +120,40 @@ function install(isGlobal) {
 
   console.log(`  Installing to ${cyan}${label}${reset}\n`);
 
-  // Copy skills
-  copyDir(skillsSrc, targetDir);
+  let fileCount = 0;
 
-  // Make auto-loop.sh executable if it exists
-  const autoLoop = path.join(targetDir, 'auto', 'auto-loop.sh');
+  // 1. Install main router: gsd-cc/SKILL.md
+  const routerDest = path.join(skillsBase, 'gsd-cc');
+  fs.mkdirSync(routerDest, { recursive: true });
+  fs.copyFileSync(path.join(skillsSrc, 'SKILL.md'), path.join(routerDest, 'SKILL.md'));
+  fileCount++;
+
+  // 2. Install each sub-skill as its own top-level directory
+  for (const skill of SUB_SKILLS) {
+    const srcDir = path.join(skillsSrc, skill);
+    const destDir = path.join(skillsBase, `gsd-cc-${skill}`);
+
+    if (fs.existsSync(srcDir)) {
+      copyDir(srcDir, destDir);
+      fileCount += countFiles(destDir);
+    }
+  }
+
+  // 3. Install shared resources (templates, checklists, prompts)
+  const sharedDest = path.join(skillsBase, 'gsd-cc-shared');
+  for (const dir of SHARED_DIRS) {
+    const srcDir = path.join(skillsSrc, dir);
+    if (fs.existsSync(srcDir)) {
+      copyDir(srcDir, path.join(sharedDest, dir));
+      fileCount += countFiles(path.join(sharedDest, dir));
+    }
+  }
+
+  // 4. Make auto-loop.sh executable
+  const autoLoop = path.join(skillsBase, 'gsd-cc-auto', 'auto-loop.sh');
   if (fs.existsSync(autoLoop)) {
     fs.chmodSync(autoLoop, 0o755);
   }
-
-  // Count installed files
-  let fileCount = 0;
-  function countFiles(dir) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        countFiles(path.join(dir, entry.name));
-      } else {
-        fileCount++;
-      }
-    }
-  }
-  countFiles(targetDir);
 
   console.log(`  ${green}✓${reset} Installed ${fileCount} files to ${label}`);
   console.log(`
@@ -144,22 +162,47 @@ function install(isGlobal) {
 }
 
 /**
+ * Count files in a directory recursively
+ */
+function countFiles(dir) {
+  let count = 0;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      count += countFiles(path.join(dir, entry.name));
+    } else {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
  * Uninstall skills
  */
 function uninstall() {
-  const globalDir = getTargetDir(true);
-  const localDir = getTargetDir(false);
+  const locations = [getSkillsBase(true), getSkillsBase(false)];
+  const allDirs = ['gsd-cc', ...SUB_SKILLS.map(s => `gsd-cc-${s}`), 'gsd-cc-shared', 'gsd'];
 
   let removed = false;
 
-  if (removeDir(globalDir)) {
-    console.log(`  ${green}✓${reset} Removed global install (${globalDir.replace(os.homedir(), '~')})`);
-    removed = true;
-  }
+  for (const base of locations) {
+    const label = base.includes(os.homedir())
+      ? base.replace(os.homedir(), '~')
+      : base.replace(process.cwd(), '.');
 
-  if (removeDir(localDir)) {
-    console.log(`  ${green}✓${reset} Removed local install (${localDir.replace(process.cwd(), '.')})`);
-    removed = true;
+    let removedFromLocation = false;
+    for (const dir of allDirs) {
+      const fullPath = path.join(base, dir);
+      if (removeDir(fullPath)) {
+        removedFromLocation = true;
+      }
+    }
+
+    if (removedFromLocation) {
+      console.log(`  ${green}✓${reset} Removed GSD-CC from ${label}`);
+      removed = true;
+    }
   }
 
   if (!removed) {
@@ -178,12 +221,12 @@ function promptLocation() {
     output: process.stdout,
   });
 
-  const globalPath = getTargetDir(true).replace(os.homedir(), '~');
+  const globalPath = getSkillsBase(true).replace(os.homedir(), '~');
 
   console.log(`  ${yellow}Where would you like to install?${reset}
 
   ${cyan}1${reset}) Global ${dim}(${globalPath})${reset} — available in all projects
-  ${cyan}2${reset}) Local  ${dim}(./.claude/skills/gsd/)${reset} — this project only
+  ${cyan}2${reset}) Local  ${dim}(./.claude/skills/)${reset} — this project only
 `);
 
   rl.question(`  Choice ${dim}[1]${reset}: `, (answer) => {

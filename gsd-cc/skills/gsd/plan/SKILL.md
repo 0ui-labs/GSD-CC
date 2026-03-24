@@ -201,8 +201,8 @@ One file per task, using the PLAN.xml template format:
 
 Before finishing, check against `checklists/planning-ready.md`:
 
-Read: `~/.claude/skills/gsd/checklists/planning-ready.md`
-(or `./.claude/skills/gsd/checklists/planning-ready.md`)
+Read: `~/.claude/skills/gsd-cc-shared/checklists/planning-ready.md`
+(or `./.claude/skills/gsd-cc-shared/checklists/planning-ready.md`)
 
 Verify ALL of these:
 
