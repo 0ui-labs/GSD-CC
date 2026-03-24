@@ -115,6 +115,27 @@ function install(isGlobal) {
 
   console.log(`  Installing to ${cyan}${label}${reset}\n`);
 
+  // Clean up legacy skill directories (gsd-cc-* from pre-1.5 versions)
+  const skillsDir = path.join(claudeBase, 'skills');
+  if (fs.existsSync(skillsDir)) {
+    const entries = fs.readdirSync(skillsDir);
+    for (const entry of entries) {
+      if (entry.startsWith('gsd-cc-') || entry === 'gsd') {
+        const legacyPath = path.join(skillsDir, entry);
+        if (fs.statSync(legacyPath).isDirectory()) {
+          removeDir(legacyPath);
+          console.log(`  ${dim}Removed legacy: skills/${entry}${reset}`);
+        }
+      }
+    }
+    // Also remove legacy prompts/ directory
+    const legacyPrompts = path.join(claudeBase, 'prompts');
+    if (fs.existsSync(legacyPrompts)) {
+      removeDir(legacyPrompts);
+      console.log(`  ${dim}Removed legacy: prompts/${reset}`);
+    }
+  }
+
   let fileCount = 0;
 
   // Copy each directory 1:1 into .claude/
