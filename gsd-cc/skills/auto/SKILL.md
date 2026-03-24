@@ -4,7 +4,7 @@ description: >
   Start auto-mode. Dispatches tasks via claude -p in fresh sessions.
   Use when user says /gsd-cc-auto, /gsd-cc auto, or chooses "auto" when
   /gsd-cc offers manual vs. auto execution.
-allowed-tools: Read, Write, Bash, Glob
+allowed-tools: Read, Write, Bash, Glob, AskUserQuestion
 ---
 
 # /gsd-cc-auto — Auto-Mode
@@ -36,11 +36,12 @@ command -v jq
 ```
 If not: "jq is required for auto-mode. Install with: `brew install jq`"
 
-### claude -p works
+### claude CLI is available
 ```bash
-claude -p "echo test" --output-format json --max-turns 1
+command -v claude || which claude
 ```
-If fails: "claude -p is not working. Make sure Claude Code is installed and you're logged in with a Max plan."
+If not found: "claude CLI is not installed. Make sure Claude Code is installed and in your PATH."
+Note: The auto-loop.sh script resolves the full path to claude automatically, so PATH issues in subprocesses are handled.
 
 ### No stale lock file
 ```
@@ -71,12 +72,20 @@ Auto-mode ready.
 
 ## Step 3: Ask for Budget (Optional)
 
+Use AskUserQuestion:
+
 ```
-Set a token budget? (Enter a number, or press Enter for unlimited)
+Question: "Token-Budget setzen?"
+Header: "Budget"
+Options:
+  - label: "Unlimited (Recommended)"
+    description: "No token limit — auto-mode runs until the slice/milestone is done."
+  - label: "Set a budget"
+    description: "Limit total token usage. You'll be asked for the number."
 ```
 
-If the user provides a number, pass it as `--budget`.
-If they press Enter or say "no", no budget limit.
+→ "Unlimited" → no budget limit, proceed to Step 4
+→ "Set a budget" → ask user for the number (via AskUserQuestion with "Other" or text input), pass as `--budget`
 
 ## Step 4: Start auto-loop.sh
 

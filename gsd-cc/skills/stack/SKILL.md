@@ -6,7 +6,7 @@ description: >
   beginners, debates with experts. Use when /gsd-cc routes here
   after seed, when user says /gsd-cc-stack, or when tech decisions
   need to be made.
-allowed-tools: Read, Write, Edit, Glob, WebSearch
+allowed-tools: Read, Write, Edit, Glob, WebSearch, AskUserQuestion
 ---
 
 # /gsd-cc-stack — Tech Stack Discussion
@@ -61,31 +61,32 @@ Let's start with the basics.
 Then go through each layer, one at a time:
 
 **Language / Runtime:**
+
+Briefly explain what a programming language choice means, then use AskUserQuestion:
 ```
-First: what programming language should this be written in?
-
-For your project, I'd recommend {language} because {reason in plain
-language — e.g. "it's the most common for web apps, which means
-more examples and help available online"}.
-
-Another option would be {alternative} — {one sentence tradeoff}.
-
-My recommendation: {language}. Sound good?
+Question: "Which programming language?"
+Header: "Language"
+Options:
+  - label: "{language} (Recommended)"
+    description: "{reason in plain language — e.g. 'Most common for web apps, more examples and help available online'}"
+  - label: "{alternative}"
+    description: "{one sentence tradeoff}"
 ```
 
 **Framework:**
+
+Briefly explain what a framework is, then use AskUserQuestion:
 ```
-Next: the framework — this is like the blueprint style for your app.
-
-{Framework} is a good fit because {reason}.
-It's {popular/stable/fast/beginner-friendly/...}.
-
-{Alternative} would also work — {tradeoff in plain language}.
-
-My recommendation: {framework}. What do you think?
+Question: "Which framework?"
+Header: "Framework"
+Options:
+  - label: "{framework} (Recommended)"
+    description: "{reason — popular/stable/fast/beginner-friendly/...}"
+  - label: "{alternative}"
+    description: "{tradeoff in plain language}"
 ```
 
-Continue for: Database, Styling, Hosting/Deployment, Authentication (if needed), and any project-specific tools.
+Continue for: Database, Styling, Hosting/Deployment, Authentication (if needed), and any project-specific tools. Always use AskUserQuestion for each decision.
 
 ### For advanced users:
 
@@ -100,12 +101,9 @@ performance needs, team size, deployment constraints, etc.}
 Here's what I'd start with and why — push back wherever you disagree.
 ```
 
-Then present your recommendations with honest tradeoffs. Expect debate. If they have unconventional preferences, explore them seriously:
+Then for each stack layer, present your analysis briefly and use AskUserQuestion with your recommendation and alternatives. Expect debate — if the user selects "Other" with an unconventional choice, explore it seriously:
 
-```
-Interesting — you want to use {unusual choice}. Most people would
-reach for {conventional choice} here. What's your reasoning?
-```
+"Interesting — you want to use {unusual choice}. Most people would reach for {conventional choice} here. What's your reasoning?"
 
 If their reasoning is sound, support it. If it's risky, explain the risk honestly but don't override them.
 

@@ -7,6 +7,32 @@
 
 set -euo pipefail
 
+# ── macOS compatibility: timeout shim ─────────────────────────────────────────
+
+if ! command -v timeout &>/dev/null; then
+  if command -v gtimeout &>/dev/null; then
+    timeout() { gtimeout "$@"; }
+  else
+    # Fallback: ignore timeout, just run the command directly
+    timeout() { shift; "$@"; }
+  fi
+fi
+
+# ── Resolve claude CLI path ───────────────────────────────────────────────────
+
+CLAUDE_BIN="$(command -v claude 2>/dev/null || true)"
+if [[ -z "$CLAUDE_BIN" ]]; then
+  # Common locations
+  for p in "/opt/homebrew/bin/claude" "/usr/local/bin/claude" "$HOME/.claude/bin/claude"; do
+    [[ -x "$p" ]] && CLAUDE_BIN="$p" && break
+  done
+fi
+
+if [[ -z "$CLAUDE_BIN" ]]; then
+  echo "❌ claude CLI not found. Install Claude Code first."
+  exit 1
+fi
+
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 GSD_DIR=".gsd"
@@ -36,11 +62,6 @@ done
 
 # ── Prerequisites ──────────────────────────────────────────────────────────────
 
-if ! command -v claude &>/dev/null; then
-  echo "❌ claude CLI not found. Install Claude Code first."
-  exit 1
-fi
-
 if ! command -v jq &>/dev/null; then
   echo "❌ jq not found. Install with: brew install jq"
   exit 1
@@ -50,6 +71,16 @@ if [[ ! -f "$GSD_DIR/STATE.md" ]]; then
   echo "❌ No .gsd/STATE.md found. Run /gsd-cc first to set up a project."
   exit 1
 fi
+
+# Validate required STATE.md fields
+for field in milestone current_slice current_task phase rigor; do
+  val=$(grep "^$field:" "$GSD_DIR/STATE.md" | head -1 | sed "s/^$field:[[:space:]]*//" || true)
+  if [[ -z "$val" || "$val" == "—" ]]; then
+    echo "❌ STATE.md is missing required field: $field"
+    echo "   Run /gsd-cc to fix project state before starting auto-mode."
+    exit 1
+  fi
+done
 
 # ── Cleanup trap ───────────────────────────────────────────────────────────────
 
@@ -143,7 +174,7 @@ while true; do
       cat "$PROMPTS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
 
       RESULT_FILE="/tmp/gsd-result-$$.json"
-      timeout 600 claude -p "$(cat "$PROMPT_FILE")" \
+      timeout 600 "$CLAUDE_BIN" -p "$(cat "$PROMPT_FILE")" \
         --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git checkout *),Bash(git merge *),Bash(git commit *)" \
         --output-format json \
         --max-turns 15 > "$RESULT_FILE" 2>/dev/null || {
@@ -162,7 +193,7 @@ while true; do
   # Check if milestone is complete (all slices unified)
   if [[ "$PHASE" == "unified" ]]; then
     # Check roadmap for remaining slices
-    NEXT_RESULT=$(claude -p "Read .gsd/STATE.md and all .gsd/M*-ROADMAP.md and .gsd/S*-UNIFY.md files. Determine the next slice that needs work (no PLAN.md or no UNIFY.md). Output ONLY valid JSON: {\"slice\":\"S01\",\"phase\":\"plan\"} or {\"done\":true} if all slices are unified." \
+    NEXT_RESULT=$("$CLAUDE_BIN" -p "Read .gsd/STATE.md and all .gsd/M*-ROADMAP.md and .gsd/S*-UNIFY.md files. Determine the next slice that needs work (no PLAN.md or no UNIFY.md). Output ONLY valid JSON: {\"slice\":\"S01\",\"phase\":\"plan\"} or {\"done\":true} if all slices are unified." \
       --allowedTools "Read,Glob" \
       --output-format json --max-turns 3 2>/dev/null) || {
       echo "❌ Failed to determine next unit."
@@ -272,7 +303,7 @@ while true; do
     ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(npm *),Bash(npx *),Bash(git add *),Bash(git commit *),Bash(node *),Bash(python3 *)"
   fi
 
-  timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_FILE")" \
+  timeout "$TIMEOUT" "$CLAUDE_BIN" -p "$(cat "$PROMPT_FILE")" \
     --allowedTools "$ALLOWED_TOOLS" \
     --output-format json \
     --max-turns "$MAX_TURNS" > "$RESULT_FILE" 2>/dev/null || {

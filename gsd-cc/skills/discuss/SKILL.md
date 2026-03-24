@@ -5,7 +5,7 @@ description: >
   captures implementation decisions, and writes CONTEXT.md. Use when
   /gsd-cc routes here, when user says /gsd-cc-discuss, or before planning a
   slice that has ambiguous requirements.
-allowed-tools: Read, Write, Edit, Glob, Grep
+allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion
 ---
 
 # /gsd-cc-discuss — Implementation Decisions
@@ -60,9 +60,18 @@ Not every category applies to every slice. Focus on what's relevant.
 For each gray area you identify:
 
 1. **State the ambiguity clearly** — "The slice says 'user list' but doesn't specify: paginated table or infinite scroll? How many users are expected?"
-2. **Offer concrete options** — "Option A: paginated table (simpler, better for large lists). Option B: infinite scroll (smoother UX, more complex)."
-3. **Wait for the user's decision**
-4. **Confirm and move on** — "Got it: paginated table, 25 per page."
+2. **Use AskUserQuestion to present concrete options** — Build the options dynamically based on the gray area. Example:
+   ```
+   Question: "User list: how should it handle large datasets?"
+   Header: "UI"
+   Options:
+     - label: "Paginated table (Recommended)"
+       description: "Simpler, better for large lists. Classic table with page controls."
+     - label: "Infinite scroll"
+       description: "Smoother UX, more complex to implement. Loads more items as user scrolls."
+   ```
+   Always put your recommendation first with "(Recommended)" in the label.
+3. **Confirm and move on** — "Got it: paginated table, 25 per page."
 
 **Rules:**
 - One gray area at a time. Don't dump all questions at once.

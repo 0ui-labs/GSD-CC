@@ -4,7 +4,7 @@ description: >
   Change GSD-CC settings like language. Updates CLAUDE.md so changes
   take effect immediately. Use when user says /gsd-cc-config, wants to
   change language, or asks about GSD-CC settings.
-allowed-tools: Read, Write, Edit, Glob
+allowed-tools: Read, Write, Edit, Glob, AskUserQuestion
 ---
 
 # /gsd-cc-config — Settings

@@ -5,7 +5,7 @@ description: >
   next action. Use when user types /gsd-cc, mentions project planning,
   milestones, slices, or tasks. Also triggers when no .gsd/ exists
   and user wants to start a new project.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
 
 # /gsd-cc — Main Router
@@ -50,20 +50,22 @@ IF .gsd/auto.lock exists:
 ### No Project
 ```
 IF .gsd/ does not exist:
-  → Present three starting points:
+  → Use AskUserQuestion to present starting points:
 
-  "No project found. How do you want to start?
+  Question: "No project found. How do you want to start?"
+  Header: "Start"
+  Options:
+    - label: "Explore an idea"
+      description: "I have a vague idea or a problem — let's explore it together"
+    - label: "Plan a project"
+      description: "I know what I want to build — let's plan it"
+    - label: "Import a document"
+      description: "I have an existing concept document — import it"
 
-   1) I have a vague idea or a problem — let's explore it together
-   2) I know what I want to build — let's plan it
-   3) I have an existing concept document — import it
-
-   Or just describe what's on your mind."
-
-  → "1" or signals uncertainty → delegate to /gsd-cc-ideate
-  → "2" or clear project description → delegate to /gsd-cc-seed
-  → "3" or mentions a document/file/spec → delegate to /gsd-cc-ingest
-  → If they just describe their project → delegate to /gsd-cc-seed with their description
+  → "Explore an idea" → delegate to /gsd-cc-ideate
+  → "Plan a project" or clear project description → delegate to /gsd-cc-seed
+  → "Import a document" or mentions a document/file/spec → delegate to /gsd-cc-ingest
+  → If user selects "Other" and describes their project → delegate to /gsd-cc-seed with their description
 ```
 
 ### Seed Done, No Stack
@@ -91,44 +93,22 @@ IF M*-ROADMAP.md exists AND there are slices without a S*-PLAN.md:
 ### Plan Ready, Not Executed
 ```
 IF S*-PLAN.md exists for current slice AND no T*-SUMMARY.md files for it:
-  → Present the three execution modes with clear pros/cons:
+  → First print: "S{nn} is planned with {n} tasks."
+  → Then use AskUserQuestion to present execution modes:
 
-  "S{nn} is planned with {n} tasks. How do you want to execute?
+  Question: "How do you want to execute?"
+  Header: "Mode"
+  Options:
+    - label: "Auto (this slice) (Recommended)"
+      description: "Claude runs all tasks autonomously. UNIFY runs after. You decide direction for every slice. Best balance of speed and control."
+    - label: "Manual"
+      description: "You work through each task one by one in fresh sessions. Full control — review code, run tests, adjust after each task."
+    - label: "Auto (full milestone)"
+      description: "Claude does everything autonomously: plan, execute, UNIFY, next slice, repeat. Fastest, but no input from you between slices."
 
-   1) Manual
-      You work through each task one by one, each in a fresh session.
-      + Full control — review code, run tests, adjust after each task
-      + You see exactly what happens
-      - You need to be present for every task
-      - Slowest option
-      Best for: critical slices, learning the codebase, first-time users
-
-   2) Auto (this slice)                              ← recommended
-      Claude runs all {n} tasks in this slice autonomously.
-      UNIFY runs automatically when done.
-      Before the NEXT slice, you're back for Discuss + Plan.
-      + Tasks run in the background — go grab a coffee
-      + You still decide the direction for every slice
-      + Best balance of speed and control
-      - You can't intervene between tasks within this slice
-      Best for: most situations — you decide WHAT, Claude does the HOW
-
-   3) Auto (full milestone)
-      Claude runs everything autonomously: plan, execute, UNIFY,
-      next slice, repeat — until the milestone is done.
-      Discuss is skipped. Claude makes all detail decisions.
-      + Fastest — walk away, come back when it's done
-      + Great for well-defined projects with tight rigor
-      - No input from you between slices
-      - Claude may make wrong assumptions in detail planning
-      - Higher risk of going in an unwanted direction
-      Best for: small/clear projects, utility tools, tight rigor
-
-   1, 2, or 3?"
-
-  → "1" or "manual" → delegate to /gsd-cc-apply
-  → "2" or "auto" → delegate to /gsd-cc-auto (slice mode)
-  → "3" or "full auto":
+  → "Manual" → delegate to /gsd-cc-apply
+  → "Auto (this slice)" → delegate to /gsd-cc-auto (slice mode)
+  → "Auto (full milestone)":
     Check if .gsd/PROFILE.md exists.
     If NOT: "Full auto needs a decision profile so Claude can make
     decisions on your behalf. Run /gsd-cc-profile first (15-25 min).
