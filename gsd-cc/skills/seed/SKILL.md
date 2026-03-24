@@ -59,14 +59,14 @@ If ambiguous, ask ONE clarifying question. Don't overthink it.
 
 Read the type-specific guide from:
 ```
-~/.claude/skills/seed/types/{type}/guide.md
+./gsd-cc/skills/seed/types/{type}/guide.md
 ```
 
-If installed locally, check `./.claude/skills/seed/types/{type}/guide.md` instead.
+If installed globally, check `~/.claude/skills/seed/types/{type}/guide.md` instead.
 
 Also read the config:
 ```
-~/.claude/skills/seed/types/{type}/config.md
+./gsd-cc/skills/seed/types/{type}/config.md
 ```
 
 The guide contains numbered sections with `Explore` and `Suggest` fields. The config sets the rigor level and section count.
@@ -102,8 +102,8 @@ Walk through the guide sections **one at a time**. For each section:
 
 After completing all sections, mentally check against `checklists/planning-ready.md`:
 
-Read: `~/.claude/checklists/planning-ready.md`
-(or `./.claude/checklists/planning-ready.md`)
+Read: `./gsd-cc/checklists/planning-ready.md`
+(or `~/.claude/checklists/planning-ready.md`)
 
 Verify:
 - Is there enough information to create a roadmap?
@@ -118,7 +118,7 @@ Create the `.gsd/` directory and write these files:
 
 #### `.gsd/PLANNING.md`
 
-Use the template from `~/.claude/templates/PLANNING.md` (or `./.claude/templates/PLANNING.md`). Fill in all sections from the conversation:
+Use the template from `./gsd-cc/templates/PLANNING.md` (or `~/.claude/templates/PLANNING.md`). Fill in all sections from the conversation:
 - Vision (from their initial description + refinements)
 - Users (from user/auth discussions)
 - Requirements v1, v2, Out of Scope (from exploration)
