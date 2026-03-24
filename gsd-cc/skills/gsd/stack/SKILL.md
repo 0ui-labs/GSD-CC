@@ -111,27 +111,31 @@ If their reasoning is sound, support it. If it's risky, explain the risk honestl
 
 ### For auto-discuss (synthetic stakeholder):
 
-Read PROFILE.md. The stakeholder discusses each decision:
+Read PROFILE.md (if it exists). For each stack decision, run a real discussion:
 
-```
-## Stack Discussion (Synthetic Stakeholder)
+```markdown
+## Stack Discussion (Auto)
 
 ### Language / Runtime
-Planner: "The project needs {requirement}. I'd suggest {language}
-because {reason}."
-Stakeholder: "{Response based on PROFILE.md — e.g. 'Philipp prefers
-TypeScript for anything with a frontend. He mentioned strict mode is
-worth the overhead.'}"
-Profile basis: §Tech Stack Defaults, §Strong Opinions
-Decision: {final choice}
-Confidence: {high|medium|low}
+**Planner:** "For this project we need {requirement}. The best
+options are {A} and {B}. {A} because {reason}. {B} because {reason}.
+I'd lean toward {A}."
+**Stakeholder:** "{Reaction — agrees, disagrees, or adds context.
+Profile is a nudge, not a script. E.g. 'The profile says TypeScript
+for frontend work, and that aligns here. But even without the profile
+TypeScript would be the right call because of {project-specific reason}.'}"
+**Decision:** {final choice}
+**Reasoning:** {why this is right for THIS project — not just because the profile says so}
+**Confidence:** {high|medium|low}
 
 ### Framework
-Planner: ...
-Stakeholder: ...
+**Planner:** ...
+**Stakeholder:** ...
 ```
 
-**Every decision must be discussed.** Even if the profile clearly says "always use Next.js", the planner should validate that Next.js makes sense for THIS project and the stakeholder should confirm.
+**The profile influences, it doesn't dictate.** The planner should first figure out what's technically best for this specific project, THEN check if the profile agrees. If the profile says "always Next.js" but this project is a CLI tool, don't use Next.js.
+
+**Every decision must be discussed.** Even obvious ones. The discussion creates a record of WHY each choice was made.
 
 ## Step 4: Research When Needed
 

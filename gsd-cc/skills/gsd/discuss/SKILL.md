@@ -156,25 +156,31 @@ When running in full-auto mode (`auto_mode_scope: milestone`), Discuss is NOT sk
 
 ### How it works
 
-1. Read `.gsd/PROFILE.md` — this is the user's decision-making profile
-2. For each gray area, simulate a discussion:
-   - **You (Planner):** Ask the question as you would ask the user
-   - **Synthetic Stakeholder (Profile):** Answer based on PROFILE.md — using their instincts, preferences, strong opinions, and red lines
-   - The stakeholder MUST cite which part of the profile drives the decision
-3. Write the results to `.gsd/S{nn}-DISCUSS-AUTO.md` with full transparency:
+1. Read `.gsd/PROFILE.md` — this is the user's decision-making profile (if it exists)
+2. For each gray area, simulate a real discussion between two roles:
+   - **Planner:** Analyzes the technical options. Brings expertise about what works best for THIS project. Considers tradeoffs, risks, maintainability, project requirements.
+   - **Stakeholder:** Represents the user's perspective. Influenced by PROFILE.md but not controlled by it. The profile is a **nudge, not a mandate** — it shapes preferences but doesn't override what's technically best for this project.
+3. The discussion should feel like a real debate, not a rubber stamp:
+   - Planner proposes with reasoning
+   - Stakeholder reacts based on profile + common sense
+   - If they disagree, they work it out with arguments
+   - The final decision considers BOTH technical merit AND user preferences
+4. Write the results to `.gsd/S{nn}-DISCUSS-AUTO.md` with full transparency:
 
 ```markdown
-# S{nn} Auto-Discuss — Synthetic Stakeholder Decisions
+# S{nn} Auto-Discuss
 
-> These decisions were made by auto-mode using your decision profile.
-> Review after UNIFY. Update your profile with /gsd-cc-profile if
-> any decision doesn't match how you'd actually decide.
+> These decisions were made by auto-mode.
+> The user's profile influenced but did not dictate decisions.
+> Review after UNIFY. Update your profile with /gsd-cc-profile if needed.
 
 ## Decision 1: {topic}
 **Question:** {what was ambiguous}
-**Stakeholder says:** {decision with reasoning}
-**Profile basis:** {which section/quote from PROFILE.md}
-**Confidence:** {high|medium|low — how clearly does the profile cover this?}
+**Planner says:** {technical analysis — options, tradeoffs, recommendation}
+**Stakeholder says:** {reaction based on profile + common sense}
+**Profile influence:** {how the profile shaped this — or "N/A" if profile didn't cover this}
+**Final decision:** {what was decided and why}
+**Confidence:** {high|medium|low}
 
 ## Decision 2: {topic}
 ...
@@ -182,17 +188,24 @@ When running in full-auto mode (`auto_mode_scope: milestone`), Discuss is NOT sk
 
 ### Confidence levels
 
-- **High:** The profile explicitly covers this (e.g., profile says "always REST for MVPs" and the question is REST vs GraphQL for an MVP)
-- **Medium:** The profile gives strong hints but doesn't directly address this (e.g., profile says "simplicity over flexibility" and the question is about a specific pattern choice)
-- **Low:** The profile doesn't clearly address this — the stakeholder is guessing. Mark these clearly so the user knows to review them.
+- **High:** Clear technical winner that also aligns with the profile
+- **Medium:** Multiple valid options — profile tipped the balance, or technical choice overrode a mild preference with good reason
+- **Low:** Unclear technically AND the profile doesn't help — the decision is a best guess. Mark for user review.
 
-### Rules for the Synthetic Stakeholder
+### How the Profile Influences (NOT Controls)
 
-- **Stay in character.** Answer as the user would, not as a senior dev or a textbook.
-- **Use their language.** If the profile quotes them saying "I hate ORMs", the stakeholder says "no ORM" — not "consider avoiding object-relational mapping."
-- **Respect red lines.** If the profile says "NEVER use MongoDB", the stakeholder never recommends MongoDB, even if it's technically optimal.
-- **Be honest about uncertainty.** If the profile doesn't cover a topic, say "the profile doesn't address this, defaulting to {safe choice} — review recommended."
-- **Capture wildcards.** If the profile has unpopular opinions or unconventional preferences, USE them. That's the whole point.
+The profile is one input among several. The weight depends on the type of decision:
+
+- **Taste decisions** (UI style, naming conventions, code style) → profile weighs heavily. There's no "right answer", so the user's preference matters most.
+- **Technical decisions** (database choice, API design, auth strategy) → profile is a tiebreaker. If two options are technically equal, pick the one the user would prefer. But don't pick a bad option just because the profile likes it.
+- **Red lines** → always respected. If the profile says "NEVER use X", don't use X. Period. But explain the cost if it matters.
+
+### Rules for Auto-Discuss
+
+- **The Planner thinks independently.** Don't just ask "what would the user want?" — first figure out what's technically best, THEN check if the profile agrees.
+- **Disagreements are good.** If the planner thinks X is better but the profile nudges toward Y, document the tension. Don't hide it.
+- **Use the user's language** when representing their perspective. If they said "I hate ORMs", the stakeholder says "no ORM" — not "consider avoiding object-relational mapping."
+- **Be honest about uncertainty.** If neither technical analysis nor the profile gives a clear answer, say so.
 
 ### If no PROFILE.md exists
 
