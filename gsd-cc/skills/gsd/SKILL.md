@@ -113,7 +113,12 @@ IF S*-PLAN.md exists for current slice AND no T*-SUMMARY.md files for it:
 
   → "1" or "manual" → delegate to /gsd-cc-apply
   → "2" or "auto" → delegate to /gsd-cc-auto (slice mode)
-  → "3" or "full auto" → delegate to /gsd-cc-auto (full milestone mode)
+  → "3" or "full auto":
+    Check if .gsd/PROFILE.md exists.
+    If NOT: "Full auto needs a decision profile so Claude can make
+    decisions on your behalf. Run /gsd-cc-profile first (15-25 min).
+    Or choose option 2 instead."
+    If YES: delegate to /gsd-cc-auto (full milestone mode)
     Set auto_mode_scope in STATE.md: "slice" or "milestone"
 ```
 
@@ -179,6 +184,7 @@ Execute S01? (manual or auto)
 ## Delegating to Sub-Skills
 
 When routing to a sub-skill, tell the user what you're doing and then invoke the skill:
+- Decision profile → `/gsd-cc-profile`
 - Brainstorming → `/gsd-cc-ideate`
 - Ideation → `/gsd-cc-seed`
 - Discussion → `/gsd-cc-discuss`

@@ -149,11 +149,64 @@ phase: discuss-complete
 
 **Do NOT continue in this session.** Each phase gets a fresh context window.
 
+## Auto-Discuss Mode (Synthetic Stakeholder)
+
+When running in full-auto mode (`auto_mode_scope: milestone`), Discuss is NOT skipped. Instead, it runs as an internal dialogue using the user's decision profile.
+
+### How it works
+
+1. Read `.gsd/PROFILE.md` — this is the user's decision-making profile
+2. For each gray area, simulate a discussion:
+   - **You (Planner):** Ask the question as you would ask the user
+   - **Synthetic Stakeholder (Profile):** Answer based on PROFILE.md — using their instincts, preferences, strong opinions, and red lines
+   - The stakeholder MUST cite which part of the profile drives the decision
+3. Write the results to `.gsd/S{nn}-DISCUSS-AUTO.md` with full transparency:
+
+```markdown
+# S{nn} Auto-Discuss — Synthetic Stakeholder Decisions
+
+> These decisions were made by auto-mode using your decision profile.
+> Review after UNIFY. Update your profile with /gsd-cc-profile if
+> any decision doesn't match how you'd actually decide.
+
+## Decision 1: {topic}
+**Question:** {what was ambiguous}
+**Stakeholder says:** {decision with reasoning}
+**Profile basis:** {which section/quote from PROFILE.md}
+**Confidence:** {high|medium|low — how clearly does the profile cover this?}
+
+## Decision 2: {topic}
+...
+```
+
+### Confidence levels
+
+- **High:** The profile explicitly covers this (e.g., profile says "always REST for MVPs" and the question is REST vs GraphQL for an MVP)
+- **Medium:** The profile gives strong hints but doesn't directly address this (e.g., profile says "simplicity over flexibility" and the question is about a specific pattern choice)
+- **Low:** The profile doesn't clearly address this — the stakeholder is guessing. Mark these clearly so the user knows to review them.
+
+### Rules for the Synthetic Stakeholder
+
+- **Stay in character.** Answer as the user would, not as a senior dev or a textbook.
+- **Use their language.** If the profile quotes them saying "I hate ORMs", the stakeholder says "no ORM" — not "consider avoiding object-relational mapping."
+- **Respect red lines.** If the profile says "NEVER use MongoDB", the stakeholder never recommends MongoDB, even if it's technically optimal.
+- **Be honest about uncertainty.** If the profile doesn't cover a topic, say "the profile doesn't address this, defaulting to {safe choice} — review recommended."
+- **Capture wildcards.** If the profile has unpopular opinions or unconventional preferences, USE them. That's the whole point.
+
+### If no PROFILE.md exists
+
+If auto-mode runs without a profile, warn in the auto-discuss output:
+
+```
+⚠ No decision profile found. Decisions are based on general best practices.
+  Run /gsd-cc-profile to create your profile for better auto-mode decisions.
+```
+
 ## When to Skip Discuss
 
-Discuss is optional. The `/gsd-cc` router may skip it if:
+In MANUAL mode, Discuss is optional. The `/gsd-cc` router may skip it if:
 - The slice description is already very specific
 - The user explicitly says "skip discuss, go straight to planning"
 - The rigor is `tight` and the slice is small
 
-If skipped, the plan phase works without CONTEXT.md — it just has less input.
+In FULL AUTO mode, Discuss is NEVER skipped — it runs as Auto-Discuss.
