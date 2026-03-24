@@ -219,20 +219,17 @@ function installHooks(isGlobal, hooksDir) {
     ]
   });
 
-  // PostToolUse: context monitor (all tools) + workflow guard (Edit/Write)
+  // PostToolUse: context monitor + statusline (all tools) + workflow guard (Edit/Write)
   if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
   settings.hooks.PostToolUse.push({
-    hooks: [{ type: 'command', command: contextMonitor, timeout: 5000 }]
+    hooks: [
+      { type: 'command', command: contextMonitor, timeout: 5000 },
+      { type: 'command', command: statusline, timeout: 3000 }
+    ]
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Edit|Write',
     hooks: [{ type: 'command', command: workflowGuard, timeout: 5000 }]
-  });
-
-  // Notification: statusline
-  if (!settings.hooks.Notification) settings.hooks.Notification = [];
-  settings.hooks.Notification.push({
-    hooks: [{ type: 'command', command: statusline, timeout: 3000 }]
   });
 
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });

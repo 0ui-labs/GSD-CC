@@ -55,19 +55,20 @@ if echo "$CONTENT" | grep -iqE '(show|reveal|print|output|display) (your|the|sys
   REASON="Detected system prompt extraction attempt"
 fi
 
-# Pattern 4: Invisible Unicode characters (zero-width spaces, RTL override, etc.)
-if echo "$CONTENT" | grep -qP '[\x{200B}\x{200C}\x{200D}\x{FEFF}\x{202A}-\x{202E}\x{2066}-\x{2069}]' 2>/dev/null; then
-  SUSPICIOUS=true
-  REASON="Detected invisible Unicode characters"
+# Pattern 4: Invisible Unicode characters (macOS-compatible using perl)
+if command -v perl >/dev/null 2>&1; then
+  if echo "$CONTENT" | perl -ne 'exit 1 if /[\x{200B}\x{200C}\x{200D}\x{FEFF}\x{202A}-\x{202E}\x{2066}-\x{2069}]/' 2>/dev/null; then
+    : # no match
+  else
+    SUSPICIOUS=true
+    REASON="Detected invisible Unicode characters"
+  fi
 fi
 
-# Pattern 5: Base64-encoded instructions
-if echo "$CONTENT" | grep -qE '[A-Za-z0-9+/]{50,}={0,2}'; then
-  # Only flag if it's in a suspicious context (not normal code)
-  if echo "$CONTENT" | grep -iqE '(decode|eval|execute|base64).*[A-Za-z0-9+/]{50,}'; then
-    SUSPICIOUS=true
-    REASON="Detected potentially encoded instructions"
-  fi
+# Pattern 5: Base64-encoded instructions in suspicious context
+if echo "$CONTENT" | grep -iqE '(decode|eval|execute|base64).*[A-Za-z0-9+/]{50,}'; then
+  SUSPICIOUS=true
+  REASON="Detected potentially encoded instructions"
 fi
 
 # Pattern 6: HTML/script injection in markdown
