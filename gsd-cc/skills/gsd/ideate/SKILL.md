@@ -102,14 +102,24 @@ Before handing off to Seed, do a gentle reality check:
 When the user has a clear vision:
 
 ```
-Great — your idea is clear enough to start planning.
+✓ Ideation complete.
 
-Problem: {one sentence}
-Solution: {one sentence}
-Key insight: {what makes this different from existing solutions, if anything}
+  Problem: {one sentence}
+  Solution: {one sentence}
+  Key insight: {what makes this different from existing solutions, if anything}
 
-Next step: /gsd-cc-seed to turn this into a structured project plan.
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for Seed:            │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  I'll structure your idea into a plan.      │
+└─────────────────────────────────────────────┘
 ```
+
+**Do NOT continue in this session.** Each phase gets a fresh context window.
 
 Write a brief `.gsd/IDEATION.md` capturing the key insights from this conversation:
 

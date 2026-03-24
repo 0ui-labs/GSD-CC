@@ -128,16 +128,26 @@ Update the `phase` field in `.gsd/STATE.md`:
 phase: discuss-complete
 ```
 
-## Step 7: Confirm and Hand Off
+## Step 7: Confirm and End Session
 
 ```
-Discussion complete for S{nn}. {n} decisions captured.
+✓ Discussion complete for S{nn}. {n} decisions captured.
 
   .gsd/S{nn}-CONTEXT.md   — {n} decisions documented
   .gsd/DECISIONS.md        — updated
 
-Next: type /gsd-cc to plan this slice in detail.
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for planning:        │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  I'll plan this slice using your decisions. │
+└─────────────────────────────────────────────┘
 ```
+
+**Do NOT continue in this session.** Each phase gets a fresh context window.
 
 ## When to Skip Discuss
 

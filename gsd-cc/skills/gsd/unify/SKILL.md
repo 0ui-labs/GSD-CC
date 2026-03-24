@@ -215,10 +215,10 @@ unify_required: false
 
 Update the Progress table: set the current slice to `done` with AC counts.
 
-## Step 12: Confirm
+## Step 12: Confirm and End Session
 
 ```
-UNIFY complete for S{nn}.
+✓ UNIFY complete for S{nn}.
 
   Plan vs. Actual: {n} tasks — {summary}
   Acceptance Criteria: {passed}/{total} passed
@@ -230,5 +230,15 @@ UNIFY complete for S{nn}.
   Merged: gsd/M{n}/S{nn} → main
   Commit: feat(M{n}/S{nn}): {slice name}
 
-Next: type /gsd-cc to continue with the next slice.
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for the next slice:  │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  I'll pick up with the next slice.          │
+└─────────────────────────────────────────────┘
 ```
+
+**Do NOT continue in this session.** Each phase gets a fresh context window.

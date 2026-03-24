@@ -188,3 +188,21 @@ When the user confirms roadmap creation (after PLANNING.md exists):
    - Set `current_slice: S01`
    - Set `phase: roadmap-complete`
    - Update the Progress table with all slices as `pending`
+
+6. Instruct the user to start a fresh session:
+
+```
+✓ Roadmap created. {N} slices in M001.
+
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for planning:        │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  I'll plan the first slice in detail.       │
+└─────────────────────────────────────────────┘
+```
+
+**Do NOT continue in this session.** Each phase gets a fresh context window.

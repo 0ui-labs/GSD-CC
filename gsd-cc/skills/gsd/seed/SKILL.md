@@ -177,16 +177,28 @@ Initialize from the STATE.md template with:
 ### Step 7: Confirm and Hand Off
 
 ```
-Ideation complete. I've created:
+✓ Seed complete.
+
   .gsd/PLANNING.md    — your full project brief
   .gsd/PROJECT.md     — project vision
   .gsd/type.json      — {type} / {rigor}
   .gsd/STATE.md       — initialized
   .gsd/DECISIONS.md   — {n} decisions logged
 
-Quality check passed. Your plan is ready for roadmapping.
-Next: type /gsd-cc to create the roadmap.
+  Quality check passed. Ready for roadmapping.
+
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for the next phase:  │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  I'll create the roadmap from your plan.    │
+└─────────────────────────────────────────────┘
 ```
+
+**Do NOT continue in this session.** The seed conversation consumes context window space that the next phase doesn't need. A fresh session reads only what's needed from disk.
 
 ## Safety
 

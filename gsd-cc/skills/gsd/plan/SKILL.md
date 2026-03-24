@@ -235,10 +235,10 @@ current_task: T01
 phase: plan-complete
 ```
 
-## Step 8: Confirm
+## Step 8: Confirm and End Session
 
 ```
-Planning complete for S{nn}: {slice name}
+✓ Planning complete for S{nn}: {slice name}
 
   {n} tasks, {m} acceptance criteria
   Boundaries defined for all tasks
@@ -250,5 +250,15 @@ Planning complete for S{nn}: {slice name}
   ...
   Branch: gsd/M{n}/S{nn}
 
-Next: type /gsd-cc to execute. (manual or auto)
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for execution:       │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  I'll ask: manual or auto?                  │
+└─────────────────────────────────────────────┘
 ```
+
+**Do NOT continue in this session.** The planning conversation consumes context window space. Execution needs a clean slate.
