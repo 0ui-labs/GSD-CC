@@ -155,7 +155,75 @@ function install(isGlobal) {
     fs.chmodSync(autoLoop, 0o755);
   }
 
+  // 5. Install hooks
+  const hooksSrc = path.join(__dirname, '..', 'hooks');
+  const hooksDest = path.join(skillsBase, 'gsd-cc-shared', 'hooks');
+  if (fs.existsSync(hooksSrc)) {
+    copyDir(hooksSrc, hooksDest);
+    // Make hooks executable
+    const hookFiles = fs.readdirSync(hooksDest);
+    for (const f of hookFiles) {
+      fs.chmodSync(path.join(hooksDest, f), 0o755);
+    }
+    fileCount += hookFiles.length;
+  }
+
+  // 6. Configure hooks in settings.json
+  installHooks(isGlobal, hooksDest);
+
   console.log(`  ${green}✓${reset} Installed ${fileCount} files to ${label}`);
+}
+
+/**
+ * Install hooks into .claude/settings.json or .claude/settings.local.json
+ */
+function installHooks(isGlobal, hooksDir) {
+  const settingsPath = isGlobal
+    ? path.join(os.homedir(), '.claude', 'settings.json')
+    : path.join(process.cwd(), '.claude', 'settings.local.json');
+
+  let settings = {};
+  if (fs.existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    } catch (e) {
+      settings = {};
+    }
+  }
+
+  if (!settings.hooks) settings.hooks = {};
+
+  const boundaryGuard = path.join(hooksDir, 'gsd-boundary-guard.sh');
+  const contextMonitor = path.join(hooksDir, 'gsd-context-monitor.sh');
+  const workflowGuard = path.join(hooksDir, 'gsd-workflow-guard.sh');
+
+  // PreToolUse: boundary guard on Edit/Write
+  if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
+  // Remove existing GSD-CC hooks before adding (idempotent)
+  settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter(
+    h => !JSON.stringify(h).includes('gsd-boundary-guard')
+  );
+  settings.hooks.PreToolUse.push({
+    matcher: 'Edit|Write',
+    hooks: [{ type: 'command', command: boundaryGuard, timeout: 5000 }]
+  });
+
+  // PostToolUse: context monitor + workflow guard
+  if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
+  settings.hooks.PostToolUse = settings.hooks.PostToolUse.filter(
+    h => !JSON.stringify(h).includes('gsd-context-monitor') && !JSON.stringify(h).includes('gsd-workflow-guard')
+  );
+  settings.hooks.PostToolUse.push({
+    hooks: [{ type: 'command', command: contextMonitor, timeout: 5000 }]
+  });
+  settings.hooks.PostToolUse.push({
+    matcher: 'Edit|Write',
+    hooks: [{ type: 'command', command: workflowGuard, timeout: 5000 }]
+  });
+
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+  console.log(`  ${green}✓${reset} Hooks configured in ${settingsPath.replace(os.homedir(), '~').replace(process.cwd(), '.')}`);
 }
 
 /**
@@ -254,9 +322,32 @@ function uninstall() {
     }
   }
 
+  // Clean up hooks from settings files
+  for (const isGlobal of [true, false]) {
+    const settingsPath = isGlobal
+      ? path.join(os.homedir(), '.claude', 'settings.json')
+      : path.join(process.cwd(), '.claude', 'settings.local.json');
+    if (fs.existsSync(settingsPath)) {
+      try {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        if (settings.hooks) {
+          for (const event of Object.keys(settings.hooks)) {
+            settings.hooks[event] = settings.hooks[event].filter(
+              h => !JSON.stringify(h).includes('gsd-')
+            );
+            if (settings.hooks[event].length === 0) delete settings.hooks[event];
+          }
+          if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
+          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+        }
+      } catch (e) { /* ignore parse errors */ }
+    }
+  }
+
   if (!removed) {
     console.log(`  ${yellow}No GSD-CC installation found.${reset}`);
   } else {
+    console.log(`  ${green}✓${reset} Hooks removed from settings`);
     console.log(`\n  ${green}Done.${reset} GSD-CC has been removed.`);
   }
 }
