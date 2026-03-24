@@ -112,6 +112,24 @@ log_cost() {
   fi
 }
 
+# Find the next slice that needs work (no PLAN or no UNIFY)
+# Returns slice name (e.g. "S03") or empty if milestone is complete
+find_next_slice() {
+  local roadmap
+  roadmap=$(ls "$GSD_DIR"/M*-ROADMAP.md 2>/dev/null | head -1)
+  if [[ -z "$roadmap" ]]; then
+    return
+  fi
+
+  # Extract slice IDs from roadmap (### S01, ### S02, etc.)
+  grep -oE '### S[0-9]+' "$roadmap" | sed 's/### //' | while read -r slice; do
+    if [[ ! -f "$GSD_DIR/${slice}-UNIFY.md" ]]; then
+      echo "$slice"
+      return
+    fi
+  done
+}
+
 # ── Main loop ──────────────────────────────────────────────────────────────────
 
 echo "▶ GSD-CC Auto-Mode starting..."
@@ -192,29 +210,28 @@ while true; do
 
   # Check if milestone is complete (all slices unified)
   if [[ "$PHASE" == "unified" ]]; then
-    # Check roadmap for remaining slices
-    NEXT_RESULT=$("$CLAUDE_BIN" -p "Read .gsd/STATE.md and all .gsd/M*-ROADMAP.md and .gsd/S*-UNIFY.md files. Determine the next slice that needs work (no PLAN.md or no UNIFY.md). Output ONLY valid JSON: {\"slice\":\"S01\",\"phase\":\"plan\"} or {\"done\":true} if all slices are unified." \
-      --allowedTools "Read,Glob" \
-      --output-format json --max-turns 3 2>/dev/null) || {
-      echo "❌ Failed to determine next unit."
-      break
-    }
+    NEXT_SLICE=$(find_next_slice)
 
-    NEXT=$(echo "$NEXT_RESULT" | jq -r '.result // empty' 2>/dev/null || echo "$NEXT_RESULT")
-
-    if echo "$NEXT" | jq -e '.done' > /dev/null 2>&1; then
+    if [[ -z "$NEXT_SLICE" ]]; then
       echo ""
       echo "✅ Milestone $MILESTONE complete. All slices planned, executed, and unified."
       break
     fi
 
-    SLICE=$(echo "$NEXT" | jq -r '.slice')
-    PHASE=$(echo "$NEXT" | jq -r '.phase')
+    SLICE="$NEXT_SLICE"
     TASK="T01"
+
+    # Determine phase for next slice
+    if [[ -f "$GSD_DIR/${SLICE}-PLAN.md" ]]; then
+      PHASE="plan-complete"
+    else
+      PHASE="plan"
+    fi
 
     update_state_field "current_slice" "$SLICE"
     update_state_field "phase" "$PHASE"
     update_state_field "current_task" "$TASK"
+    echo "▶ Moving to next slice: $SLICE ($PHASE)"
   fi
 
   # ── 4. Budget check ────────────────────────────────────────────────────────
