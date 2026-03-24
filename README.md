@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="hero.jpg" alt="GSD-CC — Get Shit Done with Claude Code" width="100%"/>
+  <img src="gsd-cc/assets/hero.jpg" alt="GSD-CC — Get Shit Done with Claude Code" width="100%"/>
 </p>
 
 <p align="center">
@@ -175,7 +175,7 @@ You only need `/gsd-cc` — it routes automatically. Power users can jump direct
 ## How It Works
 
 <p align="center">
-  <img src="flow-2.jpg" alt="The SEED → PLAN → EXECUTE → UNIFY Cycle" width="100%"/>
+  <img src="gsd-cc/assets/flow-2.jpg" alt="The SEED → PLAN → EXECUTE → UNIFY Cycle" width="100%"/>
 </p>
 
 ### State on Disk
