@@ -76,26 +76,45 @@ IF M*-ROADMAP.md exists AND there are slices without a S*-PLAN.md:
 ### Plan Ready, Not Executed
 ```
 IF S*-PLAN.md exists for current slice AND no T*-SUMMARY.md files for it:
-  → Present the execution mode choice with a clear explanation:
+  → Present the three execution modes with clear pros/cons:
 
   "S{nn} is planned with {n} tasks. How do you want to execute?
 
-   Manual mode:
-     You work through each task one by one, each in a fresh session.
-     After each task you can review the code, run tests, and decide
-     whether to continue. More control, but you need to be present.
+   1) Manual
+      You work through each task one by one, each in a fresh session.
+      + Full control — review code, run tests, adjust after each task
+      + You see exactly what happens
+      - You need to be present for every task
+      - Slowest option
+      Best for: critical slices, learning the codebase, first-time users
 
-   Auto mode:
-     Claude runs all tasks autonomously in the background via claude -p.
-     Each task gets a fresh context window. UNIFY runs automatically
-     when all tasks are done. You can walk away and come back later.
-     Runs on your Max Plan — no extra API costs.
-     Downside: you can't intervene between tasks.
+   2) Auto (this slice)                              ← recommended
+      Claude runs all {n} tasks in this slice autonomously.
+      UNIFY runs automatically when done.
+      Before the NEXT slice, you're back for Discuss + Plan.
+      + Tasks run in the background — go grab a coffee
+      + You still decide the direction for every slice
+      + Best balance of speed and control
+      - You can't intervene between tasks within this slice
+      Best for: most situations — you decide WHAT, Claude does the HOW
 
-   manual or auto?"
+   3) Auto (full milestone)
+      Claude runs everything autonomously: plan, execute, UNIFY,
+      next slice, repeat — until the milestone is done.
+      Discuss is skipped. Claude makes all detail decisions.
+      + Fastest — walk away, come back when it's done
+      + Great for well-defined projects with tight rigor
+      - No input from you between slices
+      - Claude may make wrong assumptions in detail planning
+      - Higher risk of going in an unwanted direction
+      Best for: small/clear projects, utility tools, tight rigor
 
-  → "manual" → delegate to /gsd-cc-apply
-  → "auto" → delegate to /gsd-cc-auto
+   1, 2, or 3?"
+
+  → "1" or "manual" → delegate to /gsd-cc-apply
+  → "2" or "auto" → delegate to /gsd-cc-auto (slice mode)
+  → "3" or "full auto" → delegate to /gsd-cc-auto (full milestone mode)
+    Set auto_mode_scope in STATE.md: "slice" or "milestone"
 ```
 
 ### Execution In Progress
