@@ -157,19 +157,21 @@ function install(isGlobal) {
 
   // 5. Install hooks
   const hooksSrc = path.join(__dirname, '..', 'hooks');
-  const hooksDest = path.join(skillsBase, 'gsd-cc-shared', 'hooks');
+  const hooksBase = isGlobal
+    ? path.join(os.homedir(), '.claude', 'hooks')
+    : path.join(process.cwd(), '.claude', 'hooks');
   if (fs.existsSync(hooksSrc)) {
-    copyDir(hooksSrc, hooksDest);
+    copyDir(hooksSrc, hooksBase);
     // Make hooks executable
-    const hookFiles = fs.readdirSync(hooksDest);
+    const hookFiles = fs.readdirSync(hooksBase);
     for (const f of hookFiles) {
-      fs.chmodSync(path.join(hooksDest, f), 0o755);
+      fs.chmodSync(path.join(hooksBase, f), 0o755);
     }
     fileCount += hookFiles.length;
   }
 
   // 6. Configure hooks in settings.json
-  installHooks(isGlobal, hooksDest);
+  installHooks(isGlobal, hooksBase);
 
   console.log(`  ${green}✓${reset} Installed ${fileCount} files to ${label}`);
 }
