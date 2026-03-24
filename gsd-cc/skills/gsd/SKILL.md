@@ -147,6 +147,7 @@ When routing to a sub-skill, tell the user what you're doing and then invoke the
 - Reconciliation → `/gsd-cc-unify`
 - Auto mode → `/gsd-cc-auto`
 - Status overview → `/gsd-cc-status`
+- Update skills → `/gsd-cc-update`
 
 Power users can invoke these directly. But the default path only needs `/gsd-cc` + Enter.
 
