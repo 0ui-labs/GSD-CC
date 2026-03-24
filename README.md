@@ -28,6 +28,8 @@ GSD pioneered structured AI development. Then GSD v2 dropped Claude Code for its
 | **Quality control** | — | Mandatory UNIFY after every slice |
 | **Boundary enforcement** | — | Explicit DO NOT CHANGE rules per task |
 | **Custom project types** | — | Drop 3 files, done |
+| **Auto-mode decisions** | Implicit, untracked | Synthetic stakeholder with profile + citations |
+| **Structured ideation** | — | Problem-first brainstorming before planning |
 | **Installation** | Clone, configure, build | `npx gsd-cc` |
 
 ## The Problem
@@ -54,9 +56,37 @@ After every slice, UNIFY runs. Not optional. The router blocks until it's done. 
 
 Every task plan includes explicit boundaries: files, modules, and systems that Claude must not touch. This prevents the #1 problem with AI coding — Claude "helpfully" refactoring code you didn't ask it to touch.
 
-### Type-Driven Ideation
+### Synthetic Stakeholder — Auto-Mode That Thinks Like You
+
+Most auto-modes just skip decisions or guess. GSD-CC does something different: it interviews you once (`/gsd-cc-profile`, ~20 min) to build a decision profile — your architecture instincts, tech preferences, strong opinions, red lines.
+
+In full-auto mode, when decisions need to be made, a synthetic stakeholder answers based on your profile. Every decision is logged with reasoning, profile citation, and a confidence level. You review after each slice and sharpen the profile over time.
+
+```
+Decision 1: REST or GraphQL?
+Stakeholder: "REST. Philipp prefers REST for MVPs — simpler to debug.
+             GraphQL only when multiple clients need different data."
+Profile basis: §Architecture Instincts, §Strong Opinions
+Confidence: High
+```
+
+No other tool does this. Full autonomy with full traceability.
+
+### Structured Ideation — Solve the Right Problem
+
+Most AI coding starts with "build me X." But what if X is the wrong solution? `/gsd-cc-ideate` is a structured brainstorming session that starts with your *problem*, not your solution. It challenges assumptions, shows the landscape of existing approaches, and respects naive ideas that might actually be innovative.
+
+### Type-Driven Planning
 
 A REST API needs different questions than a landing page. GSD-CC detects your project type and adjusts: question depth, rigor level, and how aggressively auto-mode operates. Five built-in types, or drop 3 Markdown files to add your own.
+
+### Three Execution Modes
+
+| Mode | You decide | Claude does | Best for |
+|------|-----------|-------------|----------|
+| **Manual** | Everything | One task, then waits | Critical slices, learning |
+| **Auto (slice)** | Direction per slice | Tasks + UNIFY in background | Most situations |
+| **Auto (full)** | Nothing (profile decides) | Everything until milestone done | Clear projects, tight rigor |
 
 ### Max Plan, Not API Keys
 
@@ -128,13 +158,16 @@ You only need `/gsd-cc` — it routes automatically. Power users can jump direct
 | Command | Phase | What it does |
 |---------|-------|-------------|
 | `/gsd-cc` | Router | Reads state, suggests ONE next action |
-| `/gsd-cc-seed` | Ideation | Type-driven project exploration (coach mode) |
+| `/gsd-cc-ideate` | Brainstorming | Problem-first exploration before planning |
+| `/gsd-cc-seed` | Ideation | Type-driven project structuring (coach mode) |
 | `/gsd-cc-discuss` | Discussion | Resolve ambiguities before planning |
 | `/gsd-cc-plan` | Planning | Research + decompose into tasks with ACs |
 | `/gsd-cc-apply` | Execution | Execute tasks with boundary enforcement |
 | `/gsd-cc-unify` | Reconciliation | Plan vs. actual comparison (mandatory) |
 | `/gsd-cc-auto` | Auto-mode | Autonomous execution via `claude -p` |
+| `/gsd-cc-profile` | Setup | Build your decision profile for auto-mode |
 | `/gsd-cc-status` | Overview | Progress, ACs, token usage, auto-mode state |
+| `/gsd-cc-config` | Settings | Change language and preferences |
 | `/gsd-cc-help` | Reference | All commands, project files, and tips |
 | `/gsd-cc-tutorial` | Learning | Guided walkthrough with a sample project |
 | `/gsd-cc-update` | Maintenance | Update to the latest version |
