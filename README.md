@@ -3,64 +3,72 @@
 </p>
 
 <p align="center">
-  <strong>A project management system for AI-powered software development.</strong><br/>
-  Structure your ideas, break them into executable units, and let Claude Code do the work — guided or fully autonomous.
+  <strong>GSD on steroids — for Claude Code.</strong><br/>
+  Structured AI development on your Max Plan. Zero API costs. Zero dependencies.
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/gsd-cc"><img src="https://img.shields.io/npm/v/gsd-cc" alt="npm version"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License"/></a>
+  <a href="https://github.com/0ui-labs/GSD-CC/stargazers"><img src="https://img.shields.io/github/stars/0ui-labs/GSD-CC" alt="GitHub Stars"/></a>
 </p>
 
 ---
 
+## Why GSD-CC?
+
+GSD pioneered structured AI development. Then GSD v2 dropped Claude Code for its own agent. We picked it back up — and added steroids.
+
+|  | GSD v2 | GSD-CC |
+|---|---|---|
+| **Runtime** | Custom agent (PI SDK) | Claude Code (native) |
+| **Costs** | API keys, pay-per-token | Max Plan (flat rate) |
+| **Dependencies** | TypeScript, build pipeline | Markdown + Bash, zero deps |
+| **Claude Code updates** | Manual migration | Automatic — you're native |
+| **Quality control** | — | Mandatory UNIFY after every slice |
+| **Boundary enforcement** | — | Explicit DO NOT CHANGE rules per task |
+| **Custom project types** | — | Drop 3 files, done |
+| **Installation** | Clone, configure, build | `npx gsd-cc` |
+
 ## The Problem
 
-AI coding agents are powerful but unreliable over time. Claude Code excels at clearly defined tasks that fit in a single context window. But real software consists of hundreds of tasks that build on each other over days and weeks. Every current approach breaks down in one of these ways:
+AI coding agents are powerful but break down over time. Claude Code excels at clearly defined tasks that fit in a single context window. But real software is hundreds of tasks over days and weeks.
 
-**Context Rot.** The longer a session runs, the more noise accumulates in the context window. Quality degrades. Claude becomes vague, forgets decisions, repeats itself. Eventually the session is useless.
+**Context rot** — the longer a session runs, the more noise accumulates. Quality degrades, Claude forgets decisions, repeats itself. **No memory between sessions** — close Claude Code, reopen it tomorrow, everything is gone. **No structured plan** — "build me X" works for a todo app, not for a booking system with auth, API, and deployment. **No quality control** — nobody checks if what was built matches what was planned.
 
-**No Memory Between Sessions.** Close Claude Code, reopen it tomorrow — it knows nothing. Architecture decisions, changed files, the plan? All gone.
+## Our Approach
 
-**No Structured Plan.** Most developers open Claude Code and say "build me X". Fine for a todo app. For a booking system with auth, API, frontend, and deployment, it's a recipe for inconsistent, unstructured code.
+The right solution is not another coding agent. Claude Code is the best available agent — maintained by an entire team at Anthropic, improved monthly, with subagents, plan mode, agent teams, and dozens of features no solo project can replicate.
 
-**No Quality Control.** Nobody checks whether what was built matches what was planned. Decisions are made and forgotten. Deviations accumulate invisibly. You end up with software that "sort of works" but doesn't match the design.
+GSD v2 bet against this. They replaced Claude Code with a custom agent built on the PI SDK. That means API costs per token, a TypeScript codebase to maintain, and no access to new Claude Code features.
 
-## Our Thesis
+**We bet the other way.** Claude Code is the agent. GSD-CC is the orchestration layer — it tells Claude Code *what* to do and *in what order*, not *how* to write code. Implemented as native Claude Code Skills (Markdown) plus a Bash script. No build step. No dependencies. If Anthropic ships Claude Code 3.0 tomorrow, GSD-CC benefits automatically.
 
-The right solution is not another coding agent. Claude Code is already the best available agent — maintained by an entire team at Anthropic, regularly improved, with subagents, agent teams, plan mode, and dozens of features no solo project can replicate.
+## What GSD-CC Adds
 
-What's missing is an **orchestration layer**: a system that tells Claude Code *what* to do and *in what order* — not *how* to write code. This layer needs:
+### Mandatory UNIFY — Plan vs. Actual
 
-1. **Structure** — a hierarchy that breaks large projects into context-window-sized units
-2. **State on Disk** — so knowledge survives between sessions
-3. **Discipline** — so every work unit is formally closed before the next one begins
-4. **An Outer Loop** — that automatically dispatches the next task when the previous one finishes
+After every slice, UNIFY runs. Not optional. The router blocks until it's done. It compares what was planned with what was built, documents deviations and decisions, and ensures the next slice builds on facts — not assumptions. This is the single most important quality mechanism missing from GSD.
 
-All of this can be implemented as Claude Code Skills (Markdown instructions) plus a Bash script (the outer loop). No TypeScript project, no build step, no dependencies beyond Claude Code itself.
+### Boundaries — DO NOT CHANGE
 
-## What GSD-CC Does Differently
+Every task plan includes explicit boundaries: files, modules, and systems that Claude must not touch. This prevents the #1 problem with AI coding — Claude "helpfully" refactoring code you didn't ask it to touch.
 
-### Claude Code Is the Agent, Not the Victim
+### Type-Driven Ideation
 
-GSD v1 gives Claude Code prompts and *hopes* it follows them. GSD v2 replaced Claude Code entirely with a custom agent. GSD-CC takes the third path: it uses Claude Code for what it is — a powerful coding agent — and gives it precise, phase-specific instructions through Claude Code's native skill system.
+A REST API needs different questions than a landing page. GSD-CC detects your project type and adjusts: question depth, rigor level, and how aggressively auto-mode operates. Five built-in types, or drop 3 Markdown files to add your own.
 
-No hoping, no replacing. Collaboration.
+### Max Plan, Not API Keys
 
-### Max Plan Instead of API Costs
-
-The Claude Code Max Plan costs a fixed monthly fee with 5x or 20x more usage than Pro. GSD v2 with the Pi SDK requires API keys and charges per token — for a project with hundreds of tasks, that gets expensive.
-
-GSD-CC uses `claude -p` (Claude Code's non-interactive mode), which runs on the Max Plan. Same performance, predictable costs.
+GSD-CC uses `claude -p` (non-interactive mode) for autonomous execution. That runs on your Max Plan — fixed monthly cost, no token anxiety. For a project with hundreds of tasks, this saves serious money compared to API-based approaches.
 
 ### The Best of Three Systems
 
-Instead of inventing from scratch, GSD-CC takes the most proven concepts from three years of ecosystem development:
+**From GSD:** Milestones → Slices → Tasks. Fresh sessions per task prevent context rot. State on disk enables autonomous execution.
 
-**From GSD:** The idea that software is decomposed into Milestones → Slices → Tasks, where each task fits in a context window. Fresh sessions per task prevent context rot. A state machine on disk enables autonomous execution. Git branches per slice keep the history clean.
+**From PAUL:** Formal work unit closure (UNIFY). BDD acceptance criteria (Given/When/Then). Decision tracking across slices.
 
-**From PAUL:** The insight that every work unit must be formally closed. The UNIFY step compares what was planned with what happened, logs deviations and decisions, and ensures the next slice builds on correct knowledge — not assumptions. Plus: Acceptance Criteria in BDD format (Given/When/Then) as first-class citizens in the planning format, and explicit Boundaries (DO NOT CHANGE) that prevent Claude from touching unrelated code.
-
-**From SEED:** The recognition that planning quality depends on question quality — and the right questions depend on the project type. A REST API project needs questions about endpoints and auth. A client website needs questions about conversion and content. SEED's type-driven rigor system (tight/standard/deep/creative) influences not just ideation but how aggressively the auto mode operates.
-
-### Zero Maintenance Overhead
-
-GSD-CC consists of Markdown files and a Bash script. No dependencies that go stale. No build pipeline that breaks. No framework updates with breaking changes. If Anthropic releases Claude Code 3.0 tomorrow with better subagents, GSD-CC benefits automatically — because Claude Code is the runtime, not a wrapper around it.
+**From SEED:** Type-driven question quality. Rigor levels (tight/standard/deep/creative). Better questions → better plans → better code.
 
 ## Getting Started
 
@@ -127,6 +135,9 @@ You only need `/gsd-cc` — it routes automatically. Power users can jump direct
 | `/gsd-cc-unify` | Reconciliation | Plan vs. actual comparison (mandatory) |
 | `/gsd-cc-auto` | Auto-mode | Autonomous execution via `claude -p` |
 | `/gsd-cc-status` | Overview | Progress, ACs, token usage, auto-mode state |
+| `/gsd-cc-help` | Reference | All commands, project files, and tips |
+| `/gsd-cc-tutorial` | Learning | Guided walkthrough with a sample project |
+| `/gsd-cc-update` | Maintenance | Update to the latest version |
 
 ## How It Works
 
@@ -143,42 +154,11 @@ All project state lives in a `.gsd/` directory:
 - Deviation tracking from the UNIFY step
 - Progress state for the auto-loop
 
-This means you can close Claude Code, come back tomorrow, and pick up exactly where you left off.
-
-## Scope
-
-### What GSD-CC Is
-
-- A planning and orchestration system for Claude Code
-- A set of Skills (Markdown) that instruct Claude Code
-- A state management system on disk (`.gsd/`)
-- An auto-loop that leverages Claude Code's `-p` mode
-
-### What GSD-CC Is Not
-
-- Not its own coding agent (Claude Code is the agent)
-- Not a replacement for Claude Code (it builds on top)
-- Not an enterprise project management tool (no Jira, no Linear)
-- Not a multi-provider system (Claude only — by design)
-- Not a framework with its own dependencies
-
-## Target Audience
-
-**Primary:** Developers who use Claude Code as their primary coding partner with a Max Plan. Building real software — not prototypes — that needs structure beyond a single session.
-
-**Secondary:** Solo founders and small teams using AI coding as a multiplier. No dedicated project management infrastructure, needing something lightweight enough to run solo but structured enough to produce consistent results.
-
-## Vision
-
-**Short-term:** A working skill system you install with `npx gsd-cc`, type `/gsd-cc` in Claude Code, and immediately start structured, quality-assured development — manual or autonomous.
-
-**Mid-term:** The system people use when building serious software with Claude Code. Not demos, not todo apps — products. Projects that span weeks, touch dozens of files, and require consistent quality.
-
-**Long-term:** An open standard for AI-powered project planning. The `.gsd/` disk format, the task plan XML with acceptance criteria and boundaries, the UNIFY concept — all of it is agent-agnostic. If a better agent than Claude Code appears tomorrow, you migrate the skills. The planning artifacts, project structure, and decision history stay.
+Close Claude Code, come back tomorrow, pick up exactly where you left off.
 
 ## Adding Custom Project Types
 
-Drop 3 files into `~/.claude/skills/gsd/seed/types/your-type/`:
+Drop 3 files into `~/.claude/skills/gsd-cc-seed/types/your-type/`:
 
 ```
 types/my-saas/
