@@ -27,7 +27,7 @@ ${cyan}   ██████╗ ███████╗██████╗   
 `;
 
 // Directories inside gsd-cc/ that map 1:1 into .claude/
-const CLAUDE_DIRS = ['skills', 'hooks', 'checklists', 'commands', 'templates'];
+const CLAUDE_DIRS = ['skills', 'hooks', 'checklists', 'templates'];
 
 // Parse args
 const args = process.argv.slice(2);

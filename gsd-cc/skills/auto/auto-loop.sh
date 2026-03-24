@@ -24,7 +24,7 @@ else
   exit 1
 fi
 
-COMMANDS_DIR="${SKILLS_DIR}/../commands"
+PROMPTS_DIR="${SKILLS_DIR}/auto"
 
 # Parse --budget flag
 while [[ $# -gt 0 ]]; do
@@ -140,7 +140,7 @@ while true; do
         echo "</decisions>" >> "$PROMPT_FILE"
       fi
 
-      cat "$COMMANDS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
+      cat "$PROMPTS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
 
       RESULT_FILE="/tmp/gsd-result-$$.json"
       timeout 600 claude -p "$(cat "$PROMPT_FILE")" \
@@ -222,7 +222,7 @@ while true; do
       # Include context if it exists
       [[ -f "$GSD_DIR/${SLICE}-CONTEXT.md" ]] && { echo "<context>"; cat "$GSD_DIR/${SLICE}-CONTEXT.md"; echo "</context>"; } >> "$PROMPT_FILE"
 
-      cat "$COMMANDS_DIR/plan-instructions.txt" >> "$PROMPT_FILE"
+      cat "$PROMPTS_DIR/plan-instructions.txt" >> "$PROMPT_FILE"
       DISPATCH_PHASE="plan"
       ;;
 
@@ -240,7 +240,7 @@ while true; do
         [[ -f "$f" ]] && { echo "<prior-summary>"; cat "$f"; echo "</prior-summary>"; } >> "$PROMPT_FILE"
       done
 
-      cat "$COMMANDS_DIR/apply-instructions.txt" >> "$PROMPT_FILE"
+      cat "$PROMPTS_DIR/apply-instructions.txt" >> "$PROMPT_FILE"
       DISPATCH_PHASE="apply"
       ;;
 
