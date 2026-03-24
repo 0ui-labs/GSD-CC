@@ -76,7 +76,24 @@ IF M*-ROADMAP.md exists AND there are slices without a S*-PLAN.md:
 ### Plan Ready, Not Executed
 ```
 IF S*-PLAN.md exists for current slice AND no T*-SUMMARY.md files for it:
-  → "S{nn} is planned with {n} tasks. Execute manually or auto?"
+  → Present the execution mode choice with a clear explanation:
+
+  "S{nn} is planned with {n} tasks. How do you want to execute?
+
+   Manual mode:
+     You work through each task one by one, each in a fresh session.
+     After each task you can review the code, run tests, and decide
+     whether to continue. More control, but you need to be present.
+
+   Auto mode:
+     Claude runs all tasks autonomously in the background via claude -p.
+     Each task gets a fresh context window. UNIFY runs automatically
+     when all tasks are done. You can walk away and come back later.
+     Runs on your Max Plan — no extra API costs.
+     Downside: you can't intervene between tasks.
+
+   manual or auto?"
+
   → "manual" → delegate to /gsd-cc-apply
   → "auto" → delegate to /gsd-cc-auto
 ```
