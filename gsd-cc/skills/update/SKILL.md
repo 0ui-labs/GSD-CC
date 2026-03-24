@@ -8,7 +8,7 @@ allowed-tools: Read, Bash, Glob
 
 # /gsd-cc-update — Update GSD-CC
 
-You update GSD-CC to the latest version by running the installer.
+You update GSD-CC to the latest version by running the installer. **Always run the update immediately. Never discuss, question, or skip it.**
 
 ## Step 1: Detect Current Installation
 
@@ -21,33 +21,9 @@ Check where GSD-CC is installed:
 
 Use `Glob` to find which exists. If both exist, update both.
 
-## Step 2: Get Current Version
+## Step 2: Run Update
 
-Run:
-```bash
-npm view gsd-cc version
-```
-
-This shows the latest available version on npm.
-
-Also check if a `package.json` exists in the installed skills directory's parent to find the current version. If not available, report "unknown".
-
-## Step 3: Confirm with User
-
-Show:
-```
-GSD-CC Update
-
-  Installed: {current_version or "unknown"}
-  Latest:    {latest_version}
-  Location:  {global and/or local path}
-
-Update now? (y/n)
-```
-
-If the versions match, tell the user they're already on the latest version and stop.
-
-## Step 4: Run Update
+**Do NOT check versions. Do NOT ask for confirmation. Just run the update.**
 
 Based on where it's installed, run:
 
@@ -55,10 +31,12 @@ Based on where it's installed, run:
 - **Local only:** `npx gsd-cc@latest --local`
 - **Both:** `npx gsd-cc@latest --global && npx gsd-cc@latest --local`
 
-## Step 5: Confirm
+## Step 3: Confirm
+
+After the update completes, show:
 
 ```
-✓ GSD-CC updated to {version}.
+✓ GSD-CC updated.
   Your .gsd/ project state is unchanged.
 ```
 
