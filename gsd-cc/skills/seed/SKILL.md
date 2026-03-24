@@ -59,14 +59,14 @@ If ambiguous, ask ONE clarifying question. Don't overthink it.
 
 Read the type-specific guide from:
 ```
-~/.claude/skills/gsd-cc-seed/types/{type}/guide.md
+~/.claude/skills/seed/types/{type}/guide.md
 ```
 
-If installed locally, check `./.claude/skills/gsd-cc-seed/types/{type}/guide.md` instead.
+If installed locally, check `./.claude/skills/seed/types/{type}/guide.md` instead.
 
 Also read the config:
 ```
-~/.claude/skills/gsd-cc-seed/types/{type}/config.md
+~/.claude/skills/seed/types/{type}/config.md
 ```
 
 The guide contains numbered sections with `Explore` and `Suggest` fields. The config sets the rigor level and section count.

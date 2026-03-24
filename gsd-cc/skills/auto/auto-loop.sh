@@ -15,16 +15,16 @@ COSTS_FILE="$GSD_DIR/COSTS.jsonl"
 BUDGET="${GSD_CC_BUDGET:-0}" # 0 = unlimited
 
 # Resolve skills directory (global or local)
-if [[ -d ".claude/skills/gsd" ]]; then
-  SKILLS_DIR=".claude/skills/gsd"
-elif [[ -d "$HOME/.claude/skills/gsd" ]]; then
-  SKILLS_DIR="$HOME/.claude/skills/gsd"
+if [[ -d ".claude/skills/auto" ]]; then
+  SKILLS_DIR=".claude/skills"
+elif [[ -d "$HOME/.claude/skills/auto" ]]; then
+  SKILLS_DIR="$HOME/.claude/skills"
 else
   echo "❌ GSD-CC skills not found. Run 'npx gsd-cc' to install."
   exit 1
 fi
 
-PROMPTS_DIR="$SKILLS_DIR/prompts"
+COMMANDS_DIR="${SKILLS_DIR}/../commands"
 
 # Parse --budget flag
 while [[ $# -gt 0 ]]; do
@@ -140,7 +140,7 @@ while true; do
         echo "</decisions>" >> "$PROMPT_FILE"
       fi
 
-      cat "$PROMPTS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
+      cat "$COMMANDS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
 
       RESULT_FILE="/tmp/gsd-result-$$.json"
       timeout 600 claude -p "$(cat "$PROMPT_FILE")" \
@@ -222,7 +222,7 @@ while true; do
       # Include context if it exists
       [[ -f "$GSD_DIR/${SLICE}-CONTEXT.md" ]] && { echo "<context>"; cat "$GSD_DIR/${SLICE}-CONTEXT.md"; echo "</context>"; } >> "$PROMPT_FILE"
 
-      cat "$PROMPTS_DIR/plan-instructions.txt" >> "$PROMPT_FILE"
+      cat "$COMMANDS_DIR/plan-instructions.txt" >> "$PROMPT_FILE"
       DISPATCH_PHASE="plan"
       ;;
 
@@ -240,7 +240,7 @@ while true; do
         [[ -f "$f" ]] && { echo "<prior-summary>"; cat "$f"; echo "</prior-summary>"; } >> "$PROMPT_FILE"
       done
 
-      cat "$PROMPTS_DIR/apply-instructions.txt" >> "$PROMPT_FILE"
+      cat "$COMMANDS_DIR/apply-instructions.txt" >> "$PROMPT_FILE"
       DISPATCH_PHASE="apply"
       ;;
 
