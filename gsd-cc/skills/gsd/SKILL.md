@@ -184,6 +184,7 @@ Execute S01? (manual or auto)
 ## Delegating to Sub-Skills
 
 When routing to a sub-skill, tell the user what you're doing and then invoke the skill:
+- Import concept → `/gsd-cc-ingest`
 - Vision document → `/gsd-cc-vision`
 - Decision profile → `/gsd-cc-profile`
 - Brainstorming → `/gsd-cc-ideate`
