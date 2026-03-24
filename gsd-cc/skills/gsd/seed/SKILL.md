@@ -102,8 +102,8 @@ Walk through the guide sections **one at a time**. For each section:
 
 After completing all sections, mentally check against `checklists/planning-ready.md`:
 
-Read: `~/.claude/skills/gsd-cc-shared/checklists/planning-ready.md`
-(or `./.claude/skills/gsd-cc-shared/checklists/planning-ready.md`)
+Read: `~/.claude/checklists/planning-ready.md`
+(or `./.claude/checklists/planning-ready.md`)
 
 Verify:
 - Is there enough information to create a roadmap?
@@ -118,7 +118,7 @@ Create the `.gsd/` directory and write these files:
 
 #### `.gsd/PLANNING.md`
 
-Use the template from `~/.claude/skills/gsd-cc-shared/templates/PLANNING.md` (or `./.claude/skills/gsd-cc-shared/templates/PLANNING.md`). Fill in all sections from the conversation:
+Use the template from `~/.claude/templates/PLANNING.md` (or `./.claude/templates/PLANNING.md`). Fill in all sections from the conversation:
 - Vision (from their initial description + refinements)
 - Users (from user/auth discussions)
 - Requirements v1, v2, Out of Scope (from exploration)

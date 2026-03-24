@@ -194,14 +194,14 @@ If no VISION.md exists, skip this step.
 
 Check against `checklists/unify-complete.md`:
 
-Read: `~/.claude/skills/gsd-cc-shared/checklists/unify-complete.md`
-(or `./.claude/skills/gsd-cc-shared/checklists/unify-complete.md`)
+Read: `~/.claude/checklists/unify-complete.md`
+(or `./.claude/checklists/unify-complete.md`)
 
 Verify ALL items pass. If any fails, fix the UNIFY document before proceeding.
 
 ## Step 9: Write UNIFY.md
 
-Write `.gsd/S{nn}-UNIFY.md` using the template from `~/.claude/skills/gsd-cc-shared/templates/UNIFY.md` (or `./.claude/skills/gsd-cc-shared/templates/UNIFY.md`). Include all sections from Steps 2-7.
+Write `.gsd/S{nn}-UNIFY.md` using the template from `~/.claude/templates/UNIFY.md` (or `./.claude/templates/UNIFY.md`). Include all sections from Steps 2-7.
 
 Set frontmatter:
 ```yaml

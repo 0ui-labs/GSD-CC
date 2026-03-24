@@ -29,7 +29,7 @@ ${cyan}   ██████╗ ███████╗██████╗   
 // Sub-skills that get their own top-level directory under .claude/skills/
 const SUB_SKILLS = ['apply', 'auto', 'config', 'discuss', 'help', 'ideate', 'ingest', 'plan', 'profile', 'seed', 'stack', 'status', 'tutorial', 'unify', 'update', 'vision'];
 
-// Shared directories that go into gsd-cc-shared/
+// Shared directories installed directly into .claude/
 const SHARED_DIRS = ['checklists', 'prompts', 'templates'];
 
 // Parse args
@@ -139,13 +139,15 @@ function install(isGlobal) {
     }
   }
 
-  // 3. Install shared resources (templates, checklists, prompts)
-  const sharedDest = path.join(skillsBase, 'gsd-cc-shared');
+  // 3. Install shared resources (templates, checklists, prompts) into .claude/
+  const claudeBase = isGlobal
+    ? path.join(os.homedir(), '.claude')
+    : path.join(process.cwd(), '.claude');
   for (const dir of SHARED_DIRS) {
     const srcDir = path.join(skillsSrc, dir);
     if (fs.existsSync(srcDir)) {
-      copyDir(srcDir, path.join(sharedDest, dir));
-      fileCount += countFiles(path.join(sharedDest, dir));
+      copyDir(srcDir, path.join(claudeBase, dir));
+      fileCount += countFiles(path.join(claudeBase, dir));
     }
   }
 
@@ -311,6 +313,7 @@ function countFiles(dir) {
 function uninstall() {
   const locations = [getSkillsBase(true), getSkillsBase(false)];
   const allDirs = ['gsd-cc', ...SUB_SKILLS.map(s => `gsd-cc-${s}`), 'gsd-cc-shared', 'gsd'];
+  const sharedDirs = ['checklists', 'prompts', 'templates', 'hooks'];
 
   let removed = false;
 
@@ -322,6 +325,15 @@ function uninstall() {
     let removedFromLocation = false;
     for (const dir of allDirs) {
       const fullPath = path.join(base, dir);
+      if (removeDir(fullPath)) {
+        removedFromLocation = true;
+      }
+    }
+
+    // Remove shared dirs from .claude/
+    const claudeDir = base.replace(/\/skills$/, '');
+    for (const dir of sharedDirs) {
+      const fullPath = path.join(claudeDir, dir);
       if (removeDir(fullPath)) {
         removedFromLocation = true;
       }
