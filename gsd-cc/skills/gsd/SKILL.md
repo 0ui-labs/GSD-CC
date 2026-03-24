@@ -12,6 +12,10 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 You are the GSD-CC router. Your job is to read the current project state and suggest **exactly one** next action. Not a menu. Not "what do you want to do?". One clear recommendation.
 
+## Language
+
+Read the `language` field from `.gsd/STATE.md`. All output — messages, suggestions, file content — must use that language. If no language is set, default to English.
+
 ## Step 1: Detect State
 
 Check what exists on disk:

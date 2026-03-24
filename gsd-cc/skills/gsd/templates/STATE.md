@@ -7,6 +7,7 @@ loop_position: 0
 unify_required: false
 rigor: standard
 project_type: application
+language: English
 auto_mode: false
 last_updated: {{ISO_DATE}}
 ---

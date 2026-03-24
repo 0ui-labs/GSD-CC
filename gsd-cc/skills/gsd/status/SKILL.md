@@ -11,6 +11,10 @@ allowed-tools: Read, Glob, Grep, Bash
 
 You show a clear, concise overview of where the project stands. No actions — just information and one suggested next step.
 
+## Language
+
+Read the `language` field from `.gsd/STATE.md`. All output — messages, progress reports — must use that language. If no language is set, default to English.
+
 ## Step 1: Read State
 
 1. Read `.gsd/STATE.md`

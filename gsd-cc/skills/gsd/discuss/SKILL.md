@@ -12,6 +12,10 @@ allowed-tools: Read, Write, Edit, Glob, Grep
 
 You help the user resolve ambiguities BEFORE planning begins. Your job is to identify gray areas in the current slice and turn them into concrete decisions.
 
+## Language
+
+Read the `language` field from `.gsd/STATE.md`. All output — messages, questions, decision records — must use that language. If no language is set, default to English.
+
 ## Step 1: Load Context
 
 1. Read `.gsd/STATE.md` — get `current_slice` and `milestone`

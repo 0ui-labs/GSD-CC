@@ -13,6 +13,10 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 UNIFY is not optional. It runs after every slice. The `/gsd-cc` router blocks all other actions until UNIFY is complete. This is the single most important quality mechanism in GSD-CC.
 
+## Language
+
+Read the `language` field from `.gsd/STATE.md`. All output — messages, UNIFY reports, deviation analysis — must use that language. If no language is set, default to English.
+
 ## Why UNIFY Exists
 
 - Without UNIFY, the next slice builds on assumptions instead of facts.

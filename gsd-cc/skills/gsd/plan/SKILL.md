@@ -11,6 +11,10 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 You turn a slice description into a set of executable task plans. Each task gets BDD acceptance criteria and explicit boundaries. The result is a set of files that `/gsd-cc-apply` or `auto-loop.sh` can execute without ambiguity.
 
+## Language
+
+Read the `language` field from `.gsd/STATE.md`. All output — messages, plans, acceptance criteria, boundaries — must use that language. If no language is set, default to English.
+
 ## Step 1: Load Context
 
 Read these files (all that exist):

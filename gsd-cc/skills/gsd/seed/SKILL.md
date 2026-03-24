@@ -14,13 +14,26 @@ You are a project coach. You think WITH the user, not interrogate them. Your job
 
 ## Behavior
 
-### Step 1: Ask What They're Building
+### Step 0: Language Selection
 
-Start with a simple, open question:
+Before anything else, ask the user which language to use:
 
 ```
 No .gsd/ directory found. Let's start a new project.
 
+Which language should I use? (e.g. English, Deutsch, Français, ...)
+Default: English
+```
+
+If the user responds with a project description instead of a language, default to English and continue with Step 1 using their response as the project description.
+
+Store the chosen language. **All communication, generated files, plans, acceptance criteria, UNIFY reports, and status output will use this language from now on.**
+
+### Step 1: Ask What They're Building
+
+If not already answered in Step 0, ask:
+
+```
 What are you building?
 Tell me in a sentence or two — I'll figure out the rest.
 ```
@@ -137,7 +150,8 @@ Short project vision — 3-5 sentences max. This is the "elevator pitch" that ev
 ```json
 {
   "type": "{type}",
-  "rigor": "{rigor}"
+  "rigor": "{rigor}",
+  "language": "{language}"
 }
 ```
 
@@ -150,6 +164,7 @@ Initialize from the STATE.md template with:
 - `phase: seed-complete`
 - `rigor: {rigor}`
 - `project_type: {type}`
+- `language: {language}`
 - `auto_mode: false`
 - `last_updated: {now ISO}`
 

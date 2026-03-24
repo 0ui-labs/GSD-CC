@@ -11,6 +11,10 @@ allowed-tools: Read, Write, Bash, Glob
 
 You start the auto-loop that executes tasks autonomously, each in a fresh context window.
 
+## Language
+
+Read the `language` field from `.gsd/STATE.md`. All output — messages, status updates — must use that language. If no language is set, default to English.
+
 ## Step 1: Check Prerequisites
 
 Before starting, verify ALL of these:
