@@ -34,53 +34,104 @@ Say:
 Got it. Let me read through this carefully.
 ```
 
-## Step 2: Analyze and Summarize
+## Step 2: Playback — "Here's What I Understood"
 
-Read the entire document. Then present a structured summary back to the user:
+Read the entire document. Then explain IN YOUR OWN WORDS what you understood — as a coherent narrative, not a bullet list. This is like telling a friend what the project is about after reading the spec.
 
 ```
-Here's what I understood from your document:
+OK, I've read through everything. Let me tell you what I understood —
+correct me wherever I'm wrong.
 
-PROJECT: {one sentence — what is this?}
+{2-4 paragraphs in your own words explaining:
+ - What we're building and why it exists
+ - Who it's for and what problem it solves
+ - How it works at a high level
+ - What makes it different or interesting}
 
-WHAT'S CLEAR:
-  ✓ {Area 1} — {brief summary of what's defined}
+Did I get that right, or did I misunderstand something?
+```
+
+**This is the most important step.** Write it like you're explaining the project to someone new. Use simple language. Don't parrot the document back — rephrase it to show you actually understood the intent.
+
+**Wait for the user's response.** They might say:
+- "Yes, exactly!" → proceed to Step 3
+- "Almost, but X is wrong..." → correct your understanding, rephrase the relevant part, confirm again
+- "No, that's not what I meant at all..." → ask what they actually mean, update your understanding, try the playback again
+
+Do NOT proceed until the user confirms you understood correctly. Iterate as many times as needed.
+
+## Step 3: Analysis — Clear, Vague, Contradictions
+
+Once the user confirms your understanding, show the structured analysis:
+
+```
+Great. Here's what's clearly defined, what's still vague, and where
+I found contradictions:
+
+CLEAR:
+  ✓ {Area 1} — {brief summary}
   ✓ {Area 2} — {brief summary}
-  ✓ {Area 3} — {brief summary}
   ...
 
-WHAT'S VAGUE OR MISSING:
-  ? {Area 1} — {what's unclear or not mentioned}
-  ? {Area 2} — {what's unclear}
+VAGUE OR MISSING:
+  ? {Area 1} — {what's unclear}
+  ? {Area 2} — {what's missing}
   ...
 
 CONTRADICTIONS (if any):
-  ⚠ {Description of contradiction}
+  ⚠ {Description — "Section 2 says X but section 5 says Y"}
   ...
 
-Did I get this right? Anything I misunderstood?
+I'd like to go through the unclear points with you one by one.
+Ready?
 ```
 
-**This confirmation step is critical.** The user must verify that you understood their concept correctly before you generate any artifacts. Misunderstanding a concept and generating wrong artifacts is worse than asking.
+Wait for confirmation.
 
-Wait for confirmation before proceeding.
+## Step 4: Guided Gap-Filling
 
-## Step 3: Fill the Gaps
+Go through each vague/missing point ONE AT A TIME. Never ask multiple questions at once.
 
-For each vague or missing area, ask targeted questions. Don't ask about things the document already covers — that's annoying.
+```
+Let's start with the first open point.
+
+{Topic}: {What's unclear, in plain language}
+{Why it matters — one sentence explaining why this affects the project}
+
+{ONE question}
+```
+
+Wait for the answer. Then move to the next point:
+
+```
+Got it. Next one:
+
+{Topic}: ...
+```
 
 Adapt your questions to the user's level (same as /gsd-cc-profile — read the room from how the document is written).
 
-**For a technical spec with missing areas:**
-- "Your spec covers the API endpoints but doesn't mention authentication. What's the plan — JWT, sessions, OAuth?"
+**For a technical spec:**
+- "Your spec covers the API endpoints but doesn't mention authentication. What's the plan?"
 
-**For a non-technical brief with gaps:**
-- "You described what the dashboard shows, but not what happens when someone clicks a number. Should it open a detail view, filter something, or just be informational?"
+**For a non-technical brief:**
+- "You described what the dashboard shows, but what happens when someone clicks a number?"
 
 **For a vague concept:**
-- "You mention 'user management' — what does that mean to you? Just login/signup, or also roles, permissions, teams?"
+- "You mention 'user management' — what does that mean to you? Just login/signup, or more?"
 
-Group related questions. Don't fire 15 questions at once. 3-4 at a time, then wait.
+If the user says "I don't know" or "you decide" — note it as an open question for later phases. Don't push.
+
+After resolving contradictions and filling gaps, summarize what changed:
+
+```
+OK, here's what we clarified:
+  • {Point 1}: {decision}
+  • {Point 2}: {decision}
+  • {Point 3}: left open for later
+
+{Remaining open points} will be addressed during planning.
+```
 
 ## Step 4: Assess Coverage
 
