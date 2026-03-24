@@ -194,31 +194,43 @@ function installHooks(isGlobal, hooksDir) {
   if (!settings.hooks) settings.hooks = {};
 
   const boundaryGuard = path.join(hooksDir, 'gsd-boundary-guard.sh');
+  const promptGuard = path.join(hooksDir, 'gsd-prompt-guard.sh');
   const contextMonitor = path.join(hooksDir, 'gsd-context-monitor.sh');
   const workflowGuard = path.join(hooksDir, 'gsd-workflow-guard.sh');
+  const statusline = path.join(hooksDir, 'gsd-statusline.sh');
 
-  // PreToolUse: boundary guard on Edit/Write
+  // Remove all existing GSD-CC hooks before adding (idempotent)
+  for (const event of Object.keys(settings.hooks)) {
+    settings.hooks[event] = settings.hooks[event].filter(
+      h => !JSON.stringify(h).includes('gsd-')
+    );
+    if (settings.hooks[event].length === 0) delete settings.hooks[event];
+  }
+
+  // PreToolUse: boundary guard + prompt injection guard on Edit/Write
   if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
-  // Remove existing GSD-CC hooks before adding (idempotent)
-  settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter(
-    h => !JSON.stringify(h).includes('gsd-boundary-guard')
-  );
   settings.hooks.PreToolUse.push({
     matcher: 'Edit|Write',
-    hooks: [{ type: 'command', command: boundaryGuard, timeout: 5000 }]
+    hooks: [
+      { type: 'command', command: boundaryGuard, timeout: 5000 },
+      { type: 'command', command: promptGuard, timeout: 5000 }
+    ]
   });
 
-  // PostToolUse: context monitor + workflow guard
+  // PostToolUse: context monitor (all tools) + workflow guard (Edit/Write)
   if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
-  settings.hooks.PostToolUse = settings.hooks.PostToolUse.filter(
-    h => !JSON.stringify(h).includes('gsd-context-monitor') && !JSON.stringify(h).includes('gsd-workflow-guard')
-  );
   settings.hooks.PostToolUse.push({
     hooks: [{ type: 'command', command: contextMonitor, timeout: 5000 }]
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Edit|Write',
     hooks: [{ type: 'command', command: workflowGuard, timeout: 5000 }]
+  });
+
+  // Notification: statusline
+  if (!settings.hooks.Notification) settings.hooks.Notification = [];
+  settings.hooks.Notification.push({
+    hooks: [{ type: 'command', command: statusline, timeout: 3000 }]
   });
 
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
