@@ -38,7 +38,7 @@ If not: "jq is required for auto-mode. Install with: `brew install jq`"
 
 ### claude -p works
 ```bash
-claude -p "echo test" --output-format json --bare --max-turns 1
+claude -p "echo test" --output-format json --max-turns 1
 ```
 If fails: "claude -p is not working. Make sure Claude Code is installed and you're logged in with a Max plan."
 

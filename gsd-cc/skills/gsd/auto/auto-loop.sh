@@ -145,7 +145,7 @@ while true; do
       RESULT_FILE="/tmp/gsd-result-$$.json"
       timeout 600 claude -p "$(cat "$PROMPT_FILE")" \
         --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git checkout *),Bash(git merge *),Bash(git commit *)" \
-        --output-format json --bare \
+        --output-format json \
         --max-turns 15 > "$RESULT_FILE" 2>/dev/null || {
         echo "❌ UNIFY dispatch failed. Check .gsd/auto.lock for recovery."
         break
@@ -164,7 +164,7 @@ while true; do
     # Check roadmap for remaining slices
     NEXT_RESULT=$(claude -p "Read .gsd/STATE.md and all .gsd/M*-ROADMAP.md and .gsd/S*-UNIFY.md files. Determine the next slice that needs work (no PLAN.md or no UNIFY.md). Output ONLY valid JSON: {\"slice\":\"S01\",\"phase\":\"plan\"} or {\"done\":true} if all slices are unified." \
       --allowedTools "Read,Glob" \
-      --output-format json --bare --max-turns 3 2>/dev/null) || {
+      --output-format json --max-turns 3 2>/dev/null) || {
       echo "❌ Failed to determine next unit."
       break
     }
@@ -274,7 +274,7 @@ while true; do
 
   timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_FILE")" \
     --allowedTools "$ALLOWED_TOOLS" \
-    --output-format json --bare \
+    --output-format json \
     --max-turns "$MAX_TURNS" > "$RESULT_FILE" 2>/dev/null || {
     EXIT_CODE=$?
     if [[ $EXIT_CODE -eq 124 ]]; then
