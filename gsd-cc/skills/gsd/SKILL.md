@@ -50,8 +50,8 @@ IF .gsd/auto.lock exists:
 ### No Project
 ```
 IF .gsd/ does not exist:
-  → "No project found. What do you want to build?"
-  → Delegate to /gsd-cc-seed for ideation.
+  → Delegate to /gsd-cc-seed immediately. Do NOT ask your own question first.
+    Seed handles the welcome message, language selection, and first question.
 ```
 
 ### Ideation Done, No Roadmap
