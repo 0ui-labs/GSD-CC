@@ -50,8 +50,11 @@ IF .gsd/auto.lock exists:
 ### No Project
 ```
 IF .gsd/ does not exist:
-  → Delegate to /gsd-cc-seed immediately. Do NOT ask your own question first.
-    Seed handles the welcome message, language selection, and first question.
+  → Ask: "No project found. Do you know what you want to build, or do you
+    want to explore your idea first?"
+  → If they have a clear idea → delegate to /gsd-cc-seed
+  → If they're unsure, have a vague idea, or want to brainstorm → delegate to /gsd-cc-ideate
+  → If they just describe their project → delegate to /gsd-cc-seed with their description
 ```
 
 ### Ideation Done, No Roadmap
@@ -140,6 +143,7 @@ Execute S01? (manual or auto)
 ## Delegating to Sub-Skills
 
 When routing to a sub-skill, tell the user what you're doing and then invoke the skill:
+- Brainstorming → `/gsd-cc-ideate`
 - Ideation → `/gsd-cc-seed`
 - Discussion → `/gsd-cc-discuss`
 - Planning → `/gsd-cc-plan`
