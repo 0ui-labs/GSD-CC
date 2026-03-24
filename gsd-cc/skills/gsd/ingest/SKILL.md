@@ -41,17 +41,37 @@ Read the entire document. Then explain IN YOUR OWN WORDS what you understood —
 ```
 OK, I've read through everything. Let me tell you what I understood —
 correct me wherever I'm wrong.
+```
 
-{2-4 paragraphs in your own words explaining:
- - What we're building and why it exists
- - Who it's for and what problem it solves
- - How it works at a high level
- - What makes it different or interesting}
+Then explain in your own words, structured into clear sections:
+
+```
+THE PROBLEM
+{What pain point or need does this address? Why does this project
+exist? What's the current situation that's not good enough?}
+
+THE SOLUTION
+{What are we building? One paragraph, plain language, no jargon.}
+
+WHO IT'S FOR
+{Who uses this? What's their situation? What do they care about?}
+
+HOW IT WORKS
+{The core workflow or experience — what happens step by step when
+someone uses it? Walk through the main journey.}
+
+HOW IT LOOKS & FEELS
+{Design direction, vibe, personality — if the document mentions this.
+Skip if the document is purely technical.}
+
+WHAT MAKES IT DIFFERENT
+{Why not use an existing solution? What's the unique angle?
+Skip if not apparent from the document.}
 
 Did I get that right, or did I misunderstand something?
 ```
 
-**This is the most important step.** Write it like you're explaining the project to someone new. Use simple language. Don't parrot the document back — rephrase it to show you actually understood the intent.
+**This is the most important step.** Write it like you're explaining the project to someone new. Use simple language. Don't parrot the document back — rephrase it to show you actually understood the intent. Not every section needs to be long — if the document doesn't cover "how it looks", write one sentence or skip it. But the structure helps the user quickly spot where you got it wrong.
 
 **Wait for the user's response.** They might say:
 - "Yes, exactly!" → proceed to Step 3
