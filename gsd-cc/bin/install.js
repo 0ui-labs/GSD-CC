@@ -26,11 +26,8 @@ ${cyan}   ██████╗ ███████╗██████╗   
   Get Shit Done on Claude Code ${dim}v${pkg.version}${reset}
 `;
 
-// Sub-skills that get their own top-level directory under .claude/skills/
-const SUB_SKILLS = ['apply', 'auto', 'config', 'discuss', 'help', 'ideate', 'ingest', 'plan', 'profile', 'seed', 'stack', 'status', 'tutorial', 'unify', 'update', 'vision'];
-
-// Shared directories installed directly into .claude/
-const SHARED_DIRS = ['checklists', 'prompts', 'templates'];
+// Directories inside gsd-cc/ that map 1:1 into .claude/
+const CLAUDE_DIRS = ['skills', 'hooks', 'checklists', 'commands', 'templates'];
 
 // Parse args
 const args = process.argv.slice(2);
@@ -94,86 +91,61 @@ function removeDir(dir) {
 }
 
 /**
- * Resolve skills base directory
+ * Resolve .claude base directory
  */
-function getSkillsBase(isGlobal) {
+function getClaudeBase(isGlobal) {
   if (isGlobal) {
-    return path.join(os.homedir(), '.claude', 'skills');
+    return path.join(os.homedir(), '.claude');
   }
-  return path.join(process.cwd(), '.claude', 'skills');
+  return path.join(process.cwd(), '.claude');
 }
 
 /**
- * Install skills to target directory
+ * Install everything into .claude/
+ * Source structure mirrors target structure 1:1.
  */
 function install(isGlobal) {
-  const skillsSrc = path.join(__dirname, '..', 'skills', 'gsd');
-  const skillsBase = getSkillsBase(isGlobal);
+  const srcBase = path.join(__dirname, '..');
+  const claudeBase = isGlobal
+    ? path.join(os.homedir(), '.claude')
+    : path.join(process.cwd(), '.claude');
   const label = isGlobal
-    ? skillsBase.replace(os.homedir(), '~')
-    : skillsBase.replace(process.cwd(), '.');
-
-  if (!fs.existsSync(skillsSrc)) {
-    console.error(`  ${red}Error:${reset} Skills source not found at ${skillsSrc}`);
-    process.exit(1);
-  }
+    ? claudeBase.replace(os.homedir(), '~')
+    : claudeBase.replace(process.cwd(), '.');
 
   console.log(`  Installing to ${cyan}${label}${reset}\n`);
 
   let fileCount = 0;
 
-  // 1. Install main router: gsd-cc/SKILL.md
-  const routerDest = path.join(skillsBase, 'gsd-cc');
-  fs.mkdirSync(routerDest, { recursive: true });
-  fs.copyFileSync(path.join(skillsSrc, 'SKILL.md'), path.join(routerDest, 'SKILL.md'));
-  fileCount++;
-
-  // 2. Install each sub-skill as its own top-level directory
-  for (const skill of SUB_SKILLS) {
-    const srcDir = path.join(skillsSrc, skill);
-    const destDir = path.join(skillsBase, `gsd-cc-${skill}`);
-
-    if (fs.existsSync(srcDir)) {
-      copyDir(srcDir, destDir);
-      fileCount += countFiles(destDir);
-    }
-  }
-
-  // 3. Install shared resources (templates, checklists, prompts) into .claude/
-  const claudeBase = isGlobal
-    ? path.join(os.homedir(), '.claude')
-    : path.join(process.cwd(), '.claude');
-  for (const dir of SHARED_DIRS) {
-    const srcDir = path.join(skillsSrc, dir);
+  // Copy each directory 1:1 into .claude/
+  for (const dir of CLAUDE_DIRS) {
+    const srcDir = path.join(srcBase, dir);
     if (fs.existsSync(srcDir)) {
       copyDir(srcDir, path.join(claudeBase, dir));
       fileCount += countFiles(path.join(claudeBase, dir));
     }
   }
 
-  // 4. Make auto-loop.sh executable
-  const autoLoop = path.join(skillsBase, 'gsd-cc-auto', 'auto-loop.sh');
-  if (fs.existsSync(autoLoop)) {
-    fs.chmodSync(autoLoop, 0o755);
-  }
-
-  // 5. Install hooks
-  const hooksSrc = path.join(__dirname, '..', 'hooks');
-  const hooksBase = isGlobal
-    ? path.join(os.homedir(), '.claude', 'hooks')
-    : path.join(process.cwd(), '.claude', 'hooks');
-  if (fs.existsSync(hooksSrc)) {
-    copyDir(hooksSrc, hooksBase);
-    // Make hooks executable
-    const hookFiles = fs.readdirSync(hooksBase);
-    for (const f of hookFiles) {
-      fs.chmodSync(path.join(hooksBase, f), 0o755);
+  // Make shell scripts executable
+  const makeExecutable = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        makeExecutable(fullPath);
+      } else if (entry.name.endsWith('.sh')) {
+        fs.chmodSync(fullPath, 0o755);
+      }
     }
-    fileCount += hookFiles.length;
-  }
+  };
+  makeExecutable(claudeBase);
 
-  // 6. Configure hooks in settings.json
-  installHooks(isGlobal, hooksBase);
+  // Configure hooks in settings.json
+  const hooksDir = path.join(claudeBase, 'hooks');
+  if (fs.existsSync(hooksDir)) {
+    installHooks(isGlobal, hooksDir);
+  }
 
   console.log(`  ${green}✓${reset} Installed ${fileCount} files to ${label}`);
 }
@@ -308,34 +280,41 @@ function countFiles(dir) {
 }
 
 /**
- * Uninstall skills
+ * Uninstall GSD-CC
  */
 function uninstall() {
-  const locations = [getSkillsBase(true), getSkillsBase(false)];
-  const allDirs = ['gsd-cc', ...SUB_SKILLS.map(s => `gsd-cc-${s}`), 'gsd-cc-shared', 'gsd'];
-  const sharedDirs = ['checklists', 'prompts', 'templates', 'hooks'];
+  const claudeBases = [
+    path.join(os.homedir(), '.claude'),
+    path.join(process.cwd(), '.claude')
+  ];
 
   let removed = false;
 
-  for (const base of locations) {
-    const label = base.includes(os.homedir())
-      ? base.replace(os.homedir(), '~')
-      : base.replace(process.cwd(), '.');
+  for (const claudeBase of claudeBases) {
+    const label = claudeBase.includes(os.homedir())
+      ? claudeBase.replace(os.homedir(), '~')
+      : claudeBase.replace(process.cwd(), '.');
 
     let removedFromLocation = false;
-    for (const dir of allDirs) {
-      const fullPath = path.join(base, dir);
+
+    // Remove all CLAUDE_DIRS
+    for (const dir of [...CLAUDE_DIRS, 'prompts']) { // 'prompts' for legacy cleanup
+      const fullPath = path.join(claudeBase, dir);
       if (removeDir(fullPath)) {
         removedFromLocation = true;
       }
     }
 
-    // Remove shared dirs from .claude/
-    const claudeDir = base.replace(/\/skills$/, '');
-    for (const dir of sharedDirs) {
-      const fullPath = path.join(claudeDir, dir);
-      if (removeDir(fullPath)) {
-        removedFromLocation = true;
+    // Also clean up old skill names (legacy: gsd-cc-shared, gsd)
+    const skillsDir = path.join(claudeBase, 'skills');
+    if (fs.existsSync(skillsDir)) {
+      const entries = fs.readdirSync(skillsDir);
+      for (const entry of entries) {
+        if (entry.startsWith('gsd-cc') || entry === 'gsd') {
+          if (removeDir(path.join(skillsDir, entry))) {
+            removedFromLocation = true;
+          }
+        }
       }
     }
 
@@ -384,12 +363,12 @@ function promptLocation() {
     output: process.stdout,
   });
 
-  const globalPath = getSkillsBase(true).replace(os.homedir(), '~');
+  const globalPath = getClaudeBase(true).replace(os.homedir(), '~');
 
   console.log(`  ${yellow}Where would you like to install?${reset}
 
   ${cyan}1${reset}) Global ${dim}(${globalPath})${reset} — available in all projects
-  ${cyan}2${reset}) Local  ${dim}(./.claude/skills/)${reset} — this project only
+  ${cyan}2${reset}) Local  ${dim}(./.claude/)${reset} — this project only
 `);
 
   rl.question(`  Choice ${dim}[1]${reset}: `, (answer) => {
