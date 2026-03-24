@@ -13,7 +13,7 @@ You start the auto-loop that executes tasks autonomously, each in a fresh contex
 
 ## Language
 
-Read the `language` field from `.gsd/STATE.md`. All output — messages, status updates — must use that language. If no language is set, default to English.
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, status updates — must use that language. If not found, default to English.
 
 ## Step 1: Check Prerequisites
 

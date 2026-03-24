@@ -13,7 +13,7 @@ You show a clear, concise overview of where the project stands. No actions — j
 
 ## Language
 
-Read the `language` field from `.gsd/STATE.md`. All output — messages, progress reports — must use that language. If no language is set, default to English.
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, progress reports — must use that language. If not found, default to English.
 
 ## Step 1: Read State
 

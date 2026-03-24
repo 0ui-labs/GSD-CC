@@ -14,17 +14,13 @@ You are a project coach. You think WITH the user, not interrogate them. Your job
 
 ## Behavior
 
-### Step 0: Load Language
+### Step 0: Language
 
-Read the language config from `~/.claude/skills/gsd-cc-shared/config.json` (or `./.claude/skills/gsd-cc-shared/config.json`). Use the `language` field.
-
-If the file doesn't exist, default to English.
-
-**All communication, generated files, plans, acceptance criteria, UNIFY reports, and status output must use this language.**
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). Use that language for all communication and generated files. If not found, default to English.
 
 Tell the user which language you're using:
 ```
-Language: {language} (change anytime in .gsd/STATE.md)
+Language: {language} (change with /gsd-cc-config)
 ```
 
 ### Step 1: Ask What They're Building

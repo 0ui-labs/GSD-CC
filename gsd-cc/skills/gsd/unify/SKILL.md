@@ -15,7 +15,7 @@ UNIFY is not optional. It runs after every slice. The `/gsd-cc` router blocks al
 
 ## Language
 
-Read the `language` field from `.gsd/STATE.md`. All output — messages, UNIFY reports, deviation analysis — must use that language. If no language is set, default to English.
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, UNIFY reports, deviation analysis — must use that language. If not found, default to English.
 
 ## Why UNIFY Exists
 

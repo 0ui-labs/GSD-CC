@@ -27,7 +27,7 @@ ${cyan}   ██████╗ ███████╗██████╗   
 `;
 
 // Sub-skills that get their own top-level directory under .claude/skills/
-const SUB_SKILLS = ['apply', 'auto', 'discuss', 'help', 'plan', 'seed', 'status', 'tutorial', 'unify', 'update'];
+const SUB_SKILLS = ['apply', 'auto', 'config', 'discuss', 'help', 'plan', 'seed', 'status', 'tutorial', 'unify', 'update'];
 
 // Shared directories that go into gsd-cc-shared/
 const SHARED_DIRS = ['checklists', 'prompts', 'templates'];
@@ -159,14 +159,29 @@ function install(isGlobal) {
 }
 
 /**
- * Write language config
+ * Write language to CLAUDE.md
  */
 function writeLanguageConfig(isGlobal, language) {
-  const skillsBase = getSkillsBase(isGlobal);
-  const configDir = path.join(skillsBase, 'gsd-cc-shared');
-  fs.mkdirSync(configDir, { recursive: true });
-  const configPath = path.join(configDir, 'config.json');
-  fs.writeFileSync(configPath, JSON.stringify({ language }, null, 2) + '\n');
+  const claudeMdPath = isGlobal
+    ? path.join(os.homedir(), '.claude', 'CLAUDE.md')
+    : path.join(process.cwd(), 'CLAUDE.md');
+
+  const gsdBlock = `\n# GSD-CC Config\nGSD-CC language: ${language}\n`;
+
+  if (fs.existsSync(claudeMdPath)) {
+    let content = fs.readFileSync(claudeMdPath, 'utf-8');
+    // Replace existing GSD-CC config block if present
+    const gsdRegex = /\n?# GSD-CC Config\nGSD-CC language: .+\n/;
+    if (gsdRegex.test(content)) {
+      content = content.replace(gsdRegex, gsdBlock);
+    } else {
+      content += gsdBlock;
+    }
+    fs.writeFileSync(claudeMdPath, content);
+  } else {
+    fs.mkdirSync(path.dirname(claudeMdPath), { recursive: true });
+    fs.writeFileSync(claudeMdPath, gsdBlock.trimStart());
+  }
 }
 
 /**
@@ -181,7 +196,7 @@ function promptLanguage(isGlobal) {
   console.log(`
   ${yellow}Which language should GSD-CC use?${reset}
   ${dim}(e.g. English, Deutsch, Français, Español, ...)${reset}
-  ${dim}You can change this later per project in .gsd/STATE.md${reset}
+  ${dim}You can change this anytime with /gsd-cc-config in Claude Code${reset}
 `);
 
   rl.question(`  Language ${dim}[English]${reset}: `, (answer) => {

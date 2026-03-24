@@ -14,7 +14,7 @@ You execute one task at a time from the current slice plan. Each task has a plan
 
 ## Language
 
-Read the `language` field from `.gsd/STATE.md`. All output — messages, summaries, commit messages — must use that language. If no language is set, default to English.
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, summaries, commit messages — must use that language. If not found, default to English.
 
 ## Step 1: Determine Current Task
 

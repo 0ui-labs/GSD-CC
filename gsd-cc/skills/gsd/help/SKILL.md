@@ -10,7 +10,7 @@ allowed-tools: Read, Glob
 
 ## Language
 
-Read the `language` field from `.gsd/STATE.md` if it exists. All output must use that language. If no project exists or no language is set, default to English.
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output must use that language. If not found, default to English.
 
 ## Output
 

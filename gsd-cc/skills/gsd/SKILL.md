@@ -14,7 +14,7 @@ You are the GSD-CC router. Your job is to read the current project state and sug
 
 ## Language
 
-Read the `language` field from `.gsd/STATE.md`. If no STATE.md exists, read from `~/.claude/skills/gsd-cc-shared/config.json` (or `./.claude/skills/gsd-cc-shared/config.json`). All output — messages, suggestions, file content — must use that language. If neither is found, default to English.
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, suggestions, file content — must use that language. If not found, default to English.
 
 ## Step 1: Detect State
 
@@ -148,6 +148,7 @@ When routing to a sub-skill, tell the user what you're doing and then invoke the
 - Auto mode → `/gsd-cc-auto`
 - Status overview → `/gsd-cc-status`
 - Update skills → `/gsd-cc-update`
+- Settings → `/gsd-cc-config`
 - Help → `/gsd-cc-help`
 - Tutorial → `/gsd-cc-tutorial`
 

@@ -14,7 +14,7 @@ You help the user resolve ambiguities BEFORE planning begins. Your job is to ide
 
 ## Language
 
-Read the `language` field from `.gsd/STATE.md`. All output — messages, questions, decision records — must use that language. If no language is set, default to English.
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, questions, decision records — must use that language. If not found, default to English.
 
 ## Step 1: Load Context
 
