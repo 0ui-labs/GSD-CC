@@ -9,7 +9,9 @@
   },
   "scripts": {
     "test": "node test/run-tests.js",
-    "test:install-hooks": "node test/install-hooks.test.js"
+    "test:install-hooks": "node test/install-hooks.test.js",
+    "test:installer": "node test/installer.test.js",
+    "test:uninstall": "node test/uninstall.test.js"
   },
   "license": "MIT",
   "keywords": [
