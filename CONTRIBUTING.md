@@ -41,6 +41,7 @@ PRs for clearer wording, better examples, or typo fixes are always welcome.
 - **Keep it simple.** No new dependencies. No build steps. If it can't be expressed in Markdown or Bash, it probably doesn't belong here.
 - **One PR, one concern.** Don't bundle unrelated changes.
 - **Test your changes.** Run at least one full Seed → Plan → Apply → Unify cycle before submitting.
+- **Protect shared Claude directories.** Changes to `gsd-cc/bin/install.js` must preserve manifest-driven ownership, conservative uninstall behavior, and conflict-safe installs in mixed `.claude/` setups.
 - **Respect the architecture.** Claude Code is the agent. GSD-CC tells it *what* to do, not *how* to write code.
 
 ## Code of Conduct

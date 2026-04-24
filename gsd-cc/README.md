@@ -23,7 +23,12 @@ GSD-CC orchestrates Claude Code with native Skills (Markdown) — no API costs, 
 npx gsd-cc            # Install globally (default)
 npx gsd-cc --local    # Install to current project only
 npx gsd-cc --uninstall
+npx gsd-cc --uninstall --local
 ```
+
+GSD-CC tracks installed assets in `.claude/gsd-cc/install-manifest.json`,
+removes only files it owns during uninstall, and aborts if an existing target
+file cannot be proven safe to overwrite.
 
 ## Usage
 

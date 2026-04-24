@@ -115,7 +115,20 @@ GSD-CC uses `claude -p` (non-interactive mode) for autonomous execution. That ru
 npx gsd-cc            # Install globally (default)
 npx gsd-cc --local    # Install to current project only
 npx gsd-cc --uninstall
+npx gsd-cc --uninstall --local
 ```
+
+### Install Safety
+
+- GSD-CC writes an install manifest to `~/.claude/gsd-cc/install-manifest.json`
+  for global installs and `./.claude/gsd-cc/install-manifest.json` for local
+  installs.
+- Uninstall removes only manifest-tracked assets, GSD-CC-owned hook entries,
+  and the managed language block in `CLAUDE.md`.
+- If a target file already exists and GSD-CC cannot prove ownership, install
+  stops instead of overwriting it.
+- Hook scripts live under `.claude/hooks/gsd-cc/` so shared hook directories no
+  longer need broad cleanup.
 
 ### Quick Start
 
