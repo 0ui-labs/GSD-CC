@@ -52,8 +52,11 @@ Use this XML format in each task plan file:
 ## Files to Write
 
 1. `.gsd/S{nn}-PLAN.md` — slice overview with task table, AC table, boundaries summary, dependency order.
-2. `.gsd/S{nn}-T01-PLAN.md` through `.gsd/S{nn}-T{last}-PLAN.md` — one file per task.
+2. `.gsd/S{nn}-T01-PLAN.xml` through `.gsd/S{nn}-T{last}-PLAN.xml` — one file per task.
 3. `.gsd/M{n}-RESEARCH.md` — append research findings.
+
+Do NOT create `.gsd/S{nn}-T{nn}-PLAN.md`. Markdown is reserved for the slice
+plan only.
 
 ## Git
 

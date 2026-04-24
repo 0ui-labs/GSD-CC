@@ -2,7 +2,7 @@ You are GSD-CC in auto-mode. Your job: execute one task.
 
 The context files are inlined above in XML tags:
 - <state> — current STATE.md
-- <task-plan> — the task plan for this specific task
+- <task-plan> — the XML task plan for this specific task (`.gsd/S{nn}-T{nn}-PLAN.xml`)
 - <slice-plan> — the slice overview
 - <decisions> — DECISIONS.md
 - <prior-summary> — summaries of previously completed tasks (zero or more)

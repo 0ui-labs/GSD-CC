@@ -51,11 +51,13 @@ PROJECT FILES
   .gsd/PROJECT.md         Elevator pitch (3-5 sentences)
   .gsd/M001-ROADMAP.md    Milestones and slices
   .gsd/S01-PLAN.md        Slice plan with architecture notes
-  .gsd/S01-T01-PLAN.md    Task plan with ACs and boundaries
+  .gsd/S01-T01-PLAN.xml    Task plan with ACs and boundaries
   .gsd/S01-T01-SUMMARY.md What actually happened
   .gsd/S01-UNIFY.md       Plan vs. actual comparison
   .gsd/DECISIONS.md       All decisions, append-only
   .gsd/COSTS.jsonl        Token usage tracking (auto-mode)
+
+Per-task plans use `.xml`. Only the slice overview stays in Markdown.
 
 TIPS
   • You only need /gsd-cc — it always knows what to do next

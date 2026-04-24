@@ -14,7 +14,13 @@ You are the GSD-CC router. Your job is to read the current project state and sug
 
 ## Language
 
-Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, suggestions, file content — must use that language. If not found, default to English.
+Determine the language from these sources, in order of priority:
+
+1. `language` field in `.gsd/STATE.md`
+2. `language` field in `.gsd/CONFIG.md`
+3. "GSD-CC language: {lang}" in CLAUDE.md
+
+If none of these are found, default to English. All output — messages, suggestions, file content — must use the resolved language.
 
 ## Step 1: Detect State
 
@@ -68,6 +74,14 @@ IF .gsd/ does not exist:
   → If user selects "Other" and describes their project → delegate to /gsd-cc-seed with their description
 ```
 
+### Ideation Done, No Plan
+```
+IF .gsd/IDEATION.md exists AND no .gsd/PLANNING.md exists:
+  → "You've explored your idea. Ready to turn it into a project plan?"
+  → On confirmation: delegate to /gsd-cc-seed
+  → Seed will pick up IDEATION.md automatically.
+```
+
 ### Seed Done, No Stack
 ```
 IF .gsd/PLANNING.md exists AND no .gsd/STACK.md exists:
@@ -92,7 +106,8 @@ IF M*-ROADMAP.md exists AND there are slices without a S*-PLAN.md:
 
 ### Plan Ready, Not Executed
 ```
-IF S*-PLAN.md exists for current slice AND no T*-SUMMARY.md files for it:
+IF S*-PLAN.md exists for current slice AND corresponding T*-PLAN.xml files exist
+for it AND no T*-SUMMARY.md files exist for it:
   → First print: "S{nn} is planned with {n} tasks."
   → Then use AskUserQuestion to present execution modes:
 
@@ -115,6 +130,31 @@ IF S*-PLAN.md exists for current slice AND no T*-SUMMARY.md files for it:
     Or choose option 2 instead."
     If YES: delegate to /gsd-cc-auto (full milestone mode)
     Set auto_mode_scope in STATE.md: "slice" or "milestone"
+```
+
+If the current slice only has legacy `T*-PLAN.md` task-plan files, route back
+to `/gsd-cc-plan` and tell the user to regenerate XML task plans first.
+
+### Task Blocked or Partial
+```
+IF STATE.md phase is "apply-blocked":
+  → Read STATE.md for current_task and blocked_reason.
+  → Read the task's SUMMARY.md for details on what failed.
+  → "S{nn}/T{nn} is blocked: {blocked_reason}."
+  → "Review .gsd/S{nn}-T{nn}-SUMMARY.md for details."
+  → Use AskUserQuestion:
+    Question: "How do you want to proceed?"
+    Header: "Blocked Task"
+    Options:
+      - label: "Retry this task"
+        description: "Re-run /gsd-cc-apply for the same task (after fixing the issue)"
+      - label: "Skip this task"
+        description: "Mark as skipped and move to the next task"
+      - label: "Replan this task"
+        description: "Go back to /gsd-cc-plan to create a new plan for this task"
+  → "Retry" → delegate to /gsd-cc-apply
+  → "Skip" → advance current_task to T{nn+1}, set phase to "applying", delegate to /gsd-cc-apply
+  → "Replan" → delegate to /gsd-cc-plan for this specific task
 ```
 
 ### Execution In Progress

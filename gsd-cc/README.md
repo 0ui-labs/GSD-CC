@@ -43,6 +43,10 @@ GSD-CC reads your project state and suggests the next action. The full cycle:
 
 Auto-mode runs tasks autonomously via `claude -p` on your Max Plan.
 
+Artifact convention:
+- Slice overview: `.gsd/S{nn}-PLAN.md`
+- Per-task plans: `.gsd/S{nn}-T{nn}-PLAN.xml`
+
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed

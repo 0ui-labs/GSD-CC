@@ -30,6 +30,12 @@ Check for S*-PLAN.md files.
 If none: "No slice is planned yet. Run /gsd-cc to plan first."
 ```
 
+If execution is about to start, also verify the current slice has
+`.gsd/S{nn}-T{nn}-PLAN.xml` task plans and no legacy
+`.gsd/S{nn}-T{nn}-PLAN.md` files. If legacy Markdown task plans exist:
+"Legacy task plans detected. Run /gsd-cc-plan to regenerate XML task plans
+before starting auto-mode."
+
 ### jq is installed
 ```bash
 command -v jq

@@ -17,6 +17,14 @@ Ask the user which language to use before starting, just like `/gsd-cc-seed` doe
 
 ## Step 1: Welcome
 
+Create a temporary directory for the tutorial so the user's real project is never affected:
+
+```bash
+mkdir -p /tmp/gsd-tutorial && cd /tmp/gsd-tutorial && git init
+```
+
+Then show:
+
 ```
 Welcome to the GSD-CC Tutorial!
 
@@ -27,6 +35,8 @@ The whole tutorial takes about 10-15 minutes.
 
 We'll build a simple CLI tool together — small enough to finish quickly,
 big enough to see every GSD-CC feature.
+
+(We're working in /tmp/gsd-tutorial — your real project is untouched.)
 
 Ready? (yes to start)
 ```
@@ -76,7 +86,7 @@ Create the roadmap. After creation, explain:
 Say: "Now I'll plan the first slice in detail. Each task gets acceptance criteria (Given/When/Then) and boundaries (what NOT to touch)."
 
 Delegate to `/gsd-cc-plan`. After planning, show:
-- One task plan as an example
+- One XML task plan (`.gsd/S{nn}-T{nn}-PLAN.xml`) as an example
 - Highlight the acceptance criteria format
 - Highlight the boundaries section
 - "These boundaries prevent Claude from going on tangents — a common problem in AI coding."
@@ -95,7 +105,7 @@ Delegate to `/gsd-cc-apply` for T01 only. After execution:
 Don't actually run auto-mode (that would take too long for a tutorial). Instead explain:
 - "For the remaining tasks, you'd type `/gsd-cc` and choose 'auto'"
 - "Auto-mode runs each task in a fresh `claude -p` session"
-- "It uses your Max Plan — no API costs"
+- "If you're on the Max Plan, there are no extra API costs"
 - "When all tasks in a slice are done, UNIFY runs automatically"
 
 ## Step 8: Explain UNIFY
@@ -119,9 +129,12 @@ What you learned:
   ✓ UNIFY    — mandatory quality check after each slice
 
 Next steps:
-  1. Delete this tutorial project: rm -rf .gsd/
-  2. Start your real project: /gsd-cc
-  3. Or explore: /gsd-cc-help for all commands
+  1. Start your real project: /gsd-cc
+  2. Or explore: /gsd-cc-help for all commands
+
+(The tutorial project lives in /tmp/gsd-tutorial — it will be
+cleaned up automatically on next reboot, or you can delete it
+with: rm -rf /tmp/gsd-tutorial)
 
 Happy building!
 ```

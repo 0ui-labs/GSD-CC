@@ -4,7 +4,7 @@ description: >
   Research, decompose, and plan the current slice. Produces task plans
   with BDD acceptance criteria and explicit boundaries. Use when /gsd-cc
   routes here, when user says /gsd-cc-plan, or when a slice needs planning.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent
 ---
 
 # /gsd-cc-plan — Slice Planning
@@ -33,8 +33,8 @@ Before decomposing, understand the codebase and ecosystem. Spawn a **read-only r
 
 ### What to Research
 
-1. **Codebase scan** — What files exist? What's the project structure? What patterns are established?
-2. **Stack analysis** — What dependencies are installed? What frameworks are in use?
+1. **Codebase scan** — What files and patterns are relevant to this slice? Ignore parts of the codebase that this slice won't touch.
+2. **Stack analysis** — What dependencies and frameworks are in use that this slice builds on?
 3. **Existing code** — What's already built from previous slices? What interfaces exist that this slice must integrate with?
 4. **Ecosystem check** — Are there libraries that solve parts of this slice? What's the idiomatic approach for this stack?
 
@@ -162,9 +162,12 @@ Overview of the entire slice:
 T01 → T02 → T03 (or describe the actual graph)
 ```
 
-### Per-Task Plans: `.gsd/S{nn}-T{nn}-PLAN.md`
+### Per-Task Plans: `.gsd/S{nn}-T{nn}-PLAN.xml`
 
 One file per task, using the PLAN.xml template format:
+
+Do NOT write `.gsd/S{nn}-T{nn}-PLAN.md`. Markdown is reserved for the slice
+overview file `.gsd/S{nn}-PLAN.md`.
 
 ```xml
 <task id="S{nn}-T{nn}" type="auto">
@@ -205,16 +208,7 @@ Before finishing, check against `checklists/planning-ready.md`:
 Read: `./gsd-cc/checklists/planning-ready.md`
 (or `~/.claude/checklists/planning-ready.md`)
 
-Verify ALL of these:
-
-- [ ] Every task has at least 1 acceptance criterion
-- [ ] Every AC has Given/When/Then format
-- [ ] Every task has a boundaries section
-- [ ] No "TBD", "TODO", or "later" in action or files fields
-- [ ] Task count per slice: 1-7
-- [ ] Every task has a `<verify>` that references at least one AC
-- [ ] No circular dependencies between tasks
-- [ ] Each task fits in one context window (~15 files of context + output)
+Verify ALL items from the checklist. Do not cherry-pick — every item must pass.
 
 If any check fails, fix it before proceeding. Do not skip the quality gate.
 
@@ -246,8 +240,8 @@ phase: plan-complete
   Quality gate passed
 
   .gsd/S{nn}-PLAN.md          — slice overview
-  .gsd/S{nn}-T01-PLAN.md      — {task 1 name}
-  .gsd/S{nn}-T02-PLAN.md      — {task 2 name}
+  .gsd/S{nn}-T01-PLAN.xml      — {task 1 name}
+  .gsd/S{nn}-T02-PLAN.xml      — {task 2 name}
   ...
   Branch: gsd/M{n}/S{nn}
 

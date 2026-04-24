@@ -3,7 +3,7 @@ You are GSD-CC in auto-mode. Your job: reconcile plan vs. actual for a completed
 The context files are inlined above in XML tags:
 - <state> — current STATE.md
 - <slice-plan> — the slice plan
-- <task-plans> — all task plans for this slice
+- <task-plans> — all XML task plans for this slice (`.gsd/S{nn}-T{nn}-PLAN.xml`)
 - <summaries> — all task summaries for this slice
 - <decisions> — DECISIONS.md
 

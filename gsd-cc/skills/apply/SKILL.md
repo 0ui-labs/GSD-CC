@@ -14,27 +14,40 @@ You execute one task at a time from the current slice plan. Each task has a plan
 
 ## Language
 
-Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, summaries, commit messages — must use that language. If not found, default to English.
+Determine the language from these sources, in order of priority:
+
+1. `language` field in `.gsd/STATE.md`
+2. `language` field in `.gsd/CONFIG.md`
+3. "GSD-CC language: {lang}" in CLAUDE.md
+
+If none of these are found, default to English and warn the user: "No language configured. Defaulting to English. Set it in STATE.md or CONFIG.md to avoid this warning."
+
+All output — messages, summaries, commit messages — must use the resolved language.
 
 ## Step 1: Determine Current Task
 
 1. Read `.gsd/STATE.md` — get `current_slice` and `current_task`
 2. If `current_task` is `—` or empty, start with `T01`
-3. Construct the task plan path: `.gsd/S{nn}-T{nn}-PLAN.md`
+3. Construct the task plan path: `.gsd/S{nn}-T{nn}-PLAN.xml`
 
 If the task plan file doesn't exist, stop and tell the user: "No plan found for S{nn}/T{nn}. Run /gsd-cc-plan first."
+If `.gsd/S{nn}-T{nn}-PLAN.md` exists instead, treat it as a legacy artifact
+and stop with: "Legacy Markdown task plan detected for S{nn}/T{nn}. Run
+/gsd-cc-plan to regenerate the XML task plan first."
 
 ## Step 2: Load Context (Context Matrix)
 
 Load ONLY these files — nothing else:
 
-| File | Purpose |
-|------|---------|
-| `.gsd/S{nn}-T{nn}-PLAN.md` | The task plan (primary input) |
-| `.gsd/S{nn}-PLAN.md` | Slice overview for context |
-| `.gsd/DECISIONS.md` | Decisions that affect implementation |
-| `.gsd/S{nn}-T{prev}-SUMMARY.md` | Previous task summaries (all that exist for this slice) |
-| `.gsd/VISION.md` | User's detailed intentions (if it exists) — check alignment during implementation |
+| File | Required | Purpose |
+|------|----------|---------|
+| `.gsd/S{nn}-T{nn}-PLAN.xml` | **yes** | The task plan (primary input) — stop if missing |
+| `.gsd/S{nn}-PLAN.md` | **yes** | Slice overview for context — stop if missing |
+| `.gsd/DECISIONS.md` | no | Decisions that affect implementation — skip silently if missing |
+| `.gsd/S{nn}-T{prev}-SUMMARY.md` | no | Previous task summaries (all that exist for this slice) — skip if none exist |
+| `.gsd/VISION.md` | no | User's detailed intentions — skip silently if missing |
+
+If a **required** file is missing, stop and tell the user which file is missing and what to do (e.g. "Run /gsd-cc-plan first").
 
 **Do NOT load:** PLANNING.md, ROADMAP.md, PROJECT.md, RESEARCH.md, CONTEXT.md, or files from other slices. These are not needed during execution and waste context window space.
 
@@ -58,7 +71,14 @@ Boundaries:
   DO NOT CHANGE: {file list with reasons}
 ```
 
-This makes boundaries visible to you and to the user before any code is written.
+If the task plan contains `parallel: true`, note this to the user:
+
+```
+Note: This task is marked as parallelizable — it has no dependencies on
+adjacent tasks and could run concurrently with other parallel-marked tasks.
+```
+
+This makes boundaries and parallelizability visible to you and to the user before any code is written.
 
 ## Step 4: Enforce Boundaries
 
@@ -85,9 +105,27 @@ If you encounter an issue during execution:
 - **Minor issue** (typo in plan, obvious small fix): fix it, note it in the summary.
 - **Major issue** (plan is wrong, dependency missing, approach doesn't work): STOP. Tell the user. Don't improvise a different approach.
 
-## Step 6: Verify Acceptance Criteria
+## Step 6: Run Existing Tests
 
-Run the `<verify>` command from the task plan. For each AC:
+Before verifying acceptance criteria, run the existing test suite to catch regressions:
+
+1. Detect the project's test runner (look for `package.json` scripts, `Makefile`, `Cargo.toml`, `pytest.ini`, etc.)
+2. If **no test suite exists**, skip this step and note in the summary: "No existing test suite found — skipped regression check."
+3. Run the test suite. Scoping strategy:
+   - If the `<files>` section of the task plan maps to a specific test file or directory, run only those tests.
+   - If the task plan includes a `<test_scope>` hint, use that.
+   - Otherwise, run the full test suite.
+4. If existing tests fail:
+   - **If the failure is caused by your changes:** fix it before proceeding.
+   - **If the failure is pre-existing** (verify by checking: does the same test also fail on `main`?): note it in the summary under Issues, but proceed.
+
+This step ensures that the implementation does not break existing functionality.
+
+## Step 7: Verify Acceptance Criteria
+
+Run the `<verify>` command from the task plan. If no `<verify>` command exists, verify each AC manually and note: "No verify command in plan — verified manually."
+
+For each AC:
 
 ```
 AC-1: {Given/When/Then summary}
@@ -100,7 +138,12 @@ AC-1: {Given/When/Then summary}
 2. Re-run verification
 3. If it still fails after a reasonable attempt, mark it as Partial or Fail and note why in the summary
 
-## Step 7: Write Task Summary
+After verification, determine the **task status**:
+- **complete** — all ACs pass
+- **partial** — some ACs pass, some are Partial or Fail
+- **blocked** — critical ACs fail and cannot be resolved in this task's scope
+
+## Step 8: Write Task Summary
 
 Create `.gsd/S{nn}-T{nn}-SUMMARY.md`:
 
@@ -131,7 +174,9 @@ Create `.gsd/S{nn}-T{nn}-SUMMARY.md`:
 {Any problems encountered. "None." if clean execution.}
 ```
 
-## Step 8: Git Commit
+## Step 9: Git Commit (Conditional)
+
+**Only commit if task status is `complete`.**
 
 Stage and commit the changes from this task:
 
@@ -142,17 +187,42 @@ git commit -m "feat(S{nn}/T{nn}): {task name}"
 
 **Commit only the files this task changed.** Do not `git add -A` — that could include unrelated changes.
 
-## Step 9: Update STATE.md
+**If task status is `partial` or `blocked`:**
+
+Do NOT commit. Instead, ask the user:
+
+```
+Task status: {partial | blocked}
+
+Failed/partial ACs:
+  AC-X: {reason}
+
+Options:
+  1. Keep changes uncommitted (you can review and fix manually)
+  2. Discard all changes from this task (revert modified files AND remove newly created files)
+  3. Commit anyway as work-in-progress: "wip(S{nn}/T{nn}): {task name}"
+
+Which option?
+```
+
+Wait for the user's response and act accordingly.
+
+**If the user chooses option 2 (discard):**
+- Revert modified files: `git checkout -- {modified files}`
+- Remove newly created files: `rm {new files}` (list them explicitly, never use `rm -rf`)
+- The task summary file (`.gsd/S{nn}-T{nn}-SUMMARY.md`) is **kept** — it documents the failed attempt and is valuable for the next try.
+
+## Step 10: Update STATE.md
 
 Determine what comes next:
 
-### If there are more tasks in this slice:
+### If task status is `complete` and there are more tasks in this slice:
 ```
 current_task: T{nn+1}
 phase: applying
 ```
 
-### If this was the LAST task in the slice:
+### If task status is `complete` and this was the LAST task in the slice:
 ```
 current_task: T{nn}
 phase: apply-complete
@@ -161,12 +231,24 @@ unify_required: true
 
 Setting `phase: apply-complete` triggers the UNIFY requirement. The `/gsd-cc` router will not allow any other action until UNIFY is done.
 
+### If task status is `partial` or `blocked`:
+```
+current_task: T{nn}
+phase: apply-blocked
+blocked_reason: {brief reason}
+```
+
+Do NOT advance to the next task. The user must resolve the issue first.
+
+**Important:** The `apply-blocked` phase must be checked by the `/gsd-cc` router BEFORE the "Execution In Progress" rule. The router checks for SUMMARY.md file existence to determine task completion — but a blocked/partial task also has a SUMMARY (with status `blocked` or `partial`). Without an explicit `apply-blocked` check, the router would skip the blocked task and move to the next one.
+
 Update the Progress table in STATE.md with the AC results.
 
-## Step 10: Report and End Session
+## Step 11: Report and End Session
 
 After completing a task, report results and instruct the user to start a fresh session:
 
+### If status is `complete`:
 ```
 ✓ S{nn}/T{nn} complete.
 
@@ -185,7 +267,28 @@ After completing a task, report results and instruct the user to start a fresh s
 └─────────────────────────────────────────────┘
 ```
 
-If this was the LAST task in the slice:
+### If status is `partial` or `blocked`:
+```
+⚠ S{nn}/T{nn} {partial | blocked}.
+
+  AC-1: Pass ✓
+  AC-X: Fail ✗ — {reason}
+
+  Changes are {uncommitted | committed as WIP | discarded} per your choice.
+
+┌─────────────────────────────────────────────┐
+│  This task needs attention before moving    │
+│  on. Review the summary:                    │
+│  .gsd/S{nn}-T{nn}-SUMMARY.md               │
+│                                             │
+│  When ready, start a fresh session:         │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+└─────────────────────────────────────────────┘
+```
+
+### If this was the LAST task in the slice (and complete):
 ```
 ✓ S{nn}/T{nn} complete — all tasks in this slice are done.
 

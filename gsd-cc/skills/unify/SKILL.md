@@ -26,7 +26,7 @@ Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All out
 
 ## Enforcement
 
-If `STATE.md` has `phase: apply-complete` and no `S{nn}-UNIFY.md` exists:
+If `STATE.md` has `phase: apply-complete`, `unify-failed`, or `unify-blocked` and no `S{nn}-UNIFY.md` exists (or UNIFY status is `failed`):
 
 **UNIFY MUST run NOW.** Do not offer alternatives. Do not let the user skip to another slice. Do not accept "I'll do it later." Execute UNIFY immediately.
 
@@ -37,12 +37,14 @@ Read ALL of these:
 | File | Purpose |
 |------|---------|
 | `.gsd/S{nn}-PLAN.md` | What was planned |
-| `.gsd/S{nn}-T{nn}-PLAN.md` | Per-task plans (all tasks in slice) |
+| `.gsd/S{nn}-T{nn}-PLAN.xml` | Per-task plans (all tasks in slice) |
 | `.gsd/S{nn}-T{nn}-SUMMARY.md` | What actually happened (all tasks in slice) |
 | `.gsd/DECISIONS.md` | Existing decisions |
 | `.gsd/VISION.md` | User's original intentions (if it exists) |
 
 Use `Glob` to find all matching files for the current slice.
+If any `.gsd/S{nn}-T{nn}-PLAN.md` task-plan files exist, stop and tell the
+user to rerun `/gsd-cc-plan` so the slice is regenerated with XML task plans.
 
 ## Step 2: Compare Plan vs. Actual
 
@@ -101,7 +103,7 @@ Collect all decisions from task summaries that were NOT in the original plan:
 
 If no ad-hoc decisions were made: "No additional decisions made during execution."
 
-**Also append these decisions to `.gsd/DECISIONS.md`** under the slice heading.
+**Also append these decisions to `.gsd/DECISIONS.md`** under the slice heading (if the file doesn't exist, create it with a `# Decisions` header first).
 
 ## Step 5: Check Boundary Violations
 
@@ -139,7 +141,7 @@ If nothing was deferred: leave the section empty with a note "Nothing deferred."
 
 Based on everything learned in this slice, assess the remaining roadmap:
 
-1. Read `.gsd/M001-ROADMAP.md`
+1. Read the current milestone roadmap (`.gsd/M{nnn}-ROADMAP.md`)
 2. Consider: Did this slice reveal anything that changes the plan?
    - New requirements discovered?
    - Approach that turned out harder/easier than expected?
@@ -190,18 +192,9 @@ This section is critical for auto-mode transparency. The user should be able to 
 
 If no VISION.md exists, skip this step.
 
-## Step 9: Quality Gate
-
-Check against `checklists/unify-complete.md`:
-
-Read: `./gsd-cc/checklists/unify-complete.md`
-(or `~/.claude/checklists/unify-complete.md`)
-
-Verify ALL items pass. If any fails, fix the UNIFY document before proceeding.
-
 ## Step 9: Write UNIFY.md
 
-Write `.gsd/S{nn}-UNIFY.md` using the template from `./gsd-cc/templates/UNIFY.md` (or `~/.claude/templates/UNIFY.md`). Include all sections from Steps 2-7.
+Write `.gsd/S{nn}-UNIFY.md` using the template from `./gsd-cc/templates/UNIFY.md` (or `~/.claude/templates/UNIFY.md`). Include all sections from Steps 2-8.
 
 Set frontmatter:
 ```yaml
@@ -217,7 +210,23 @@ Status:
 - `partial` — some ACs partial/failed, but slice is usable
 - `failed` — critical issues, slice may need rework
 
-## Step 10: Git Squash-Merge
+## Step 10: Quality Gate
+
+Check against `checklists/unify-complete.md`:
+
+Read: `./gsd-cc/checklists/unify-complete.md`
+(or `~/.claude/checklists/unify-complete.md`)
+
+Verify ALL items pass. If any fails, fix the UNIFY document before proceeding.
+
+## Step 11: Gate on Status
+
+Before merging, check the UNIFY status:
+
+- `complete` or `partial` → proceed to squash-merge.
+- `failed` → **Do NOT merge.** Set `phase: unify-failed` in STATE.md. Present the failed ACs and boundary violations to the user and ask: rework the slice or skip it? Do not continue until the user decides.
+
+## Step 12: Git Squash-Merge
 
 Merge the slice branch back to main with a squash:
 
@@ -231,9 +240,13 @@ This produces one clean commit on main per slice. The per-task history is preser
 
 **Do NOT delete the slice branch.** It contains per-task commit history.
 
-If there are merge conflicts, tell the user and help resolve them.
+If there are merge conflicts:
 
-## Step 11: Update STATE.md
+1. Show the conflicts to the user and help resolve them.
+2. After resolution, stage and commit as above.
+3. If the user decides NOT to merge, set `phase: unify-blocked` in STATE.md and note the reason. The next `/gsd-cc` invocation will retry the merge.
+
+## Step 13: Update STATE.md
 
 ```
 phase: unified
@@ -242,7 +255,7 @@ unify_required: false
 
 Update the Progress table: set the current slice to `done` with AC counts.
 
-## Step 12: Confirm and End Session
+## Step 14: Confirm and End Session
 
 ```
 ✓ UNIFY complete for S{nn}.
