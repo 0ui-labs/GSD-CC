@@ -390,6 +390,13 @@ collect_untracked_changes() {
   git ls-files --others --exclude-standard 2>/dev/null || true
 }
 
+is_auto_runtime_path() {
+  case "$1" in
+    "$GSD_DIR/auto.lock"|"$GSD_DIR/auto.log"|"$GSD_DIR/COSTS.jsonl") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 CLASSIFIED_ALLOWED_TRACKED=()
 CLASSIFIED_ALLOWED_UNTRACKED=()
 CLASSIFIED_DISALLOWED_TRACKED=()
@@ -423,6 +430,9 @@ classify_worktree_changes() {
   if [[ ${#tracked_changes[@]} -gt 0 ]]; then
     for path in "${tracked_changes[@]}"; do
       [[ -z "$path" ]] && continue
+      if is_auto_runtime_path "$path"; then
+        continue
+      fi
       if [[ ${#allowlist[@]} -gt 0 ]] && path_in_list "$path" "${allowlist[@]}"; then
         CLASSIFIED_ALLOWED_TRACKED+=("$path")
       else
@@ -434,6 +444,9 @@ classify_worktree_changes() {
   if [[ ${#untracked_changes[@]} -gt 0 ]]; then
     for path in "${untracked_changes[@]}"; do
       [[ -z "$path" ]] && continue
+      if is_auto_runtime_path "$path"; then
+        continue
+      fi
       if [[ ${#allowlist[@]} -gt 0 ]] && path_in_list "$path" "${allowlist[@]}"; then
         CLASSIFIED_ALLOWED_UNTRACKED+=("$path")
       else
