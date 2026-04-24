@@ -78,6 +78,9 @@ Short, descriptive name. "Core types and interfaces", not "Do stuff".
 
 #### `<files>`
 List every file this task will create or modify. Be specific — full paths.
+Prefer bare repo-relative paths, one per line. Auto-mode derives fallback Git
+ownership from this section, so it must stay machine-readable. If you need a
+short note, keep the path first on the line and the note trailing it.
 
 #### `<acceptance_criteria>`
 **MANDATORY.** At least one AC per task. Every AC uses BDD format:
