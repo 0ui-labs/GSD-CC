@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 const fs = require('fs');
-const path = require('path');
 const os = require('os');
+const path = require('path');
 const readline = require('readline');
 
 // Colors
@@ -26,8 +26,46 @@ ${cyan}   ██████╗ ███████╗██████╗   
   Get Shit Done on Claude Code ${dim}v${pkg.version}${reset}
 `;
 
-// Directories inside gsd-cc/ that map 1:1 into .claude/
-const CLAUDE_DIRS = ['skills', 'hooks', 'checklists', 'templates'];
+const MANAGED_BY = 'gsd-cc';
+const MANIFEST_VERSION = 1;
+const MANIFEST_DIR = 'gsd-cc';
+const MANIFEST_FILENAME = 'install-manifest.json';
+const CURRENT_HOOK_DIR = path.join('hooks', 'gsd-cc');
+const LEGACY_HOOK_DIR = 'hooks';
+const CLAUDE_CONFIG_BLOCK_START = '<!-- gsd-cc:config:start -->';
+const CLAUDE_CONFIG_BLOCK_END = '<!-- gsd-cc:config:end -->';
+const LEGACY_CLAUDE_CONFIG_REGEX = /\n?# GSD-CC Config\nGSD-CC language: .+\n?/;
+
+const INSTALL_LAYOUT = [
+  { sourceDir: 'skills', targetDir: 'skills' },
+  { sourceDir: 'hooks', targetDir: CURRENT_HOOK_DIR },
+  { sourceDir: 'checklists', targetDir: 'checklists' },
+  { sourceDir: 'templates', targetDir: 'templates' },
+];
+
+const HOOK_SPECS = [
+  {
+    event: 'PreToolUse',
+    matcher: 'Edit|Write',
+    hooks: [
+      { file: 'gsd-boundary-guard.sh', timeout: 5000 },
+      { file: 'gsd-prompt-guard.sh', timeout: 5000 }
+    ]
+  },
+  {
+    event: 'PostToolUse',
+    matcher: null,
+    hooks: [
+      { file: 'gsd-context-monitor.sh', timeout: 5000 },
+      { file: 'gsd-statusline.sh', timeout: 3000 }
+    ]
+  },
+  {
+    event: 'PostToolUse',
+    matcher: 'Edit|Write',
+    hooks: [{ file: 'gsd-workflow-guard.sh', timeout: 5000 }]
+  }
+];
 
 // Parse args
 const args = process.argv.slice(2);
@@ -44,7 +82,7 @@ if (hasHelp) {
   ${yellow}Options:${reset}
     ${cyan}-g, --global${reset}      Install globally to ~/.claude/skills/ ${dim}(default)${reset}
     ${cyan}-l, --local${reset}       Install locally to ./.claude/skills/
-    ${cyan}--uninstall${reset}       Remove GSD-CC skills
+    ${cyan}--uninstall${reset}       Remove GSD-CC safely from detected installs
     ${cyan}-h, --help${reset}        Show this help message
 
   ${yellow}Examples:${reset}
@@ -60,39 +98,6 @@ if (hasHelp) {
   process.exit(0);
 }
 
-/**
- * Recursively copy a directory
- */
-function copyDir(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-
-    if (entry.isDirectory()) {
-      copyDir(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
-/**
- * Remove a directory recursively
- */
-function removeDir(dir) {
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
-    return true;
-  }
-  return false;
-}
-
-/**
- * Resolve .claude base directory
- */
 function getClaudeBase(isGlobal) {
   if (isGlobal) {
     return path.join(os.homedir(), '.claude');
@@ -100,167 +105,956 @@ function getClaudeBase(isGlobal) {
   return path.join(process.cwd(), '.claude');
 }
 
-/**
- * Install everything into .claude/
- * Source structure mirrors target structure 1:1.
- */
+function getSettingsPath(isGlobal) {
+  return path.join(
+    getClaudeBase(isGlobal),
+    isGlobal ? 'settings.json' : 'settings.local.json'
+  );
+}
+
+function getClaudeMdPath(isGlobal) {
+  if (isGlobal) {
+    return path.join(getClaudeBase(true), 'CLAUDE.md');
+  }
+  return path.join(process.cwd(), 'CLAUDE.md');
+}
+
+function getClaudeConfigRelativePath(isGlobal) {
+  return isGlobal ? 'CLAUDE.md' : path.join('..', 'CLAUDE.md');
+}
+
+function getManifestPath(claudeBase) {
+  return path.join(claudeBase, MANIFEST_DIR, MANIFEST_FILENAME);
+}
+
+function formatPath(targetPath) {
+  return targetPath.replace(os.homedir(), '~').replace(process.cwd(), '.');
+}
+
+function ensureDirectory(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function writeFileAtomic(filePath, content, mode) {
+  ensureDirectory(path.dirname(filePath));
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  const options = mode === undefined ? undefined : { mode };
+  fs.writeFileSync(tempPath, content, options);
+  if (mode !== undefined) {
+    fs.chmodSync(tempPath, mode);
+  }
+  fs.renameSync(tempPath, filePath);
+}
+
+function writeJsonAtomic(jsonPath, value) {
+  writeFileAtomic(jsonPath, JSON.stringify(value, null, 2) + '\n');
+}
+
+function loadJsonFile(jsonPath, label) {
+  if (!fs.existsSync(jsonPath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  } catch (error) {
+    throw new Error(
+      `${label} at ${formatPath(jsonPath)} contains invalid JSON. ` +
+      `GSD-CC left it untouched.`
+    );
+  }
+}
+
+function validateSettingsStructure(settings, settingsPath) {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    throw new Error(
+      `Claude settings at ${formatPath(settingsPath)} must be a JSON object.`
+    );
+  }
+
+  if (
+    settings.hooks !== undefined &&
+    (typeof settings.hooks !== 'object' || Array.isArray(settings.hooks))
+  ) {
+    throw new Error(
+      `Claude settings at ${formatPath(settingsPath)} contain an invalid ` +
+      '"hooks" value. Expected an object.'
+    );
+  }
+
+  if (settings.hooks) {
+    for (const [event, entries] of Object.entries(settings.hooks)) {
+      if (!Array.isArray(entries)) {
+        throw new Error(
+          `Claude settings at ${formatPath(settingsPath)} contain an invalid ` +
+          `hook list for "${event}". Expected an array.`
+        );
+      }
+    }
+  }
+}
+
+function loadJsonFileForCleanup(jsonPath, label, warnings) {
+  try {
+    return loadJsonFile(jsonPath, label);
+  } catch (error) {
+    warnings.push(error.message);
+    return null;
+  }
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function replaceLanguageBlock(content, language) {
+  const block = [
+    CLAUDE_CONFIG_BLOCK_START,
+    '# GSD-CC Config',
+    `GSD-CC language: ${language}`,
+    CLAUDE_CONFIG_BLOCK_END
+  ].join('\n');
+  const markerRegex = new RegExp(
+    `${escapeRegExp(CLAUDE_CONFIG_BLOCK_START)}[\\s\\S]*?${escapeRegExp(CLAUDE_CONFIG_BLOCK_END)}`
+  );
+
+  if (markerRegex.test(content)) {
+    return content.replace(markerRegex, block);
+  }
+
+  if (LEGACY_CLAUDE_CONFIG_REGEX.test(content)) {
+    return content.replace(LEGACY_CLAUDE_CONFIG_REGEX, `\n${block}\n`);
+  }
+
+  if (!content.trim()) {
+    return `${block}\n`;
+  }
+
+  const suffix = content.endsWith('\n') ? '' : '\n';
+  return `${content}${suffix}\n${block}\n`;
+}
+
+function cleanLanguageBlockRemoval(content) {
+  return content
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\n+/, '')
+    .replace(/\s+$/, '\n');
+}
+
+function removeLanguageConfigBlock(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+
+  const original = fs.readFileSync(filePath, 'utf8');
+  const markerRegex = new RegExp(
+    `\\n?${escapeRegExp(CLAUDE_CONFIG_BLOCK_START)}[\\s\\S]*?${escapeRegExp(CLAUDE_CONFIG_BLOCK_END)}\\n?`
+  );
+
+  let next = original;
+  next = next.replace(markerRegex, '\n');
+  next = next.replace(LEGACY_CLAUDE_CONFIG_REGEX, '\n');
+
+  if (next === original) {
+    return false;
+  }
+
+  writeFileAtomic(filePath, cleanLanguageBlockRemoval(next));
+  return true;
+}
+
+function writeLanguageConfig(isGlobal, language) {
+  const claudeMdPath = getClaudeMdPath(isGlobal);
+  const existingContent = fs.existsSync(claudeMdPath)
+    ? fs.readFileSync(claudeMdPath, 'utf8')
+    : '';
+  const nextContent = replaceLanguageBlock(existingContent, language);
+
+  if (nextContent !== existingContent) {
+    writeFileAtomic(claudeMdPath, nextContent);
+  }
+}
+
+function collectRelativeFiles(rootDir, currentDir, files) {
+  const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const absolutePath = path.join(currentDir, entry.name);
+
+    if (entry.isDirectory()) {
+      collectRelativeFiles(rootDir, absolutePath, files);
+      continue;
+    }
+
+    files.push(path.relative(rootDir, absolutePath));
+  }
+}
+
+function collectAssets(srcBase, claudeBase) {
+  const assets = [];
+
+  for (const layout of INSTALL_LAYOUT) {
+    const sourceRoot = path.join(srcBase, layout.sourceDir);
+    if (!fs.existsSync(sourceRoot)) {
+      continue;
+    }
+
+    const relativeFiles = [];
+    collectRelativeFiles(sourceRoot, sourceRoot, relativeFiles);
+
+    for (const relativePath of relativeFiles) {
+      const targetRelativePath = path.join(layout.targetDir, relativePath);
+      assets.push({
+        sourcePath: path.join(sourceRoot, relativePath),
+        targetPath: path.join(claudeBase, targetRelativePath),
+        targetRelativePath,
+      });
+    }
+  }
+
+  return assets.sort((left, right) => {
+    return left.targetRelativePath.localeCompare(right.targetRelativePath);
+  });
+}
+
+function compareFileContents(sourcePath, targetPath) {
+  const sourceStat = fs.statSync(sourcePath);
+  const targetStat = fs.statSync(targetPath);
+
+  if (!sourceStat.isFile() || !targetStat.isFile()) {
+    return false;
+  }
+
+  if (sourceStat.size !== targetStat.size) {
+    return false;
+  }
+
+  return fs.readFileSync(sourcePath).equals(fs.readFileSync(targetPath));
+}
+
+function countSegments(relativePath) {
+  return relativePath.split(path.sep).length;
+}
+
+function sortPathsDeepFirst(paths) {
+  return [...paths].sort((left, right) => {
+    const depth = countSegments(right) - countSegments(left);
+    if (depth !== 0) {
+      return depth;
+    }
+    return right.localeCompare(left);
+  });
+}
+
+function collectManagedDirectories(relativeFilePaths) {
+  const directories = new Set([MANIFEST_DIR]);
+
+  for (const relativeFilePath of relativeFilePaths) {
+    let currentDir = path.dirname(relativeFilePath);
+
+    while (currentDir && currentDir !== '.') {
+      directories.add(currentDir);
+      currentDir = path.dirname(currentDir);
+    }
+  }
+
+  return sortPathsDeepFirst([...directories]);
+}
+
+function buildHookSpecs(claudeBase, relativeHookDir) {
+  return HOOK_SPECS.map((group) => {
+    const commands = group.hooks.map((hook) => path.join(relativeHookDir, hook.file));
+    return {
+      event: group.event,
+      matcher: group.matcher,
+      commands,
+      hooks: group.hooks.map((hook) => ({
+        type: 'command',
+        command: path.join(claudeBase, relativeHookDir, hook.file),
+        timeout: hook.timeout
+      }))
+    };
+  });
+}
+
+function normalizeMatcher(value) {
+  return value || null;
+}
+
+function hookEntryMatchesSpec(entry, spec) {
+  if (normalizeMatcher(entry.matcher) !== normalizeMatcher(spec.matcher)) {
+    return false;
+  }
+
+  if (!Array.isArray(entry.hooks) || entry.hooks.length !== spec.hooks.length) {
+    return false;
+  }
+
+  return entry.hooks.every((hook, index) => {
+    const expected = spec.hooks[index];
+    return hook &&
+      hook.type === 'command' &&
+      typeof hook.command === 'string' &&
+      path.normalize(hook.command) === path.normalize(expected.command);
+  });
+}
+
+function normalizeHookCommand(command) {
+  return path.normalize(command);
+}
+
+function collectManagedHookCommands(specs) {
+  const commands = new Set();
+
+  for (const spec of specs) {
+    for (const hook of spec.hooks) {
+      if (hook && hook.type === 'command' && typeof hook.command === 'string') {
+        commands.add(normalizeHookCommand(hook.command));
+      }
+    }
+  }
+
+  return commands;
+}
+
+function hookEntryOwnedByCommands(entry, managedCommands) {
+  if (!Array.isArray(entry.hooks) || entry.hooks.length === 0) {
+    return false;
+  }
+
+  return entry.hooks.every((hook) => {
+    return hook &&
+      hook.type === 'command' &&
+      typeof hook.command === 'string' &&
+      managedCommands.has(normalizeHookCommand(hook.command));
+  });
+}
+
+function removeHookEntries(settings, specs) {
+  if (!settings.hooks) {
+    return false;
+  }
+
+  if (typeof settings.hooks !== 'object' || Array.isArray(settings.hooks)) {
+    throw new Error(
+      'Claude settings contain an invalid "hooks" value. ' +
+      'Expected an object of hook arrays.'
+    );
+  }
+
+  let changed = false;
+  const managedCommands = collectManagedHookCommands(specs);
+
+  for (const [event, entries] of Object.entries(settings.hooks)) {
+    if (!Array.isArray(entries)) {
+      throw new Error(
+        `Claude settings contain an invalid hook list for "${event}". ` +
+        'Expected an array.'
+      );
+    }
+
+    const eventSpecs = specs.filter((spec) => spec.event === event);
+    if (eventSpecs.length === 0) {
+      continue;
+    }
+
+    const nextEntries = entries.filter((entry) => {
+      const exactMatch = eventSpecs.some((spec) => hookEntryMatchesSpec(entry, spec));
+      return !(exactMatch || hookEntryOwnedByCommands(entry, managedCommands));
+    });
+
+    if (nextEntries.length !== entries.length) {
+      changed = true;
+    }
+
+    if (nextEntries.length === 0) {
+      delete settings.hooks[event];
+    } else {
+      settings.hooks[event] = nextEntries;
+    }
+  }
+
+  if (Object.keys(settings.hooks).length === 0) {
+    delete settings.hooks;
+  }
+
+  return changed;
+}
+
+function addHookEntries(settings, specs) {
+  if (!settings.hooks) {
+    settings.hooks = {};
+  }
+
+  for (const spec of specs) {
+    if (!settings.hooks[spec.event]) {
+      settings.hooks[spec.event] = [];
+    }
+
+    const entry = { hooks: spec.hooks };
+    if (spec.matcher) {
+      entry.matcher = spec.matcher;
+    }
+
+    settings.hooks[spec.event].push(entry);
+  }
+}
+
+function fileContains(filePath, snippet) {
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+
+  return fs.readFileSync(filePath, 'utf8').includes(snippet);
+}
+
+function detectLegacyInstallation(claudeBase) {
+  const reasons = [];
+  const skillsRoot = path.join(claudeBase, 'skills');
+  const routerSkill = path.join(skillsRoot, 'gsd-cc', 'SKILL.md');
+
+  if (fileContains(routerSkill, 'name: gsd-cc')) {
+    reasons.push('skills/gsd-cc/SKILL.md');
+  }
+
+  if (fs.existsSync(skillsRoot)) {
+    const entries = fs.readdirSync(skillsRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      if (entry.name === 'gsd' || entry.name.startsWith('gsd-cc-')) {
+        reasons.push(path.join('skills', entry.name));
+      }
+    }
+  }
+
+  for (const spec of buildHookSpecs(claudeBase, LEGACY_HOOK_DIR)) {
+    for (const hook of spec.hooks) {
+      if (fs.existsSync(hook.command)) {
+        reasons.push(path.relative(claudeBase, hook.command));
+      }
+    }
+  }
+
+  return {
+    detected: reasons.length > 0,
+    reasons: [...new Set(reasons)].sort()
+  };
+}
+
+function collectLegacyPaths(claudeBase, assets) {
+  const detection = detectLegacyInstallation(claudeBase);
+  const legacyFiles = new Set();
+  const legacyDirectories = new Set();
+  const warnings = [];
+
+  if (!detection.detected) {
+    return {
+      detected: false,
+      reasons: [],
+      files: [],
+      directories: [],
+      warnings
+    };
+  }
+
+  for (const asset of assets) {
+    if (fs.existsSync(asset.targetPath)) {
+      legacyFiles.add(asset.targetRelativePath);
+    }
+  }
+
+  for (const spec of buildHookSpecs(claudeBase, LEGACY_HOOK_DIR)) {
+    for (const command of spec.commands) {
+      const absolutePath = path.join(claudeBase, command);
+      if (fs.existsSync(absolutePath)) {
+        legacyFiles.add(command);
+      }
+    }
+  }
+
+  const skillsRoot = path.join(claudeBase, 'skills');
+  if (fs.existsSync(skillsRoot)) {
+    const entries = fs.readdirSync(skillsRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      if (entry.name === 'gsd' || entry.name.startsWith('gsd-cc-')) {
+        legacyDirectories.add(path.join('skills', entry.name));
+      }
+    }
+  }
+
+  const promptsDir = path.join(claudeBase, 'prompts');
+  if (fs.existsSync(promptsDir)) {
+    warnings.push(
+      `${formatPath(promptsDir)} was left in place because GSD-CC can no ` +
+      'longer prove it owns that directory.'
+    );
+  }
+
+  return {
+    detected: true,
+    reasons: detection.reasons,
+    files: [...legacyFiles].sort(),
+    directories: sortPathsDeepFirst([...legacyDirectories]),
+    warnings
+  };
+}
+
+function validateManifest(manifest, manifestPath) {
+  if (!manifest || typeof manifest !== 'object') {
+    throw new Error(`Install manifest at ${formatPath(manifestPath)} is invalid.`);
+  }
+
+  if (manifest.source !== MANAGED_BY) {
+    throw new Error(
+      `Install manifest at ${formatPath(manifestPath)} is not owned by GSD-CC.`
+    );
+  }
+
+  const requiredArrayFields = ['files', 'directories', 'managedHooks', 'managedConfigBlocks'];
+  for (const field of requiredArrayFields) {
+    if (!Array.isArray(manifest[field])) {
+      throw new Error(
+        `Install manifest at ${formatPath(manifestPath)} is missing "${field}".`
+      );
+    }
+  }
+}
+
+function loadManifest(claudeBase) {
+  const manifestPath = getManifestPath(claudeBase);
+  if (!fs.existsSync(manifestPath)) {
+    return null;
+  }
+
+  const manifest = loadJsonFile(manifestPath, 'Install manifest');
+  validateManifest(manifest, manifestPath);
+  return manifest;
+}
+
+function resolveManifestPath(claudeBase, relativePath) {
+  return path.resolve(claudeBase, relativePath);
+}
+
+function manifestHookSpecsToRuntime(claudeBase, managedHooks) {
+  return managedHooks.map((hook) => ({
+    event: hook.event,
+    matcher: hook.matcher,
+    hooks: hook.commands.map((command) => ({
+      type: 'command',
+      command: resolveManifestPath(claudeBase, command)
+    }))
+  }));
+}
+
+function removeTrackedFiles(claudeBase, relativePaths, warnings) {
+  let removed = 0;
+
+  for (const relativePath of relativePaths) {
+    const absolutePath = resolveManifestPath(claudeBase, relativePath);
+    if (!fs.existsSync(absolutePath)) {
+      continue;
+    }
+
+    const stat = fs.lstatSync(absolutePath);
+    if (!stat.isFile() && !stat.isSymbolicLink()) {
+      warnings.push(
+        `Skipped ${formatPath(absolutePath)} because it is no longer a file.`
+      );
+      continue;
+    }
+
+    fs.rmSync(absolutePath, { force: true });
+    removed += 1;
+  }
+
+  return removed;
+}
+
+function removeTrackedDirectories(claudeBase, relativePaths, warnings) {
+  let removed = 0;
+
+  for (const relativePath of sortPathsDeepFirst(relativePaths)) {
+    const absolutePath = resolveManifestPath(claudeBase, relativePath);
+    if (!fs.existsSync(absolutePath)) {
+      continue;
+    }
+
+    let stat;
+    try {
+      stat = fs.lstatSync(absolutePath);
+    } catch (error) {
+      continue;
+    }
+
+    if (!stat.isDirectory()) {
+      warnings.push(
+        `Skipped ${formatPath(absolutePath)} because it is no longer a directory.`
+      );
+      continue;
+    }
+
+    try {
+      fs.rmdirSync(absolutePath);
+      removed += 1;
+    } catch (error) {
+      if (error.code !== 'ENOTEMPTY') {
+        warnings.push(`Could not remove ${formatPath(absolutePath)}: ${error.message}`);
+      }
+    }
+  }
+
+  return removed;
+}
+
+function ensureNoConflicts(assets, ownedRelativePaths) {
+  const conflicts = [];
+
+  for (const asset of assets) {
+    if (!fs.existsSync(asset.targetPath)) {
+      continue;
+    }
+
+    if (ownedRelativePaths.has(asset.targetRelativePath)) {
+      continue;
+    }
+
+    const targetStat = fs.lstatSync(asset.targetPath);
+    if (!targetStat.isFile()) {
+      conflicts.push(asset.targetRelativePath);
+      continue;
+    }
+
+    if (compareFileContents(asset.sourcePath, asset.targetPath)) {
+      continue;
+    }
+
+    conflicts.push(asset.targetRelativePath);
+  }
+
+  if (conflicts.length === 0) {
+    return;
+  }
+
+  const rendered = conflicts.map((relativePath) => {
+    const asset = assets.find((candidate) => {
+      return candidate.targetRelativePath === relativePath;
+    });
+    return `  - ${formatPath(asset ? asset.targetPath : relativePath)}`;
+  }).join('\n');
+
+  throw new Error(
+    'Refusing to overwrite files that are not proven to be owned by GSD-CC:\n' +
+    `${rendered}\n` +
+    'Remove the conflicting files manually or uninstall the existing tool first.'
+  );
+}
+
+function createManifest(isGlobal, assets, migratedLegacyPaths) {
+  return {
+    source: MANAGED_BY,
+    manifestVersion: MANIFEST_VERSION,
+    installMode: isGlobal ? 'global' : 'local',
+    installedVersion: pkg.version,
+    installedAt: new Date().toISOString(),
+    files: assets.map((asset) => asset.targetRelativePath),
+    directories: collectManagedDirectories(
+      assets.map((asset) => asset.targetRelativePath)
+    ),
+    managedHooks: buildHookSpecs(getClaudeBase(isGlobal), CURRENT_HOOK_DIR).map((spec) => ({
+      event: spec.event,
+      matcher: spec.matcher,
+      commands: spec.commands
+    })),
+    managedConfigBlocks: [{
+      kind: 'claude-md-language',
+      file: getClaudeConfigRelativePath(isGlobal),
+      startMarker: CLAUDE_CONFIG_BLOCK_START,
+      endMarker: CLAUDE_CONFIG_BLOCK_END
+    }],
+    migratedLegacyPaths: [...new Set(migratedLegacyPaths)].sort()
+  };
+}
+
+function copyAsset(asset) {
+  ensureDirectory(path.dirname(asset.targetPath));
+  fs.copyFileSync(asset.sourcePath, asset.targetPath);
+  const sourceMode = fs.statSync(asset.sourcePath).mode & 0o777;
+  fs.chmodSync(asset.targetPath, sourceMode);
+}
+
+function cleanupTrackedConfigBlocks(claudeBase, manifest, warnings) {
+  let clean = true;
+
+  for (const block of manifest.managedConfigBlocks) {
+    const filePath = resolveManifestPath(claudeBase, block.file);
+    try {
+      removeLanguageConfigBlock(filePath);
+    } catch (error) {
+      clean = false;
+      warnings.push(`Could not update ${formatPath(filePath)}: ${error.message}`);
+    }
+  }
+
+  return clean;
+}
+
+function uninstallFromManifest(claudeBase, manifest, isGlobal) {
+  const warnings = [];
+  let hooksClean = true;
+  const settingsPath = getSettingsPath(isGlobal);
+  const settings = loadJsonFileForCleanup(settingsPath, 'Claude settings', warnings);
+
+  if (settings) {
+    try {
+      const changed = removeHookEntries(
+        settings,
+        manifestHookSpecsToRuntime(claudeBase, manifest.managedHooks)
+      );
+      if (changed) {
+        writeJsonAtomic(settingsPath, settings);
+      }
+    } catch (error) {
+      hooksClean = false;
+      warnings.push(error.message);
+    }
+  }
+
+  const configClean = cleanupTrackedConfigBlocks(claudeBase, manifest, warnings);
+  const removedFiles = removeTrackedFiles(claudeBase, manifest.files, warnings);
+  const removedDirectories = removeTrackedDirectories(claudeBase, manifest.directories, warnings);
+
+  let manifestRemoved = false;
+  if (hooksClean && configClean) {
+    try {
+      fs.rmSync(getManifestPath(claudeBase), { force: true });
+      removeTrackedDirectories(claudeBase, [MANIFEST_DIR], warnings);
+      manifestRemoved = true;
+    } catch (error) {
+      warnings.push(`Could not remove install manifest: ${error.message}`);
+    }
+  }
+
+  return {
+    removedFiles,
+    removedDirectories,
+    hooksClean,
+    configClean,
+    manifestRemoved,
+    warnings
+  };
+}
+
+function uninstallLegacy(claudeBase, isGlobal, assets) {
+  const warnings = [];
+  const legacy = collectLegacyPaths(claudeBase, assets);
+  const settingsPath = getSettingsPath(isGlobal);
+  let removedSomething = false;
+
+  const settings = loadJsonFileForCleanup(settingsPath, 'Claude settings', warnings);
+  if (settings) {
+    const hookSpecs = [
+      ...buildHookSpecs(claudeBase, CURRENT_HOOK_DIR),
+      ...buildHookSpecs(claudeBase, LEGACY_HOOK_DIR)
+    ];
+
+    try {
+      const changed = removeHookEntries(settings, hookSpecs);
+      if (changed) {
+        writeJsonAtomic(settingsPath, settings);
+        removedSomething = true;
+      }
+    } catch (error) {
+      warnings.push(error.message);
+    }
+  }
+
+  if (removeLanguageConfigBlock(getClaudeMdPath(isGlobal))) {
+    removedSomething = true;
+  }
+
+  if (legacy.detected) {
+    if (removeTrackedFiles(claudeBase, legacy.files, warnings) > 0) {
+      removedSomething = true;
+    }
+    if (removeTrackedDirectories(claudeBase, legacy.directories, warnings) > 0) {
+      removedSomething = true;
+    }
+    removeTrackedDirectories(
+      claudeBase,
+      collectManagedDirectories(legacy.files.concat(legacy.directories)),
+      warnings
+    );
+  }
+
+  return {
+    removedSomething,
+    warnings: legacy.warnings.concat(warnings),
+    legacyDetected: legacy.detected
+  };
+}
+
 function install(isGlobal) {
   const srcBase = path.join(__dirname, '..');
-  const claudeBase = isGlobal
-    ? path.join(os.homedir(), '.claude')
-    : path.join(process.cwd(), '.claude');
-  const label = isGlobal
-    ? claudeBase.replace(os.homedir(), '~')
-    : claudeBase.replace(process.cwd(), '.');
+  const claudeBase = getClaudeBase(isGlobal);
+  const label = formatPath(claudeBase);
+  const settingsPath = getSettingsPath(isGlobal);
+  const assets = collectAssets(srcBase, claudeBase);
+  const currentManifest = loadManifest(claudeBase);
+  const legacyPaths = collectLegacyPaths(claudeBase, assets);
 
   console.log(`  Installing to ${cyan}${label}${reset}\n`);
 
-  // Clean up legacy skill directories (gsd-cc-* from pre-1.5 versions)
-  const skillsDir = path.join(claudeBase, 'skills');
-  if (fs.existsSync(skillsDir)) {
-    const entries = fs.readdirSync(skillsDir);
-    for (const entry of entries) {
-      if (entry.startsWith('gsd-cc-') || entry === 'gsd') {
-        const legacyPath = path.join(skillsDir, entry);
-        if (fs.statSync(legacyPath).isDirectory()) {
-          removeDir(legacyPath);
-          console.log(`  ${dim}Removed legacy: skills/${entry}${reset}`);
-        }
-      }
+  // Validate settings before touching managed assets so broken JSON is never clobbered.
+  const settings = loadJsonFile(settingsPath, 'Claude settings') || {};
+  validateSettingsStructure(settings, settingsPath);
+
+  const ownedRelativePaths = new Set();
+  if (currentManifest) {
+    for (const relativePath of currentManifest.files) {
+      ownedRelativePaths.add(relativePath);
     }
-    // Also remove legacy prompts/ directory
-    const legacyPrompts = path.join(claudeBase, 'prompts');
-    if (fs.existsSync(legacyPrompts)) {
-      removeDir(legacyPrompts);
-      console.log(`  ${dim}Removed legacy: prompts/${reset}`);
+  }
+  if (legacyPaths.detected) {
+    for (const relativePath of legacyPaths.files) {
+      ownedRelativePaths.add(relativePath);
     }
   }
 
-  let fileCount = 0;
+  ensureNoConflicts(assets, ownedRelativePaths);
 
-  // Copy each directory 1:1 into .claude/
-  for (const dir of CLAUDE_DIRS) {
-    const srcDir = path.join(srcBase, dir);
-    if (fs.existsSync(srcDir)) {
-      copyDir(srcDir, path.join(claudeBase, dir));
-      fileCount += countFiles(path.join(claudeBase, dir));
-    }
-  }
+  const desiredFiles = new Set(assets.map((asset) => asset.targetRelativePath));
+  const desiredDirectories = collectManagedDirectories([...desiredFiles]);
+  const migratedLegacyPaths = [...legacyPaths.files, ...legacyPaths.directories];
 
-  // Make shell scripts executable
-  const makeExecutable = (dir) => {
-    if (!fs.existsSync(dir)) return;
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        makeExecutable(fullPath);
-      } else if (entry.name.endsWith('.sh')) {
-        fs.chmodSync(fullPath, 0o755);
-      }
-    }
-  };
-  makeExecutable(claudeBase);
-
-  // Configure hooks in settings.json
-  const hooksDir = path.join(claudeBase, 'hooks');
-  if (fs.existsSync(hooksDir)) {
-    installHooks(isGlobal, hooksDir);
-  }
-
-  console.log(`  ${green}✓${reset} Installed ${fileCount} files to ${label}`);
-}
-
-/**
- * Install hooks into .claude/settings.json or .claude/settings.local.json
- */
-function installHooks(isGlobal, hooksDir) {
-  const settingsPath = isGlobal
-    ? path.join(os.homedir(), '.claude', 'settings.json')
-    : path.join(process.cwd(), '.claude', 'settings.local.json');
-
-  let settings = {};
-  if (fs.existsSync(settingsPath)) {
-    try {
-      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-    } catch (e) {
-      settings = {};
-    }
-  }
-
-  if (!settings.hooks) settings.hooks = {};
-
-  const boundaryGuard = path.join(hooksDir, 'gsd-boundary-guard.sh');
-  const promptGuard = path.join(hooksDir, 'gsd-prompt-guard.sh');
-  const contextMonitor = path.join(hooksDir, 'gsd-context-monitor.sh');
-  const workflowGuard = path.join(hooksDir, 'gsd-workflow-guard.sh');
-  const statusline = path.join(hooksDir, 'gsd-statusline.sh');
-
-  // Remove all existing GSD-CC hooks before adding (idempotent)
-  for (const event of Object.keys(settings.hooks)) {
-    settings.hooks[event] = settings.hooks[event].filter(
-      h => !JSON.stringify(h).includes('gsd-')
+  if (currentManifest) {
+    const staleFiles = currentManifest.files.filter((relativePath) => {
+      return !desiredFiles.has(relativePath);
+    });
+    removeTrackedFiles(claudeBase, staleFiles, []);
+    removeTrackedDirectories(
+      claudeBase,
+      currentManifest.directories.filter((relativePath) => {
+        return !desiredDirectories.includes(relativePath);
+      }),
+      []
     );
-    if (settings.hooks[event].length === 0) delete settings.hooks[event];
+    removeHookEntries(
+      settings,
+      manifestHookSpecsToRuntime(claudeBase, currentManifest.managedHooks)
+    );
   }
 
-  // PreToolUse: boundary guard + prompt injection guard on Edit/Write
-  if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
-  settings.hooks.PreToolUse.push({
-    matcher: 'Edit|Write',
-    hooks: [
-      { type: 'command', command: boundaryGuard, timeout: 5000 },
-      { type: 'command', command: promptGuard, timeout: 5000 }
-    ]
-  });
+  if (legacyPaths.detected) {
+    const removableLegacyFiles = legacyPaths.files.filter((relativePath) => {
+      return !desiredFiles.has(relativePath);
+    });
+    removeTrackedFiles(claudeBase, removableLegacyFiles, []);
+    removeTrackedDirectories(claudeBase, legacyPaths.directories, []);
+    removeHookEntries(settings, buildHookSpecs(claudeBase, LEGACY_HOOK_DIR));
 
-  // PostToolUse: context monitor + statusline (all tools) + workflow guard (Edit/Write)
-  if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
-  settings.hooks.PostToolUse.push({
-    hooks: [
-      { type: 'command', command: contextMonitor, timeout: 5000 },
-      { type: 'command', command: statusline, timeout: 3000 }
-    ]
-  });
-  settings.hooks.PostToolUse.push({
-    matcher: 'Edit|Write',
-    hooks: [{ type: 'command', command: workflowGuard, timeout: 5000 }]
-  });
+    console.log(
+      `  ${dim}Migrated legacy install markers: ` +
+      `${legacyPaths.reasons.join(', ')}${reset}`
+    );
+  }
 
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-  console.log(`  ${green}✓${reset} Hooks configured in ${settingsPath.replace(os.homedir(), '~').replace(process.cwd(), '.')}`);
-}
+  for (const asset of assets) {
+    copyAsset(asset);
+  }
 
-/**
- * Write language to CLAUDE.md
- */
-function writeLanguageConfig(isGlobal, language) {
-  const claudeMdPath = isGlobal
-    ? path.join(os.homedir(), '.claude', 'CLAUDE.md')
-    : path.join(process.cwd(), 'CLAUDE.md');
+  addHookEntries(settings, buildHookSpecs(claudeBase, CURRENT_HOOK_DIR));
+  writeJsonAtomic(settingsPath, settings);
 
-  const gsdBlock = `\n# GSD-CC Config\nGSD-CC language: ${language}\n`;
+  const manifest = createManifest(isGlobal, assets, migratedLegacyPaths);
+  writeJsonAtomic(getManifestPath(claudeBase), manifest);
 
-  if (fs.existsSync(claudeMdPath)) {
-    let content = fs.readFileSync(claudeMdPath, 'utf-8');
-    // Replace existing GSD-CC config block if present
-    const gsdRegex = /\n?# GSD-CC Config\nGSD-CC language: .+\n/;
-    if (gsdRegex.test(content)) {
-      content = content.replace(gsdRegex, gsdBlock);
-    } else {
-      content += gsdBlock;
+  console.log(
+    `  ${green}✓${reset} Hooks configured in ` +
+    `${formatPath(settingsPath)}`
+  );
+
+  if (legacyPaths.warnings.length > 0) {
+    for (const warning of legacyPaths.warnings) {
+      console.log(`  ${yellow}!${reset} ${warning}`);
     }
-    fs.writeFileSync(claudeMdPath, content);
+  }
+
+  console.log(`  ${green}✓${reset} Installed ${assets.length} managed files to ${label}`);
+}
+
+function uninstall() {
+  const targets = [];
+
+  if (hasGlobal && !hasLocal) {
+    targets.push(true);
+  } else if (hasLocal && !hasGlobal) {
+    targets.push(false);
   } else {
-    fs.mkdirSync(path.dirname(claudeMdPath), { recursive: true });
-    fs.writeFileSync(claudeMdPath, gsdBlock.trimStart());
+    targets.push(true, false);
+  }
+
+  let removed = false;
+  let warned = false;
+
+  for (const isGlobal of targets) {
+    const claudeBase = getClaudeBase(isGlobal);
+    const label = formatPath(claudeBase);
+    const assets = collectAssets(path.join(__dirname, '..'), claudeBase);
+    let manifest = null;
+
+    try {
+      manifest = loadManifest(claudeBase);
+    } catch (error) {
+      console.log(`  ${yellow}!${reset} ${error.message}`);
+      warned = true;
+    }
+
+    if (manifest) {
+      const result = uninstallFromManifest(claudeBase, manifest, isGlobal);
+      if (result.removedFiles > 0 || result.manifestRemoved || result.removedDirectories > 0) {
+        console.log(`  ${green}✓${reset} Removed GSD-CC from ${label}`);
+        removed = true;
+      }
+      for (const warning of result.warnings) {
+        console.log(`  ${yellow}!${reset} ${warning}`);
+        warned = true;
+      }
+      continue;
+    }
+
+    const legacyResult = uninstallLegacy(claudeBase, isGlobal, assets);
+    if (legacyResult.removedSomething) {
+      console.log(`  ${green}✓${reset} Removed legacy GSD-CC assets from ${label}`);
+      console.log(
+        `  ${yellow}!${reset} No install manifest was found, so cleanup was conservative.`
+      );
+      removed = true;
+      warned = true;
+    }
+    for (const warning of legacyResult.warnings) {
+      console.log(`  ${yellow}!${reset} ${warning}`);
+      warned = true;
+    }
+  }
+
+  if (!removed) {
+    console.log(`  ${yellow}No GSD-CC installation found.${reset}`);
+    return;
+  }
+
+  console.log(`\n  ${green}Done.${reset} GSD-CC has been removed.`);
+  if (warned) {
+    console.log(
+      `  ${dim}Some paths were kept intentionally where ownership could not be proven.${reset}`
+    );
   }
 }
 
-/**
- * Prompt for language, then finish
- */
 function promptLanguage(isGlobal) {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -275,109 +1069,20 @@ function promptLanguage(isGlobal) {
 
   rl.question(`  Language ${dim}[English]${reset}: `, (answer) => {
     rl.close();
-    const language = answer.trim() || 'English';
-    writeLanguageConfig(isGlobal, language);
-    console.log(`  ${green}✓${reset} Language set to ${cyan}${language}${reset}
+
+    try {
+      const language = answer.trim() || 'English';
+      writeLanguageConfig(isGlobal, language);
+      console.log(`  ${green}✓${reset} Language set to ${cyan}${language}${reset}
 `);
-    console.log(`  ${green}Done.${reset} Open Claude Code and type ${cyan}/gsd-cc${reset} to start.
+      console.log(`  ${green}Done.${reset} Open Claude Code and type ${cyan}/gsd-cc${reset} to start.
 `);
+    } catch (error) {
+      fail(error);
+    }
   });
 }
 
-/**
- * Count files in a directory recursively
- */
-function countFiles(dir) {
-  let count = 0;
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      count += countFiles(path.join(dir, entry.name));
-    } else {
-      count++;
-    }
-  }
-  return count;
-}
-
-/**
- * Uninstall GSD-CC
- */
-function uninstall() {
-  const claudeBases = [
-    path.join(os.homedir(), '.claude'),
-    path.join(process.cwd(), '.claude')
-  ];
-
-  let removed = false;
-
-  for (const claudeBase of claudeBases) {
-    const label = claudeBase.includes(os.homedir())
-      ? claudeBase.replace(os.homedir(), '~')
-      : claudeBase.replace(process.cwd(), '.');
-
-    let removedFromLocation = false;
-
-    // Remove all CLAUDE_DIRS
-    for (const dir of [...CLAUDE_DIRS, 'prompts']) { // 'prompts' for legacy cleanup
-      const fullPath = path.join(claudeBase, dir);
-      if (removeDir(fullPath)) {
-        removedFromLocation = true;
-      }
-    }
-
-    // Also clean up old skill names (legacy: gsd-cc-shared, gsd)
-    const skillsDir = path.join(claudeBase, 'skills');
-    if (fs.existsSync(skillsDir)) {
-      const entries = fs.readdirSync(skillsDir);
-      for (const entry of entries) {
-        if (entry.startsWith('gsd-cc') || entry === 'gsd') {
-          if (removeDir(path.join(skillsDir, entry))) {
-            removedFromLocation = true;
-          }
-        }
-      }
-    }
-
-    if (removedFromLocation) {
-      console.log(`  ${green}✓${reset} Removed GSD-CC from ${label}`);
-      removed = true;
-    }
-  }
-
-  // Clean up hooks from settings files
-  for (const isGlobal of [true, false]) {
-    const settingsPath = isGlobal
-      ? path.join(os.homedir(), '.claude', 'settings.json')
-      : path.join(process.cwd(), '.claude', 'settings.local.json');
-    if (fs.existsSync(settingsPath)) {
-      try {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        if (settings.hooks) {
-          for (const event of Object.keys(settings.hooks)) {
-            settings.hooks[event] = settings.hooks[event].filter(
-              h => !JSON.stringify(h).includes('gsd-')
-            );
-            if (settings.hooks[event].length === 0) delete settings.hooks[event];
-          }
-          if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
-          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-        }
-      } catch (e) { /* ignore parse errors */ }
-    }
-  }
-
-  if (!removed) {
-    console.log(`  ${yellow}No GSD-CC installation found.${reset}`);
-  } else {
-    console.log(`  ${green}✓${reset} Hooks removed from settings`);
-    console.log(`\n  ${green}Done.${reset} GSD-CC has been removed.`);
-  }
-}
-
-/**
- * Prompt for install location
- */
 function promptLocation() {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -395,24 +1100,39 @@ function promptLocation() {
   rl.question(`  Choice ${dim}[1]${reset}: `, (answer) => {
     rl.close();
     console.log();
-    const isGlobal = (answer.trim() || '1') !== '2';
-    install(isGlobal);
-    promptLanguage(isGlobal);
+
+    try {
+      const isGlobal = (answer.trim() || '1') !== '2';
+      install(isGlobal);
+      promptLanguage(isGlobal);
+    } catch (error) {
+      fail(error);
+    }
   });
 }
 
-// Main
-if (hasUninstall) {
-  uninstall();
-} else if (hasGlobal && hasLocal) {
-  console.error(`  ${yellow}Cannot specify both --global and --local${reset}`);
+function fail(error) {
+  const message = error && error.message ? error.message : String(error);
+  console.error(`  ${red}Error:${reset} ${message}`);
   process.exit(1);
-} else if (hasGlobal) {
-  install(true);
-  promptLanguage(true);
-} else if (hasLocal) {
-  install(false);
-  promptLanguage(false);
-} else {
-  promptLocation();
+}
+
+// Main
+try {
+  if (hasUninstall) {
+    uninstall();
+  } else if (hasGlobal && hasLocal) {
+    console.error(`  ${yellow}Cannot specify both --global and --local${reset}`);
+    process.exit(1);
+  } else if (hasGlobal) {
+    install(true);
+    promptLanguage(true);
+  } else if (hasLocal) {
+    install(false);
+    promptLanguage(false);
+  } else {
+    promptLocation();
+  }
+} catch (error) {
+  fail(error);
 }
