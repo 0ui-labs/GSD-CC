@@ -26,8 +26,9 @@ fi
 # Typical context window: ~200K tokens ≈ ~2000 transcript lines for a heavy session
 LINE_COUNT=$(wc -l < "$TRANSCRIPT" | xargs)
 
-# Debounce: only warn every 20 tool calls
-DEBOUNCE_FILE="/tmp/gsd-cc-ctx-monitor-$$"
+# Debounce: only warn when line count grows by 50+ since last warning
+SESSION_ID=$(echo "$TRANSCRIPT" | md5 -q 2>/dev/null || echo "$TRANSCRIPT" | md5sum | cut -d' ' -f1)
+DEBOUNCE_FILE="/tmp/gsd-cc-ctx-monitor-$SESSION_ID"
 if [ -f "$DEBOUNCE_FILE" ]; then
   LAST_WARN=$(cat "$DEBOUNCE_FILE")
   DIFF=$((LINE_COUNT - LAST_WARN))
@@ -37,6 +38,8 @@ if [ -f "$DEBOUNCE_FILE" ]; then
 fi
 
 # Warning thresholds (based on transcript lines)
+# Empirically calibrated: a heavy session with ~200K tokens produces ~2000 lines.
+# 1000 lines ≈ 50% usage → yellow warning, 1500 lines ≈ 75% → red/critical.
 if [ "$LINE_COUNT" -gt 1500 ]; then
   echo "$LINE_COUNT" > "$DEBOUNCE_FILE"
   jq -n '{

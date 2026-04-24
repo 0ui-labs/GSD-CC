@@ -83,6 +83,7 @@ if echo "$CONTENT" | grep -iqE '<script|javascript:|on(load|error|click)='; then
 fi
 
 if [ "$SUSPICIOUS" = true ]; then
+  echo "$(date -Iseconds) BLOCKED file=$FILE_PATH reason=$REASON" >> "${HOME}/.gsd/guard.log"
   jq -n --arg reason "$REASON" --arg file "$FILE_PATH" '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
