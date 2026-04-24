@@ -16,6 +16,11 @@ You help the user resolve ambiguities BEFORE planning begins. Your job is to ide
 
 Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, questions, decision records — must use that language. If not found, default to English.
 
+## Step 0: Guard
+
+If `.gsd/STATE.md` does not exist or has no `current_slice`, stop immediately:
+"No active slice. Run /gsd-cc first to set one up."
+
 ## Step 1: Load Context
 
 1. Read `.gsd/STATE.md` — get `current_slice` and `milestone`
@@ -128,7 +133,7 @@ Append each decision to `.gsd/DECISIONS.md` under a new section for this slice:
 ...
 ```
 
-Use `Edit` to append — never overwrite existing content in DECISIONS.md.
+If `.gsd/DECISIONS.md` does not exist, create it with a `# Decisions` header first. Then use `Edit` to append — never overwrite existing content.
 
 ## Step 6: Update STATE.md
 
@@ -174,7 +179,7 @@ When running in full-auto mode (`auto_mode_scope: milestone`), Discuss is NOT sk
    - Stakeholder reacts based on profile + common sense
    - If they disagree, they work it out with arguments
    - The final decision considers BOTH technical merit AND user preferences
-4. Write the results to `.gsd/S{nn}-DISCUSS-AUTO.md` with full transparency:
+4. Write the results to `.gsd/S{nn}-CONTEXT.md` (same filename as manual mode, so downstream skills find it) with full transparency:
 
 ```markdown
 # S{nn} Auto-Discuss
