@@ -1,6 +1,11 @@
 node_modules/
 .DS_Store
 *.log
+
+# Local runtime artifacts
+/.claude/
 .gsd/auto.lock
+.gsd/auto.log
+.gsd/COSTS.jsonl
 .docs
 docs/MARKETING-PLAN.md
