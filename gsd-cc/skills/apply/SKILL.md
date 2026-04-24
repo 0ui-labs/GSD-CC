@@ -187,6 +187,12 @@ git commit -m "feat(S{nn}/T{nn}): {task name}"
 
 **Commit only the files this task changed.** Do not `git add -A` — that could include unrelated changes.
 
+In auto-mode, a missing task commit is treated as a recovery path only. The
+runner may create a fallback commit only when the summary status is
+`complete` and every remaining change belongs to this task's `<files>` plus
+`.gsd/S{nn}-T{nn}-SUMMARY.md` and `.gsd/STATE.md`. Otherwise it stops so the
+worktree can be inspected safely.
+
 **If task status is `partial` or `blocked`:**
 
 Do NOT commit. Instead, ask the user:

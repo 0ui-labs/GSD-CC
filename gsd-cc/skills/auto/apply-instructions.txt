@@ -83,6 +83,16 @@ git commit -m "feat(S{nn}/T{nn}): {task name}"
 
 Do NOT use `git add -A`.
 
+If you cannot create this task-scoped commit yourself, stop after writing the
+summary and updating `STATE.md`. Auto-mode will only attempt a narrow fallback
+commit when all of these are true:
+- the summary status is `complete`
+- the remaining changes are limited to `<files>`,
+  `.gsd/S{nn}-T{nn}-SUMMARY.md`, and `.gsd/STATE.md`
+- no unrelated tracked or untracked files are present
+
+If those checks fail, auto-mode stops safely instead of broad-staging the repo.
+
 ## State Update
 
 Update `.gsd/STATE.md`:
