@@ -168,8 +168,12 @@ assert_no_legacy_task_plan_markdown() {
   local slice="$1"
   local hint="Run /gsd-cc-plan to regenerate XML task plans before restarting auto-mode."
   local legacy_files=()
+  local legacy_file
 
-  mapfile -t legacy_files < <(find_matching_files "$GSD_DIR/${slice}-T*-PLAN.md")
+  while IFS= read -r legacy_file; do
+    [[ -z "$legacy_file" ]] && continue
+    legacy_files+=("$legacy_file")
+  done < <(find_matching_files "$GSD_DIR/${slice}-T*-PLAN.md")
 
   if [[ ${#legacy_files[@]} -gt 0 ]]; then
     fail_validation "Legacy task plan detected: ${legacy_files[0]}" "$hint"
@@ -219,6 +223,18 @@ trim_whitespace() {
   printf '%s' "$value"
 }
 
+strip_task_file_annotation() {
+  local value
+  value=$(trim_whitespace "$1")
+  value=$(printf '%s' "$value" | sed -E \
+    's/[[:space:]]+\([^)]*\)$//;
+     s/[[:space:]]+-[[:space:]].*$//;
+     s/[[:space:]]+#[[:space:]].*$//;
+     s/[[:space:]]+\/\/[[:space:]].*$//;
+     s/^([^[:space:]]+):[[:space:]].*$/\1/')
+  trim_whitespace "$value"
+}
+
 normalize_repo_path() {
   local path
   path=$(trim_whitespace "$1")
@@ -254,13 +270,30 @@ extract_task_name() {
 
 parse_task_plan_files() {
   local plan_path="$1"
-  local raw_lines=()
   local raw_line
   local cleaned_line
   local normalized_path
   local found=0
 
-  mapfile -t raw_lines < <(
+  while IFS= read -r raw_line; do
+    cleaned_line=$(printf '%s' "$raw_line" | sed -E 's/<!--.*-->//g')
+    cleaned_line=$(trim_whitespace "$cleaned_line")
+
+    [[ -z "$cleaned_line" ]] && continue
+
+    case "$cleaned_line" in
+      \#*|//*|*:) continue ;;
+    esac
+
+    cleaned_line=$(printf '%s' "$cleaned_line" | sed -E 's/^[-*][[:space:]]+//; s/^[0-9]+[.)][[:space:]]+//')
+    cleaned_line=$(strip_task_file_annotation "$cleaned_line")
+
+    [[ -z "$cleaned_line" ]] && continue
+
+    normalized_path=$(normalize_repo_path "$cleaned_line") || return 1
+    printf '%s\n' "$normalized_path"
+    found=1
+  done < <(
     awk '
       /<files>/ {
         in_files=1
@@ -276,26 +309,6 @@ parse_task_plan_files() {
       }
     ' "$plan_path"
   )
-
-  for raw_line in "${raw_lines[@]}"; do
-    cleaned_line=$(printf '%s' "$raw_line" | sed -E 's/<!--.*-->//g')
-    cleaned_line=$(trim_whitespace "$cleaned_line")
-
-    [[ -z "$cleaned_line" ]] && continue
-
-    case "$cleaned_line" in
-      \#*|//*|*:) continue ;;
-    esac
-
-    cleaned_line=$(printf '%s' "$cleaned_line" | sed -E 's/^[-*][[:space:]]+//; s/^[0-9]+[.)][[:space:]]+//')
-    cleaned_line=$(trim_whitespace "$cleaned_line")
-
-    [[ -z "$cleaned_line" ]] && continue
-
-    normalized_path=$(normalize_repo_path "$cleaned_line") || return 1
-    printf '%s\n' "$normalized_path"
-    found=1
-  done
 
   [[ "$found" -eq 1 ]]
 }
@@ -371,26 +384,37 @@ classify_worktree_changes() {
 
   reset_change_classification
 
-  mapfile -t tracked_changes < <(collect_tracked_changes)
-  mapfile -t untracked_changes < <(collect_untracked_changes)
-
-  for path in "${tracked_changes[@]}"; do
+  while IFS= read -r path; do
     [[ -z "$path" ]] && continue
-    if path_in_list "$path" "${allowlist[@]}"; then
-      CLASSIFIED_ALLOWED_TRACKED+=("$path")
-    else
-      CLASSIFIED_DISALLOWED_TRACKED+=("$path")
-    fi
-  done
+    tracked_changes+=("$path")
+  done < <(collect_tracked_changes)
 
-  for path in "${untracked_changes[@]}"; do
+  while IFS= read -r path; do
     [[ -z "$path" ]] && continue
-    if path_in_list "$path" "${allowlist[@]}"; then
-      CLASSIFIED_ALLOWED_UNTRACKED+=("$path")
-    else
-      CLASSIFIED_DISALLOWED_UNTRACKED+=("$path")
-    fi
-  done
+    untracked_changes+=("$path")
+  done < <(collect_untracked_changes)
+
+  if [[ ${#tracked_changes[@]} -gt 0 ]]; then
+    for path in "${tracked_changes[@]}"; do
+      [[ -z "$path" ]] && continue
+      if [[ ${#allowlist[@]} -gt 0 ]] && path_in_list "$path" "${allowlist[@]}"; then
+        CLASSIFIED_ALLOWED_TRACKED+=("$path")
+      else
+        CLASSIFIED_DISALLOWED_TRACKED+=("$path")
+      fi
+    done
+  fi
+
+  if [[ ${#untracked_changes[@]} -gt 0 ]]; then
+    for path in "${untracked_changes[@]}"; do
+      [[ -z "$path" ]] && continue
+      if [[ ${#allowlist[@]} -gt 0 ]] && path_in_list "$path" "${allowlist[@]}"; then
+        CLASSIFIED_ALLOWED_UNTRACKED+=("$path")
+      else
+        CLASSIFIED_DISALLOWED_UNTRACKED+=("$path")
+      fi
+    done
+  fi
 }
 
 has_allowed_classified_changes() {
@@ -411,9 +435,17 @@ log_paths() {
 warn_if_dirty_worktree() {
   local tracked_changes=()
   local untracked_changes=()
+  local path
 
-  mapfile -t tracked_changes < <(collect_tracked_changes)
-  mapfile -t untracked_changes < <(collect_untracked_changes)
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    tracked_changes+=("$path")
+  done < <(collect_tracked_changes)
+
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    untracked_changes+=("$path")
+  done < <(collect_untracked_changes)
 
   if [[ "${#tracked_changes[@]}" -gt 0 || "${#untracked_changes[@]}" -gt 0 ]]; then
     log "⚠ Git worktree is already dirty."
@@ -453,13 +485,13 @@ run_apply_fallback_commit() {
 
   while IFS= read -r path; do
     [[ -z "$path" ]] && continue
-    if ! path_in_list "$path" "${allowlist[@]}"; then
+    if [[ ${#allowlist[@]} -eq 0 ]] || ! path_in_list "$path" "${allowlist[@]}"; then
       allowlist+=("$path")
     fi
   done <<< "$task_files_output"
 
   for path in "$summary_path" "$GSD_DIR/STATE.md"; do
-    if ! path_in_list "$path" "${allowlist[@]}"; then
+    if [[ ${#allowlist[@]} -eq 0 ]] || ! path_in_list "$path" "${allowlist[@]}"; then
       allowlist+=("$path")
     fi
   done
@@ -477,7 +509,12 @@ run_apply_fallback_commit() {
     log "❌ Fallback commit aborted: unrelated changes detected."
     log "   Current task: ${slice}/${task}"
     log "   Unrelated files:"
-    log_paths "${CLASSIFIED_DISALLOWED_TRACKED[@]}" "${CLASSIFIED_DISALLOWED_UNTRACKED[@]}"
+    if [[ ${#CLASSIFIED_DISALLOWED_TRACKED[@]} -gt 0 ]]; then
+      log_paths "${CLASSIFIED_DISALLOWED_TRACKED[@]}"
+    fi
+    if [[ ${#CLASSIFIED_DISALLOWED_UNTRACKED[@]} -gt 0 ]]; then
+      log_paths "${CLASSIFIED_DISALLOWED_UNTRACKED[@]}"
+    fi
     log "   Resolve or stash unrelated worktree changes before restarting auto-mode."
     return 1
   fi
@@ -502,7 +539,18 @@ run_apply_fallback_commit() {
     return 1
   fi
 
-  stage_paths=("${CLASSIFIED_ALLOWED_TRACKED[@]}" "${CLASSIFIED_ALLOWED_UNTRACKED[@]}")
+  if [[ ${#CLASSIFIED_ALLOWED_TRACKED[@]} -gt 0 ]]; then
+    for path in "${CLASSIFIED_ALLOWED_TRACKED[@]}"; do
+      stage_paths+=("$path")
+    done
+  fi
+
+  if [[ ${#CLASSIFIED_ALLOWED_UNTRACKED[@]} -gt 0 ]]; then
+    for path in "${CLASSIFIED_ALLOWED_UNTRACKED[@]}"; do
+      stage_paths+=("$path")
+    done
+  fi
+
   for path in "${stage_paths[@]}"; do
     git add -- "$path"
   done
@@ -638,19 +686,31 @@ while true; do
       fi
 
       # Include all task plans for this slice
-      mapfile -t TASK_PLAN_FILES < <(find_matching_files "$GSD_DIR/${SLICE}-T*-PLAN.xml")
+      TASK_PLAN_FILES=()
+      while IFS= read -r task_plan_file; do
+        [[ -z "$task_plan_file" ]] && continue
+        TASK_PLAN_FILES+=("$task_plan_file")
+      done < <(find_matching_files "$GSD_DIR/${SLICE}-T*-PLAN.xml")
       echo "<task-plans>" >> "$PROMPT_FILE"
-      for f in "${TASK_PLAN_FILES[@]}"; do
-        cat "$f" >> "$PROMPT_FILE"
-      done
+      if [[ ${#TASK_PLAN_FILES[@]} -gt 0 ]]; then
+        for f in "${TASK_PLAN_FILES[@]}"; do
+          cat "$f" >> "$PROMPT_FILE"
+        done
+      fi
       echo "</task-plans>" >> "$PROMPT_FILE"
 
       # Include all summaries for this slice
-      mapfile -t SUMMARY_FILES < <(find_matching_files "$GSD_DIR/${SLICE}-T*-SUMMARY.md")
+      SUMMARY_FILES=()
+      while IFS= read -r summary_file; do
+        [[ -z "$summary_file" ]] && continue
+        SUMMARY_FILES+=("$summary_file")
+      done < <(find_matching_files "$GSD_DIR/${SLICE}-T*-SUMMARY.md")
       echo "<summaries>" >> "$PROMPT_FILE"
-      for f in "${SUMMARY_FILES[@]}"; do
-        cat "$f" >> "$PROMPT_FILE"
-      done
+      if [[ ${#SUMMARY_FILES[@]} -gt 0 ]]; then
+        for f in "${SUMMARY_FILES[@]}"; do
+          cat "$f" >> "$PROMPT_FILE"
+        done
+      fi
       echo "</summaries>" >> "$PROMPT_FILE"
 
       # Include decisions
