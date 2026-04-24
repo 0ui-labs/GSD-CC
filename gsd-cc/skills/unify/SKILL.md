@@ -53,6 +53,10 @@ Use `Glob` to find all matching files for the current slice.
 If any `.gsd/S{nn}-T{nn}-PLAN.md` task-plan files exist, stop and tell the
 user to rerun `/gsd-cc-plan` so the slice is regenerated with XML task plans.
 
+Also read `base_branch` from `.gsd/STATE.md`. If it is missing, run the
+router's base branch detection before continuing and write the resolved value
+to `.gsd/STATE.md`.
+
 ## Step 2: Compare Plan vs. Actual
 
 For each task in the slice plan, compare:
@@ -244,15 +248,24 @@ Before merging, check the UNIFY status:
 
 ## Step 12: Git Squash-Merge
 
-Merge the slice branch back to main with a squash:
+Preflight before merging:
+
+1. Verify `base_branch` is present in `.gsd/STATE.md`
+2. Verify `{base_branch}` exists locally
+3. Verify the current slice branch `gsd/M{n}/S{nn}` exists locally
+4. Verify the worktree is clean enough to merge
+5. Only then switch to `{base_branch}`
+
+Merge the slice branch back to the configured base branch with a squash:
 
 ```bash
-git checkout main
+git switch {base_branch}
 git merge --squash gsd/M{n}/S{nn}
 git commit -m "feat(M{n}/S{nn}): {slice name}"
 ```
 
-This produces one clean commit on main per slice. The per-task history is preserved on the slice branch.
+This produces one clean commit on `{base_branch}` per slice. The per-task
+history is preserved on the slice branch.
 
 **Do NOT delete the slice branch.** It contains per-task commit history.
 
@@ -283,7 +296,7 @@ Update the Progress table: set the current slice to `done` with AC counts.
   Deferred: {count} items
   Reassessment: {verdict}
 
-  Merged: gsd/M{n}/S{nn} → main
+  Merged: gsd/M{n}/S{nn} → {base_branch}
   Commit: feat(M{n}/S{nn}): {slice name}
 
 ┌─────────────────────────────────────────────┐

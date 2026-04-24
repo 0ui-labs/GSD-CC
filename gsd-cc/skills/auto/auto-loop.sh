@@ -118,9 +118,54 @@ read_optional_state_field() {
 
 update_state_field() {
   local field="$1" value="$2"
+  local tmp_file
   if grep -q "^${field}:" "$GSD_DIR/STATE.md"; then
-    sed -i '' "s/^${field}:.*/${field}: ${value}/" "$GSD_DIR/STATE.md"
+    tmp_file="${GSD_DIR}/.STATE.md.$$"
+    awk -v field="$field" -v value="$value" '
+      $0 ~ "^" field ":" {
+        print field ": " value
+        next
+      }
+      { print }
+    ' "$GSD_DIR/STATE.md" > "$tmp_file"
+    mv "$tmp_file" "$GSD_DIR/STATE.md"
   fi
+}
+
+upsert_state_field() {
+  local field="$1" value="$2"
+  local tmp_file
+
+  if grep -q "^${field}:" "$GSD_DIR/STATE.md"; then
+    update_state_field "$field" "$value"
+    return
+  fi
+
+  tmp_file="${GSD_DIR}/.STATE.md.$$"
+  awk -v field="$field" -v value="$value" '
+    BEGIN { inserted = 0 }
+    /^state_schema_version:/ && !inserted {
+      print
+      print field ": " value
+      inserted = 1
+      next
+    }
+    /^milestone:/ && !inserted {
+      print field ": " value
+      inserted = 1
+    }
+    /^---$/ && NR > 1 && !inserted {
+      print field ": " value
+      inserted = 1
+    }
+    { print }
+    END {
+      if (!inserted) {
+        print field ": " value
+      }
+    }
+  ' "$GSD_DIR/STATE.md" > "$tmp_file"
+  mv "$tmp_file" "$GSD_DIR/STATE.md"
 }
 
 log_cost() {
@@ -616,6 +661,195 @@ warn_if_dirty_worktree() {
   fi
 }
 
+is_inside_git_worktree() {
+  [[ "$(git rev-parse --is-inside-work-tree 2>/dev/null || true)" == "true" ]]
+}
+
+normalize_branch_value() {
+  local value
+  value=$(trim_whitespace "${1:-}")
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+
+  case "$value" in
+    ""|"-"|"—") return 0 ;;
+  esac
+
+  printf '%s\n' "$value"
+}
+
+read_config_field() {
+  local field="$1"
+
+  if [[ ! -f "$GSD_DIR/CONFIG.md" ]]; then
+    return 0
+  fi
+
+  grep "^$field:" "$GSD_DIR/CONFIG.md" | head -1 | sed "s/^$field:[[:space:]]*//" || true
+}
+
+local_branch_exists() {
+  local branch="$1"
+  git show-ref --verify --quiet "refs/heads/$branch"
+}
+
+validate_base_branch_name() {
+  local branch="$1"
+  git check-ref-format --branch "$branch" >/dev/null 2>&1
+}
+
+current_branch_is_gsd_slice() {
+  case "$1" in
+    gsd/M*/S*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+detect_base_branch() {
+  local candidate
+  local current_branch
+  local remote_head
+  local common_branch
+
+  candidate=$(normalize_branch_value "$(read_optional_state_field "base_branch")")
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  candidate=$(normalize_branch_value "$(read_config_field "base_branch")")
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  candidate=$(normalize_branch_value "${GSD_CC_BASE_BRANCH:-}")
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  remote_head=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)
+  remote_head="${remote_head#origin/}"
+  candidate=$(normalize_branch_value "$remote_head")
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  current_branch=$(git branch --show-current 2>/dev/null || true)
+  candidate=$(normalize_branch_value "$current_branch")
+  if [[ -n "$candidate" ]] && ! current_branch_is_gsd_slice "$candidate"; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  for common_branch in main master trunk develop; do
+    if local_branch_exists "$common_branch"; then
+      printf '%s\n' "$common_branch"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+ensure_base_branch_recorded() {
+  local base_branch
+
+  if ! is_inside_git_worktree; then
+    return 0
+  fi
+
+  base_branch=$(detect_base_branch) || {
+    fail_validation "Could not detect a Git base branch." \
+      "Set base_branch in .gsd/STATE.md or export GSD_CC_BASE_BRANCH."
+  }
+
+  if ! validate_base_branch_name "$base_branch"; then
+    fail_validation "Invalid base_branch: $base_branch" \
+      "Use a valid local branch name, for example main, master, trunk, or develop."
+  fi
+
+  upsert_state_field "base_branch" "$base_branch"
+  printf '%s\n' "$base_branch"
+}
+
+assert_clean_for_branch_switch() {
+  local allowlist=("$@")
+
+  classify_worktree_changes "${allowlist[@]}"
+  if ! has_disallowed_classified_changes; then
+    return 0
+  fi
+
+  log "❌ Cannot prepare planning branch: worktree has unrelated changes."
+  log "   Commit, stash, or clean these paths before auto-mode switches branches:"
+  if [[ ${#CLASSIFIED_DISALLOWED_TRACKED[@]} -gt 0 ]]; then
+    log_paths "${CLASSIFIED_DISALLOWED_TRACKED[@]}"
+  fi
+  if [[ ${#CLASSIFIED_DISALLOWED_UNTRACKED[@]} -gt 0 ]]; then
+    log_paths "${CLASSIFIED_DISALLOWED_UNTRACKED[@]}"
+  fi
+  return 1
+}
+
+switch_to_branch() {
+  local branch="$1"
+
+  git switch "$branch" 2>/dev/null || git checkout "$branch"
+}
+
+create_branch_from_current() {
+  local branch="$1"
+
+  git switch -c "$branch" 2>/dev/null || git checkout -b "$branch"
+}
+
+prepare_planning_branch() {
+  local milestone="$1"
+  local slice="$2"
+  local base_branch
+  local slice_branch
+
+  if ! is_inside_git_worktree; then
+    log "⚠ Not inside a Git worktree; skipping base branch preparation."
+    return 0
+  fi
+
+  base_branch=$(ensure_base_branch_recorded)
+  if [[ -z "$base_branch" ]]; then
+    return 0
+  fi
+
+  if ! local_branch_exists "$base_branch"; then
+    fail_validation "Configured base_branch '$base_branch' does not exist locally." \
+      "Create or fetch the local base branch before planning a slice."
+  fi
+
+  if ! assert_clean_for_branch_switch "$GSD_DIR/STATE.md"; then
+    exit 1
+  fi
+
+  slice_branch="gsd/${milestone}/${slice}"
+
+  if local_branch_exists "$slice_branch"; then
+    if ! git merge-base --is-ancestor "$base_branch" "$slice_branch" 2>/dev/null; then
+      fail_validation "Existing slice branch '$slice_branch' is not based on '$base_branch'." \
+        "Inspect the branch ancestry before continuing planning."
+    fi
+    switch_to_branch "$slice_branch"
+  else
+    switch_to_branch "$base_branch"
+    create_branch_from_current "$slice_branch"
+  fi
+
+  log "  Base branch: $base_branch"
+  log "  Slice branch: $slice_branch"
+}
+
 run_apply_fallback_commit() {
   local slice="$1"
   local task="$2"
@@ -861,6 +1095,7 @@ while true; do
   # ── 2. UNIFY enforcement ───────────────────────────────────────────────────
 
   if [[ "$PHASE" == "apply-complete" ]]; then
+    ensure_base_branch_recorded >/dev/null
     UNIFY_FILE="$GSD_DIR/${SLICE}-UNIFY.md"
     if [[ ! -f "$UNIFY_FILE" ]]; then
       log "⚠ Running mandatory UNIFY for $SLICE..."
@@ -917,7 +1152,7 @@ while true; do
 
       RESULT_FILE="/tmp/gsd-result-$$.json"
       dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" \
-        "Read,Write,Edit,Glob,Grep,Bash(git checkout *),Bash(git merge *),Bash(git commit *)" \
+        "Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git merge *),Bash(git commit *)" \
         15 600 || {
         log "❌ UNIFY dispatch failed. Check $LOG_FILE for details."
         break
@@ -1023,6 +1258,12 @@ while true; do
 
   # ── 5. Update lock file ─────────────────────────────────────────────────────
 
+  case "$PHASE" in
+    plan|roadmap-complete|discuss-complete)
+      prepare_planning_branch "$MILESTONE" "$SLICE"
+      ;;
+  esac
+
   echo "{\"unit\":\"${SLICE}/${TASK}\",\"phase\":\"${PHASE}\",\"pid\":$$,\"started\":\"$(date -Iseconds)\"}" > "$LOCK_FILE"
 
   # ── 6. Build prompt ────────────────────────────────────────────────────────
@@ -1091,7 +1332,7 @@ while true; do
   RESULT_FILE="/tmp/gsd-result-$$.json"
 
   if [[ "$DISPATCH_PHASE" == "plan" ]]; then
-    ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git checkout *),Bash(git branch *),Bash(git add *),Bash(git commit *)"
+    ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git branch *),Bash(git add *),Bash(git commit *)"
   else
     ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(npm *),Bash(npx *),Bash(git add *),Bash(git commit *),Bash(node *),Bash(python3 *)"
   fi

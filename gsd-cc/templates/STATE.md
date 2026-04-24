@@ -1,5 +1,6 @@
 ---
 state_schema_version: 1
+base_branch: ""
 milestone: M001
 current_slice: S01
 current_task: T01

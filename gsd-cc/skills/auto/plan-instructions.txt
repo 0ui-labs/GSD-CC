@@ -60,10 +60,18 @@ plan only.
 
 ## Git
 
-Create the slice branch:
+Use `base_branch` from <state>. Auto-mode prepares the slice branch from that
+base before this prompt runs. Verify the current branch is `gsd/M{n}/S{nn}`.
+
+If the branch was not prepared yet, create it from the configured base branch:
+
 ```bash
-git checkout -b gsd/M{n}/S{nn}
+git switch {base_branch}
+git switch -c gsd/M{n}/S{nn}
 ```
+
+If the slice branch already exists, switch to it instead of recreating it.
+Do not switch branches when unrelated worktree changes are present.
 
 After writing the planning artifacts, stage only the slice-scoped files you
 changed for this run:

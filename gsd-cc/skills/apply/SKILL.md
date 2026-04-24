@@ -33,7 +33,7 @@ Do not invent phase names or required-field rules locally.
 
 ## Step 1: Determine Current Task
 
-1. Read `.gsd/STATE.md` — get `current_slice` and `current_task`
+1. Read `.gsd/STATE.md` — get `current_slice`, `current_task`, and `base_branch`
 2. If `current_task` is `—` or empty, start with `T01`
 3. Construct the task plan path: `.gsd/S{nn}-T{nn}-PLAN.xml`
 
@@ -124,7 +124,22 @@ Before verifying acceptance criteria, run the existing test suite to catch regre
    - Otherwise, run the full test suite.
 4. If existing tests fail:
    - **If the failure is caused by your changes:** fix it before proceeding.
-   - **If the failure is pre-existing** (verify by checking: does the same test also fail on `main`?): note it in the summary under Issues, but proceed.
+   - **If the failure is pre-existing:** verify whether the same test also
+     fails on the configured `base_branch`. Do not discard or mix task changes
+     while checking.
+     Safe options:
+     - Run the comparison only when the current worktree is clean.
+     - Prefer a temporary worktree:
+
+       ```bash
+       git worktree add /tmp/gsd-cc-base-check-{pid} {base_branch}
+       ```
+
+       Run the same failing test there, then remove the temporary worktree.
+     - If the worktree is not safe to switch and a temporary worktree cannot be
+       created, skip the comparison and note that limitation in the summary.
+     If the failure is confirmed on `base_branch`, note it in the summary under
+     Issues, but proceed.
 
 This step ensures that the implementation does not break existing functionality.
 

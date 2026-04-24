@@ -26,7 +26,7 @@ Do not invent phase names or required-field rules locally.
 
 Read these files (all that exist):
 
-1. `.gsd/STATE.md` — get `current_slice`, `milestone`, `rigor`, `project_type`
+1. `.gsd/STATE.md` — get `current_slice`, `milestone`, `rigor`, `project_type`, `base_branch`
 2. `.gsd/M001-ROADMAP.md` — find the current slice description
 3. `.gsd/PLANNING.md` — overall project context
 4. `.gsd/DECISIONS.md` — all decisions made so far
@@ -227,13 +227,25 @@ If any check fails, fix it before proceeding. Do not skip the quality gate.
 
 ## Step 6: Create Git Branch
 
-Create a branch for this slice:
+Resolve `base_branch` from `.gsd/STATE.md`. If it is missing, run the router's
+base branch detection before continuing and write the result to
+`.gsd/STATE.md`.
+
+Before switching branches, check the worktree. If there are uncommitted
+unrelated changes, stop and ask the user to commit, stash, or clean them.
+
+Create the slice branch from the configured base branch:
 
 ```bash
-git checkout -b gsd/M{n}/S{nn}
+git switch {base_branch}
+git switch -c gsd/M{n}/S{nn}
 ```
 
-If the branch already exists (resuming), check it out.
+If `git switch` is unavailable, use the equivalent `git checkout` commands.
+
+If the slice branch already exists (resuming), switch to it instead of
+recreating it. Verify it is based on `{base_branch}` before continuing; if it
+is not, warn the user and stop so the branch ancestry can be inspected.
 
 ## Step 7: Update STATE.md
 

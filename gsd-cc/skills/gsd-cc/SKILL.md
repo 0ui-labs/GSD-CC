@@ -49,6 +49,42 @@ required artifacts, and allowed next phases. If state is invalid, report the
 exact missing field/artifact or unknown phase, suggest the safest repair action,
 and do not continue routing from file-existence heuristics.
 
+## Git Base Branch Contract
+
+Before any route that can plan a slice, run auto-mode, or UNIFY a slice, make
+sure `.gsd/STATE.md` has a `base_branch` field. This field is the source of
+truth for slice branch creation, pre-existing failure checks, and squash merge
+targets.
+
+Resolve `base_branch` in this order:
+
+1. Existing `base_branch` in `.gsd/STATE.md`
+2. Existing `base_branch` in `.gsd/CONFIG.md`, if that file exists
+3. `GSD_CC_BASE_BRANCH` environment variable
+4. Remote default branch from `origin/HEAD`
+5. Current branch, if it is not a `gsd/M*/S*` slice branch
+6. Existing local branch names in this order: `main`, `master`, `trunk`,
+   `develop`
+
+Useful safe commands:
+
+```bash
+git symbolic-ref --short refs/remotes/origin/HEAD
+git branch --show-current
+git show-ref --verify --quiet refs/heads/main
+git show-ref --verify --quiet refs/heads/master
+git show-ref --verify --quiet refs/heads/trunk
+git show-ref --verify --quiet refs/heads/develop
+```
+
+When using `origin/HEAD`, strip the `origin/` prefix before writing the value.
+If no branch can be detected, stop and ask the user to choose a base branch.
+Do not invent a default branch.
+
+When a base branch is detected, write it to `.gsd/STATE.md` before delegating to
+planning, auto-mode, or UNIFY. Include the resolved branch in the current
+position context whenever branch actions are next.
+
 ## Step 2: Route to Action
 
 Follow this decision tree **top to bottom**. Take the FIRST match:
@@ -280,6 +316,7 @@ When the user confirms roadmap creation (after PLANNING.md exists):
 ```
 
 5. Update `.gsd/STATE.md`:
+   - Ensure `base_branch` is present, using the Git Base Branch Contract above
    - Set `current_slice: S01`
    - Set `phase: roadmap-complete`
    - Update the Progress table with all slices as `pending`

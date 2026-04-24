@@ -100,10 +100,18 @@ Status in frontmatter:
 
 ## Git
 
-Squash-merge the slice branch to main:
+Use `base_branch` from <state>. Preflight before merging:
+
+1. Verify `base_branch` is present.
+2. Verify `{base_branch}` exists locally.
+3. Verify `gsd/M{n}/S{nn}` exists locally.
+4. Verify the worktree is clean enough to merge.
+5. Only then switch to `{base_branch}`.
+
+Squash-merge the slice branch to the configured base branch:
 
 ```bash
-git checkout main
+git switch {base_branch}
 git merge --squash gsd/M{n}/S{nn}
 git commit -m "feat(M{n}/S{nn}): {slice name}"
 ```

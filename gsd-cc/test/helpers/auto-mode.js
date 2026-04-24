@@ -41,6 +41,10 @@ function writeState(projectDir, fields = {}) {
     }
   }
 
+  if (state.base_branch !== undefined) {
+    lines.push(`base_branch: ${state.base_branch}`);
+  }
+
   if (state.auto_mode_scope !== undefined) {
     lines.push(`auto_mode_scope: ${state.auto_mode_scope}`);
   }
