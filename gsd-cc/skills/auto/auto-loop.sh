@@ -95,8 +95,11 @@ done
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
-# Tee all output to both stdout and log file
-exec > >(tee -a "$LOG_FILE") 2>&1
+# Tee all output to both stdout and log file. Tests can disable this because
+# some sandboxed shells disallow process substitution through /dev/fd.
+if [[ "${GSD_CC_DISABLE_TEE:-0}" != "1" ]]; then
+  exec > >(tee -a "$LOG_FILE") 2>&1
+fi
 
 log() {
   echo "[$(date -Iseconds)] $*"

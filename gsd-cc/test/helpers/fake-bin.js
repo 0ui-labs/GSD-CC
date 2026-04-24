@@ -98,10 +98,21 @@ exit 0
 `);
 }
 
+function writeFakeDate(binDir) {
+  return writeExecutable(binDir, 'date', `#!/bin/sh
+if [ "$1" = "-Iseconds" ]; then
+  echo "2026-01-01T00:00:00+00:00"
+else
+  echo "2026-01-01"
+fi
+`);
+}
+
 module.exports = {
   ensureFakeBin,
   writeExecutable,
   writeFakeClaude,
+  writeFakeDate,
   writeFakeGit,
   writeFakeJq
 };
