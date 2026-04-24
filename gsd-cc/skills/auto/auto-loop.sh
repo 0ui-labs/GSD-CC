@@ -147,17 +147,14 @@ fail_validation() {
   exit 1
 }
 
-read_auto_scope() {
+normalize_auto_scope() {
   local raw
-  raw=$(read_optional_state_field "auto_mode_scope")
+  raw="$1"
 
   case "$raw" in
     ""|"slice") echo "slice" ;;
     "milestone") echo "milestone" ;;
-    *)
-      fail_validation "Unsupported auto_mode_scope: $raw" \
-        "Use 'slice' or 'milestone' in .gsd/STATE.md."
-      ;;
+    *) return 1 ;;
   esac
 }
 
@@ -674,11 +671,15 @@ echo ""
 PHASE=$(read_state_field "phase")
 SLICE=$(read_state_field "current_slice")
 TASK=$(read_state_field "current_task")
+AUTO_SCOPE_RAW=$(read_optional_state_field "auto_mode_scope")
 AUTO_SCOPE_MISSING=0
-if [[ -z "$(read_optional_state_field "auto_mode_scope")" ]]; then
+if [[ -z "$AUTO_SCOPE_RAW" ]]; then
   AUTO_SCOPE_MISSING=1
 fi
-AUTO_SCOPE=$(read_auto_scope)
+if ! AUTO_SCOPE=$(normalize_auto_scope "$AUTO_SCOPE_RAW"); then
+  fail_validation "Unsupported auto_mode_scope: $AUTO_SCOPE_RAW" \
+    "Use 'slice' or 'milestone' in .gsd/STATE.md."
+fi
 START_SLICE="$SLICE"
 validate_phase_artifacts "$PHASE" "$SLICE" "$TASK"
 acquire_lock
