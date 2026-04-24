@@ -5,7 +5,7 @@ description: >
   Analyzes the document, identifies gaps, asks targeted follow-ups,
   and generates standardized project artifacts. Use when user says
   /gsd-cc-ingest, pastes a concept, or uploads a document.
-allowed-tools: Read, Write, Edit, Glob, Bash
+allowed-tools: Read, Write, Edit, Glob, Bash, AskUserQuestion
 ---
 
 # /gsd-cc-ingest — Import External Concept
@@ -25,7 +25,7 @@ The input can come in many forms:
 - **Pasted text** — the user copies their concept into the chat
 - **File path** — "here's my concept: /path/to/concept.md"
 - **Multiple files** — "look at these files: /docs/spec.md, /docs/wireframes.md"
-- **URL content** — the user might paste content from a web page
+- **Web content** — the user might copy-paste content from a web page into the chat
 
 Read whatever they provide. If it's a file path, use `Read`. If it's multiple files, read all of them.
 
@@ -110,16 +110,25 @@ Wait for confirmation.
 
 ## Step 4: Guided Gap-Filling
 
-Go through each vague/missing point ONE AT A TIME. Never ask multiple questions at once.
+Go through each vague/missing point ONE AT A TIME. Never ask multiple questions at once. **Always use `AskUserQuestion`** for every question — never output a question as plain text.
+
+Use AskUserQuestion with a clear question and, where possible, predefined options to make it easy for the user to respond:
 
 ```
-Let's start with the first open point.
-
-{Topic}: {What's unclear, in plain language}
-{Why it matters — one sentence explaining why this affects the project}
-
-{ONE question}
+AskUserQuestion:
+  Question: "{What's unclear, in plain language}"
+  Header: "{Topic}"
+  Options:
+    - label: "{Option A}"
+      description: "{brief explanation}"
+    - label: "{Option B}"
+      description: "{brief explanation}"
+    - label: "Something else"
+      description: "I'll explain"
+  Context: "{Why it matters — one sentence explaining why this affects the project}"
 ```
+
+If the question is too open-ended for predefined options, use AskUserQuestion without options (free-text input).
 
 Wait for the answer. Then move to the next point:
 
@@ -129,16 +138,18 @@ Got it. Next one:
 {Topic}: ...
 ```
 
-Adapt your questions to the user's level (same as /gsd-cc-profile — read the room from how the document is written).
+Adapt the *content* of your questions to the user's level (same as /gsd-cc-profile — read the room from how the document is written). Examples of question content by level:
 
 **For a technical spec:**
-- "Your spec covers the API endpoints but doesn't mention authentication. What's the plan?"
+- Question content: "Your spec covers the API endpoints but doesn't mention authentication. What's the plan?"
 
 **For a non-technical brief:**
-- "You described what the dashboard shows, but what happens when someone clicks a number?"
+- Question content: "You described what the dashboard shows, but what happens when someone clicks a number?"
 
 **For a vague concept:**
-- "You mention 'user management' — what does that mean to you? Just login/signup, or more?"
+- Question content: "You mention 'user management' — what does that mean to you? Just login/signup, or more?"
+
+These are examples of what to *ask* — the delivery format is always `AskUserQuestion`.
 
 If the user says "I don't know" or "you decide" — note it as an open question for later phases. Don't push.
 
@@ -153,7 +164,7 @@ OK, here's what we clarified:
 {Remaining open points} will be addressed during planning.
 ```
 
-## Step 4: Assess Coverage
+## Step 5: Assess Coverage
 
 After filling gaps, check which GSD-CC artifacts you have enough information for:
 
@@ -176,7 +187,7 @@ Based on your document and our conversation, I can generate:
 Generate these now?
 ```
 
-## Step 5: Generate Artifacts
+## Step 6: Generate Artifacts
 
 On confirmation, create the `.gsd/` directory and write:
 
@@ -224,6 +235,8 @@ Log any decisions that were already made in the original document:
 ```markdown
 # Decisions
 
+<!-- Append-only register. Never delete entries, only add. -->
+
 ## From Original Concept
 - {Decision from document} (source: original concept, section X)
 - {Decision from document} (source: original concept, section Y)
@@ -245,7 +258,7 @@ Gaps resolved: {count}
 Gaps remaining: {count — these are in PLANNING.md Open Questions}
 ```
 
-## Step 6: What's Still Missing?
+## Step 7: What's Still Missing?
 
 After generating artifacts, honestly assess what wasn't in the document and wasn't covered in the conversation:
 
@@ -260,7 +273,7 @@ Still open — you might want to address these later:
 These are also listed in PLANNING.md under "Open Questions".
 ```
 
-## Step 7: Hand Off
+## Step 8: Hand Off
 
 ```
 ✓ Ingest complete.
@@ -285,7 +298,7 @@ These are also listed in PLANNING.md under "Open Questions".
 └─────────────────────────────────────────────┘
 ```
 
-**Do NOT continue in this session.** The ingested document may have consumed significant context.
+**Do NOT continue in this session.** Reading and analyzing the document, the back-and-forth conversation, and generating all artifacts has used a large portion of the available context window. Continuing in this session risks degraded quality in later steps. A fresh session starts with full capacity.
 
 ## Rules
 
