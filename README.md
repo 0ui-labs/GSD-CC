@@ -115,6 +115,8 @@ GSD-CC uses `claude -p` (non-interactive mode) for autonomous execution. That ru
 ```bash
 npx gsd-cc            # Install globally (default)
 npx gsd-cc --local    # Install to current project only
+npx gsd-cc --global --yes          # Install/update without prompts
+npx gsd-cc --local --language Deutsch
 npx gsd-cc --uninstall            # Remove detected installs safely
 npx gsd-cc --uninstall --global   # Remove only the global install
 npx gsd-cc --uninstall --local    # Remove only the local install
@@ -127,6 +129,10 @@ npx gsd-cc --uninstall --local    # Remove only the local install
   installs.
 - `npx gsd-cc --uninstall` checks both install roots. Add `--global` or
   `--local` to limit cleanup to one scope.
+- Reinstall and update runs preserve the existing `GSD-CC language` setting.
+  Use `--language <name>` to set it explicitly.
+- Use `--yes` for automation. If no scope is provided in prompt-free mode,
+  the installer chooses the global install.
 - Uninstall removes only manifest-tracked assets, GSD-CC-owned hook entries,
   and the managed language block in `CLAUDE.md`.
 - If a target file already exists and GSD-CC cannot prove ownership, install

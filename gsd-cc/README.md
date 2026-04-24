@@ -23,6 +23,8 @@ no build step, no custom agent.
 ```bash
 npx gsd-cc            # Install globally (default)
 npx gsd-cc --local    # Install to current project only
+npx gsd-cc --global --yes          # Install/update without prompts
+npx gsd-cc --local --language Deutsch
 npx gsd-cc --uninstall            # Remove detected installs safely
 npx gsd-cc --uninstall --global   # Remove only the global install
 npx gsd-cc --uninstall --local    # Remove only the local install
@@ -37,6 +39,12 @@ Installed layout:
 - Hooks: `~/.claude/hooks/gsd-cc/` or `./.claude/hooks/gsd-cc/`
 - Custom types: `~/.claude/skills/seed/types/<your-type>/` or `./.claude/skills/seed/types/<your-type>/`
 - Scope-specific uninstall: `--global` or `--local`
+- Prompt-free installs: `--yes`
+- Explicit language: `--language <name>`
+
+Reinstall and update runs preserve the existing `GSD-CC language` setting by
+default. In non-interactive mode, missing language defaults to English and
+missing scope defaults to a global install.
 
 ## Usage
 
