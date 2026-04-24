@@ -4,6 +4,11 @@
 # This is a HARD enforcement — Claude cannot bypass this regardless of prompting.
 
 INPUT=$(cat)
+
+if ! command -v jq >/dev/null 2>&1; then
+  exit 0
+fi
+
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name')
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 

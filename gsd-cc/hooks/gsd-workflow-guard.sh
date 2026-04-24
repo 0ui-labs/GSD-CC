@@ -4,6 +4,11 @@
 # Advisory only — does not block operations.
 
 INPUT=$(cat)
+
+if ! command -v jq >/dev/null 2>&1; then
+  exit 0
+fi
+
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name')
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 

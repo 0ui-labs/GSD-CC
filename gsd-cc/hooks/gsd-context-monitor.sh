@@ -4,6 +4,11 @@
 # Uses the transcript file size as a proxy for context consumption.
 
 INPUT=$(cat)
+
+if ! command -v jq >/dev/null 2>&1; then
+  exit 0
+fi
+
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // empty')
 

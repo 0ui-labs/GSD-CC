@@ -5,6 +5,11 @@
 # Also writes a bridge file for other hooks to read.
 
 INPUT=$(cat)
+
+if ! command -v jq >/dev/null 2>&1; then
+  exit 0
+fi
+
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 
 # Only render if this is a GSD-CC project
