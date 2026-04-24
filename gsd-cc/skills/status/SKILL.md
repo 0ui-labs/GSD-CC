@@ -23,7 +23,7 @@ Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All out
    - `S*-PLAN.md` files (planned slices)
    - `S*-UNIFY.md` files (unified slices)
    - `S*-T*-SUMMARY.md` files (completed tasks)
-4. Read `.gsd/COSTS.jsonl` if it exists
+4. Check if `token-usage.py` script is available (see Step 5)
 5. Check if `.gsd/auto.lock` exists
 
 ## Step 2: Build Milestone Overview
@@ -71,34 +71,27 @@ Acceptance Criteria:
 
 Read AC results from UNIFY.md files (for completed slices) and SUMMARY.md files (for in-progress slice).
 
-## Step 5: Token Usage (if available)
+## Step 5: Token Usage
 
-If `.gsd/COSTS.jsonl` exists, parse it and show:
-
-```
-Token Usage:
-  Input:  {total}k tokens
-  Output: {total}k tokens
-  By phase: plan {n}% · apply {n}% · unify {n}%
-  By slice: S01 {n}% · S02 {n}% · S03 {n}%
-```
-
-Use `Bash` to parse COSTS.jsonl:
+The `token-usage.py` script is in the **same directory as this SKILL.md file**. Derive the script path from the location where you loaded this skill, then run it via `Bash`. If `.gsd/COSTS.jsonl` exists, pass it via `--costs` to include the auto-mode breakdown:
 
 ```bash
-cat .gsd/COSTS.jsonl | python3 -c "
-import sys, json
-lines = [json.loads(l) for l in sys.stdin if l.strip()]
-inp = sum(l.get('usage',{}).get('input_tokens',0) for l in lines)
-out = sum(l.get('usage',{}).get('output_tokens',0) for l in lines)
-print(f'Input: {inp/1000:.0f}k tokens')
-print(f'Output: {out/1000:.0f}k tokens')
-"
+SCRIPT="{directory of this SKILL.md}/token-usage.py"
+
+if [[ ! -f "$SCRIPT" ]]; then
+  echo "Token usage: script not found"
+elif [[ -f ".gsd/COSTS.jsonl" ]]; then
+  python3 "$SCRIPT" --costs .gsd/COSTS.jsonl
+else
+  python3 "$SCRIPT"
+fi
 ```
 
-If python3 is not available, skip the detailed breakdown and just show line count.
+Replace `{directory of this SKILL.md}` with the actual absolute path of the directory this skill was loaded from.
 
-If COSTS.jsonl doesn't exist: "Token usage: not tracked (manual mode)"
+Display the output as-is in the Token Usage section.
+
+If python3 is not available: "Token usage: requires python3"
 
 ## Step 6: Auto-Mode Status
 
@@ -149,9 +142,15 @@ Type:    application / deep
 
 Acceptance Criteria: 5/7 passed, 1 partial, 1 pending
 
-Token Usage:
-  142k input / 38k output
-  By phase: plan 22% · apply 68% · unify 10%
+Token Usage (all sessions)
+  Sessions:       12
+  API calls:    1209
+  Input:       10.6k tokens
+  Output:     370.4k tokens
+  Cache write:  2.8M tokens
+  Cache read: 138.6M tokens
+  Est. cost:    42.15$ (sonnet pricing)
+  Auto-mode by phase: plan 22% · apply 68% · unify 10%
 
 Auto-mode: inactive
 
