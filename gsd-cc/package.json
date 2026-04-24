@@ -7,6 +7,9 @@
   "bin": {
     "gsd-cc": "./bin/install.js"
   },
+  "scripts": {
+    "test:install-hooks": "node test/install-hooks.test.js"
+  },
   "license": "MIT",
   "keywords": [
     "claude-code",
