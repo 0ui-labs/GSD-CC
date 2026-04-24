@@ -31,7 +31,22 @@ Read these files:
 6. `.gsd/type.json` — project type and rigor
 7. `.gsd/STATE.md` — check auto_mode_scope
 
+If `PLANNING.md` or `PROJECT.md` do not exist, stop and tell the user to run `/gsd-cc-seed` first.
+
+Also read `.gsd/STACK.md` (if exists). If it exists, this is a **revision** — skip to Step 1b.
+
 Determine: Is this a manual discussion (user present) or auto-discuss (synthetic stakeholder)?
+
+## Step 1b: Revision Mode
+
+A `STACK.md` already exists. Ask the user which decisions they want to revisit:
+
+```
+Question: "Which stack decisions do you want to change?"
+Options: {one option per existing layer from STACK.md, plus "Other"}
+```
+
+Then run the discussion (Step 3) **only for the selected layers**. When writing `STACK.md` in Step 5, merge the changes into the existing file — do not overwrite unchanged decisions.
 
 ## Step 2: Assess the User
 
@@ -88,6 +103,10 @@ Options:
 
 Continue for: Database, Styling, Hosting/Deployment, Authentication (if needed), and any project-specific tools. Always use AskUserQuestion for each decision.
 
+### For intermediate users:
+
+They know the basics but want guidance on tradeoffs. Don't over-explain what a framework is, but do explain *why* one fits better than another for this project. Present 2–3 options per layer with clear pros/cons, then use AskUserQuestion. Offer your recommendation but expect follow-up questions.
+
 ### For advanced users:
 
 Be direct. They don't need explanations of what React is.
@@ -118,10 +137,11 @@ Read PROFILE.md (if it exists). For each stack decision, run a real discussion:
 **Planner:** "For this project we need {requirement}. The best
 options are {A} and {B}. {A} because {reason}. {B} because {reason}.
 I'd lean toward {A}."
-**Stakeholder:** "{Reaction — agrees, disagrees, or adds context.
-Profile is a nudge, not a script. E.g. 'The profile says TypeScript
-for frontend work, and that aligns here. But even without the profile
-TypeScript would be the right call because of {project-specific reason}.'}"
+**Stakeholder:** "{Reaction — the stakeholder MUST raise at least one
+concrete counter-argument or risk before agreeing. E.g. 'TypeScript
+fits here, but the tradeoff is slower prototyping and heavier tooling.
+For a project this size that's acceptable.' Profile is a nudge, not
+a script.}"
 **Decision:** {final choice}
 **Reasoning:** {why this is right for THIS project — not just because the profile says so}
 **Confidence:** {high|medium|low}
@@ -188,7 +208,7 @@ to Vercel because the team already uses it", "must support IE11"}
 "monitoring tool will be decided after v1"}
 ```
 
-Also append to `.gsd/DECISIONS.md`:
+Also update `.gsd/DECISIONS.md` (if it doesn't exist, create it with a `# Decisions` header first). If a `## Tech Stack` section already exists, **replace** it with the current decisions. Otherwise, append it:
 
 ```markdown
 ## Tech Stack
