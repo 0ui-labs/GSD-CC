@@ -917,11 +917,22 @@ function createManifest(isGlobal, assets, migratedLegacyPaths, managedHookSpecs,
   };
 }
 
+function getInstallMode(asset) {
+  const hookDirPrefix = `${CURRENT_HOOK_DIR}${path.sep}`;
+  if (
+    asset.targetRelativePath.startsWith(hookDirPrefix) &&
+    asset.targetRelativePath.endsWith('.sh')
+  ) {
+    return 0o755;
+  }
+
+  return fs.statSync(asset.sourcePath).mode & 0o777;
+}
+
 function copyAsset(asset) {
   ensureDirectory(path.dirname(asset.targetPath));
   fs.copyFileSync(asset.sourcePath, asset.targetPath);
-  const sourceMode = fs.statSync(asset.sourcePath).mode & 0o777;
-  fs.chmodSync(asset.targetPath, sourceMode);
+  fs.chmodSync(asset.targetPath, getInstallMode(asset));
 }
 
 function cleanupTrackedConfigBlocks(claudeBase, manifest, warnings) {
