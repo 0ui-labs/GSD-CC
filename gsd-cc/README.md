@@ -23,13 +23,20 @@ no build step, no custom agent.
 ```bash
 npx gsd-cc            # Install globally (default)
 npx gsd-cc --local    # Install to current project only
-npx gsd-cc --uninstall
-npx gsd-cc --uninstall --local
+npx gsd-cc --uninstall            # Remove detected installs safely
+npx gsd-cc --uninstall --global   # Remove only the global install
+npx gsd-cc --uninstall --local    # Remove only the local install
 ```
 
-GSD-CC tracks installed assets in `.claude/gsd-cc/install-manifest.json`,
-removes only files it owns during uninstall, and aborts if an existing target
-file cannot be proven safe to overwrite.
+GSD-CC tracks installed assets in `~/.claude/gsd-cc/install-manifest.json`
+(global) or `./.claude/gsd-cc/install-manifest.json` (local), removes only
+files it owns during uninstall, and aborts if an existing target file cannot
+be proven safe to overwrite.
+
+Installed layout:
+- Hooks: `~/.claude/hooks/gsd-cc/` or `./.claude/hooks/gsd-cc/`
+- Custom types: `~/.claude/skills/seed/types/<your-type>/` or `./.claude/skills/seed/types/<your-type>/`
+- Scope-specific uninstall: `--global` or `--local`
 
 ## Usage
 
@@ -53,7 +60,8 @@ Artifact convention:
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
 - Claude Code **Max Plan** (recommended for auto-mode)
 - **Git** initialized in your project
-- **jq** installed (`brew install jq`) — required for hook activation and auto-mode
+- **jq** installed (`brew install jq`) — required for hooks-ready and
+  auto-ready installs
 
 Install still succeeds without `jq`, but jq-dependent hooks stay disabled and
 auto-mode remains unavailable until `jq` is installed. Rerun the installer

@@ -107,15 +107,17 @@ GSD-CC uses `claude -p` (non-interactive mode) for autonomous execution. That ru
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
 - Claude Code **Max Plan** (recommended for autonomous mode)
 - **Git** initialized in your project
-- **jq** installed (`brew install jq`) — required for hook activation and auto-mode
+- **jq** installed (`brew install jq`) — required for hooks-ready and
+  auto-ready installs
 
 ### Installation
 
 ```bash
 npx gsd-cc            # Install globally (default)
 npx gsd-cc --local    # Install to current project only
-npx gsd-cc --uninstall
-npx gsd-cc --uninstall --local
+npx gsd-cc --uninstall            # Remove detected installs safely
+npx gsd-cc --uninstall --global   # Remove only the global install
+npx gsd-cc --uninstall --local    # Remove only the local install
 ```
 
 ### Install Safety
@@ -123,18 +125,21 @@ npx gsd-cc --uninstall --local
 - GSD-CC writes an install manifest to `~/.claude/gsd-cc/install-manifest.json`
   for global installs and `./.claude/gsd-cc/install-manifest.json` for local
   installs.
+- `npx gsd-cc --uninstall` checks both install roots. Add `--global` or
+  `--local` to limit cleanup to one scope.
 - Uninstall removes only manifest-tracked assets, GSD-CC-owned hook entries,
   and the managed language block in `CLAUDE.md`.
 - If a target file already exists and GSD-CC cannot prove ownership, install
   stops instead of overwriting it.
-- Hook scripts live under `.claude/hooks/gsd-cc/` so shared hook directories no
+- Hook scripts live under `~/.claude/hooks/gsd-cc/` for global installs and
+  `./.claude/hooks/gsd-cc/` for local installs, so shared hook directories no
   longer need broad cleanup.
 
 ### Runtime Readiness
 
 - Base install copies the managed skills, hooks, templates, and checklists.
 - Hooks-ready requires `jq`. If `jq` is missing, install still succeeds but
-  hook activation is skipped.
+  hook activation stays disabled in Claude settings.
 - Auto-ready requires `jq`, `git`, and the `claude` CLI in your PATH.
 - Install `jq` later? Rerun `npx gsd-cc` (or `npx gsd-cc --local`) to enable
   hooks.
@@ -213,7 +218,12 @@ Close Claude Code, come back tomorrow, pick up exactly where you left off.
 
 ## Adding Custom Project Types
 
-Drop 3 files into `~/.claude/skills/gsd-cc-seed/types/your-type/`:
+Drop 3 files into the install scope you use:
+
+- Global install: `~/.claude/skills/seed/types/your-type/`
+- Local install: `./.claude/skills/seed/types/your-type/`
+
+Example:
 
 ```
 types/my-saas/
