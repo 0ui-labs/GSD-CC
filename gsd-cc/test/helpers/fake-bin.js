@@ -20,6 +20,50 @@ function writeFakeJq(binDir) {
 const fs = require('fs');
 
 const args = process.argv.slice(2);
+const vars = {};
+const positional = [];
+let rawOutput = false;
+let exitStatus = false;
+let compactOutput = false;
+let nullInput = false;
+let slurpInput = false;
+
+for (let index = 0; index < args.length; index += 1) {
+  const arg = args[index];
+
+  if (arg === '-r') {
+    rawOutput = true;
+    continue;
+  }
+
+  if (arg === '-e') {
+    exitStatus = true;
+    continue;
+  }
+
+  if (arg === '-c') {
+    compactOutput = true;
+    continue;
+  }
+
+  if (arg === '-n') {
+    nullInput = true;
+    continue;
+  }
+
+  if (arg === '-s') {
+    slurpInput = true;
+    continue;
+  }
+
+  if (arg === '--arg') {
+    vars[args[index + 1]] = args[index + 2];
+    index += 2;
+    continue;
+  }
+
+  positional.push(arg);
+}
 
 function readInput(fileArg) {
   if (fileArg) {
@@ -46,19 +90,82 @@ function getPath(data, expression) {
   }, data);
 }
 
-if (args[0] === '-n') {
+function evaluate(data, expression) {
+  if (expression === '.emptyValues[]') {
+    return { values: data.emptyValues || [] };
+  }
+
+  if (expression === '.phases[$phase] // empty') {
+    return data.phases && data.phases[vars.phase] !== undefined
+      ? data.phases[vars.phase]
+      : { missing: true };
+  }
+
+  if (expression === '.phases[$phase].requiredFields[]?') {
+    const phase = data.phases && data.phases[vars.phase];
+    return { values: phase && phase.requiredFields || [] };
+  }
+
+  if (expression === '.phases[$phase].requiredArtifacts[]?') {
+    const phase = data.phases && data.phases[vars.phase];
+    return { values: phase && phase.requiredArtifacts || [] };
+  }
+
+  if (expression === '.phases[$from].next | index($to)') {
+    const phase = data.phases && data.phases[vars.from];
+    const index = phase && Array.isArray(phase.next) ? phase.next.indexOf(vars.to) : -1;
+    return index >= 0 ? index : null;
+  }
+
+  return getPath(data, expression || '');
+}
+
+function printValue(value) {
+  if (value && value.values) {
+    for (const entry of value.values) {
+      console.log(entry);
+    }
+    process.exit(0);
+  }
+
+  if (value && value.missing) {
+    process.exit(exitStatus ? 1 : 0);
+  }
+
+  if (value === undefined || value === null) {
+    if (exitStatus) {
+      console.log('null');
+      process.exit(1);
+    }
+    console.log('null');
+    process.exit(0);
+  }
+
+  if (typeof value === 'object') {
+    console.log(JSON.stringify(value));
+  } else {
+    console.log(value);
+  }
+}
+
+if (nullInput) {
   console.log('{}');
   process.exit(0);
 }
 
-if (args[0] === '-c') {
+if (compactOutput) {
   console.log('{}');
   process.exit(0);
 }
 
-const raw = readInput(args[0] === '-r' ? args[2] : args[1]);
+if (slurpInput) {
+  console.log('0');
+  process.exit(0);
+}
+
+const expression = positional[0] || '';
+const raw = readInput(positional[1]);
 const data = raw.trim() ? JSON.parse(raw) : {};
-const expression = args[0] === '-r' ? args[1] : args[0];
 
 if (expression && expression.includes('join("\\\\t")')) {
   const values = [
@@ -70,21 +177,11 @@ if (expression && expression.includes('join("\\\\t")')) {
   process.exit(0);
 }
 
-const value = getPath(data, expression || '');
-
-if (value === undefined || value === null) {
-  if (expression && expression.includes('// empty')) {
-    process.exit(0);
-  }
-  console.log('null');
+const value = evaluate(data, expression);
+if ((value === undefined || value === null) && expression.includes('// empty')) {
   process.exit(0);
 }
-
-if (typeof value === 'object') {
-  console.log(JSON.stringify(value));
-} else {
-  console.log(value);
-}
+printValue(value);
 `);
 }
 

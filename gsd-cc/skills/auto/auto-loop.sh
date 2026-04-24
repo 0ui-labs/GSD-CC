@@ -83,16 +83,6 @@ if [[ ! -f "$GSD_DIR/STATE.md" ]]; then
   exit 1
 fi
 
-# Validate required STATE.md fields
-for field in milestone current_slice current_task phase rigor; do
-  val=$(grep "^$field:" "$GSD_DIR/STATE.md" | head -1 | sed "s/^$field:[[:space:]]*//" || true)
-  if [[ -z "$val" || "$val" == "—" ]]; then
-    echo "❌ STATE.md is missing required field: $field"
-    echo "   Run /gsd-cc to fix project state before starting auto-mode."
-    exit 1
-  fi
-done
-
 # ── Logging ───────────────────────────────────────────────────────────────────
 
 # Tee all output to both stdout and log file. Tests can disable this because
@@ -148,6 +138,54 @@ fail_validation() {
     log "   $hint"
   fi
   exit 1
+}
+
+trim_whitespace() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+state_machine_path() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  local candidates=(
+    ".claude/templates/STATE_MACHINE.json"
+    "$HOME/.claude/templates/STATE_MACHINE.json"
+    "$script_dir/../../templates/STATE_MACHINE.json"
+    "gsd-cc/templates/STATE_MACHINE.json"
+  )
+  local candidate
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+load_phase_spec() {
+  local phase="$1"
+  jq -e --arg phase "$phase" '.phases[$phase] // empty' "$STATE_MACHINE_FILE" >/dev/null
+}
+
+state_field_is_empty() {
+  local value
+  local empty_value
+  value=$(trim_whitespace "${1:-}")
+
+  while IFS= read -r empty_value; do
+    if [[ "$value" == "$empty_value" ]]; then
+      return 0
+    fi
+  done < <(jq -r '.emptyValues[]' "$STATE_MACHINE_FILE")
+
+  return 1
 }
 
 normalize_auto_scope() {
@@ -206,47 +244,132 @@ assert_no_legacy_task_plan_markdown() {
   fi
 }
 
-validate_phase_artifacts() {
-  local phase="$1" slice="$2" task="$3"
-  local roadmap_hint="Run /gsd-cc to create a roadmap before starting auto-mode."
-  local replan_hint="Run /gsd-cc-plan to regenerate the slice plan artifacts before restarting auto-mode."
-  local reapply_hint="Run /gsd-cc-apply to regenerate the task summary artifacts before restarting auto-mode."
-  local slice_plan
-  local task_plan
-
-  if [[ -z "$phase" || -z "$slice" || -z "$task" ]]; then
-    fail_validation "STATE.md is missing phase, current_slice, or current_task." \
-      "Run /gsd-cc to repair project state before restarting auto-mode."
-  fi
-
-  require_matching_files "$GSD_DIR/M*-ROADMAP.md" "roadmap files" "$roadmap_hint"
+assert_no_legacy_task_plan_for_phase() {
+  local phase="$1"
+  local slice
 
   case "$phase" in
-    plan|roadmap-complete|seed-complete|discuss-complete)
-      assert_no_legacy_task_plan_markdown "$slice"
-      ;;
-    plan-complete|applying)
-      slice_plan=$(slice_plan_path "$slice")
-      task_plan=$(task_plan_xml_path "$slice" "$task")
-      assert_no_legacy_task_plan_markdown "$slice"
-      require_file "$slice_plan" "slice plan" "$replan_hint"
-      require_file "$task_plan" "task plan" "$replan_hint"
-      ;;
-    apply-complete)
-      slice_plan=$(slice_plan_path "$slice")
-      assert_no_legacy_task_plan_markdown "$slice"
-      require_file "$slice_plan" "slice plan" "$replan_hint"
-      require_matching_files "$GSD_DIR/${slice}-T*-PLAN.xml" "task plans" "$replan_hint"
-      require_matching_files "$GSD_DIR/${slice}-T*-SUMMARY.md" "task summaries" "$reapply_hint"
+    roadmap-complete|discuss-complete|plan|plan-complete|applying|apply-complete)
+      slice=$(read_optional_state_field "current_slice")
+      if ! state_field_is_empty "$slice"; then
+        assert_no_legacy_task_plan_markdown "$slice"
+      fi
       ;;
   esac
 }
 
-trim_whitespace() {
-  local value="$1"
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
-  printf '%s' "$value"
+expand_artifact_template() {
+  local template="$1"
+  local expanded="$template"
+  local field
+  local value
+
+  while [[ "$expanded" =~ \{([A-Za-z0-9_]+)\} ]]; do
+    field="${BASH_REMATCH[1]}"
+    value=$(read_optional_state_field "$field")
+    expanded="${expanded//\{$field\}/$value}"
+  done
+
+  printf '%s\n' "$expanded"
+}
+
+validate_phase_fields() {
+  local phase="$1"
+  local field
+  local value
+
+  if ! load_phase_spec "$phase"; then
+    fail_validation "Unknown STATE.md phase: ${phase:-missing}" \
+      "Run /gsd-cc to repair project state before restarting auto-mode."
+  fi
+
+  while IFS= read -r field; do
+    [[ -z "$field" ]] && continue
+    value=$(read_optional_state_field "$field")
+    if state_field_is_empty "$value"; then
+      fail_validation "STATE.md phase '$phase' is missing required field: $field" \
+        "Update .gsd/STATE.md or rerun the phase that owns '$field'."
+    fi
+  done < <(jq -r --arg phase "$phase" '.phases[$phase].requiredFields[]?' "$STATE_MACHINE_FILE")
+}
+
+validate_phase_artifacts() {
+  local phase="$1"
+  local artifact_template
+  local artifact_pattern
+  local hint="Run /gsd-cc to repair project state before restarting auto-mode."
+
+  while IFS= read -r artifact_template; do
+    [[ -z "$artifact_template" ]] && continue
+    artifact_pattern=$(expand_artifact_template "$artifact_template")
+
+    if [[ "$artifact_pattern" == *"*"* ]]; then
+      require_matching_files "$artifact_pattern" "state artifact for phase '$phase'" "$hint"
+    else
+      require_file "$artifact_pattern" "state artifact for phase '$phase'" "$hint"
+    fi
+  done < <(jq -r --arg phase "$phase" '.phases[$phase].requiredArtifacts[]?' "$STATE_MACHINE_FILE")
+
+  assert_no_legacy_task_plan_for_phase "$phase"
+}
+
+validate_phase_transition() {
+  local from_phase="$1" to_phase="$2"
+
+  if [[ "$from_phase" == "$to_phase" ]]; then
+    return 0
+  fi
+
+  if ! load_phase_spec "$from_phase"; then
+    fail_validation "Unknown previous phase: ${from_phase:-missing}" \
+      "Run /gsd-cc to repair project state before restarting auto-mode."
+  fi
+
+  if ! load_phase_spec "$to_phase"; then
+    fail_validation "Unknown next phase: ${to_phase:-missing}" \
+      "Run /gsd-cc to repair project state before restarting auto-mode."
+  fi
+
+  if ! jq -e --arg from "$from_phase" --arg to "$to_phase" \
+    '.phases[$from].next | index($to)' "$STATE_MACHINE_FILE" >/dev/null; then
+    fail_validation "Illegal phase transition: $from_phase -> $to_phase" \
+      "Run /gsd-cc to inspect the current state before auto-mode continues."
+  fi
+}
+
+validate_current_state() {
+  local previous_phase="${1:-}"
+  local phase
+
+  phase=$(read_optional_state_field "phase")
+  validate_phase_fields "$phase"
+  validate_phase_artifacts "$phase"
+
+  if [[ -n "$previous_phase" ]]; then
+    validate_phase_transition "$previous_phase" "$phase"
+  fi
+}
+
+transition_phase() {
+  local from_phase="$1" to_phase="$2"
+  validate_phase_transition "$from_phase" "$to_phase"
+  update_state_field "phase" "$to_phase"
+  update_state_field "last_updated" "$(date -Iseconds)"
+}
+
+ensure_auto_phase_ready() {
+  local phase="$1"
+
+  case "$phase" in
+    seed|seed-complete|stack-complete)
+      fail_validation "Auto-mode cannot run before a roadmap and active slice are ready." \
+        "Run /gsd-cc to create the roadmap, then start auto-mode from a planning or execution phase."
+      ;;
+    milestone-complete)
+      fail_validation "Auto-mode cannot run because the milestone is already complete." \
+        "Run /gsd-cc to choose the next project action."
+      ;;
+  esac
 }
 
 strip_task_file_annotation() {
@@ -679,14 +802,19 @@ dispatch_claude() {
 
 # ── Main loop ──────────────────────────────────────────────────────────────────
 
+if ! STATE_MACHINE_FILE=$(state_machine_path); then
+  fail_validation "STATE_MACHINE.json not found." \
+    "Reinstall GSD-CC or restore gsd-cc/templates/STATE_MACHINE.json."
+fi
+
 log "▶ GSD-CC Auto-Mode starting..."
 log "  Budget: ${BUDGET:-unlimited} tokens"
 echo ""
 
 # Acquire lock before entering the loop
-PHASE=$(read_state_field "phase")
-SLICE=$(read_state_field "current_slice")
-TASK=$(read_state_field "current_task")
+PHASE=$(read_optional_state_field "phase")
+SLICE=$(read_optional_state_field "current_slice")
+TASK=$(read_optional_state_field "current_task")
 AUTO_SCOPE_RAW=$(read_optional_state_field "auto_mode_scope")
 AUTO_SCOPE_MISSING=0
 if [[ -z "$AUTO_SCOPE_RAW" ]]; then
@@ -697,7 +825,8 @@ if ! AUTO_SCOPE=$(normalize_auto_scope "$AUTO_SCOPE_RAW"); then
     "Use 'slice' or 'milestone' in .gsd/STATE.md."
 fi
 START_SLICE="$SLICE"
-validate_phase_artifacts "$PHASE" "$SLICE" "$TASK"
+validate_current_state
+ensure_auto_phase_ready "$PHASE"
 acquire_lock
 warn_if_dirty_worktree
 
@@ -714,11 +843,11 @@ MAX_RETRIES=2
 while true; do
   # ── 1. Read state ──────────────────────────────────────────────────────────
 
-  PHASE=$(read_state_field "phase")
-  SLICE=$(read_state_field "current_slice")
-  TASK=$(read_state_field "current_task")
-  RIGOR=$(read_state_field "rigor")
-  MILESTONE=$(read_state_field "milestone")
+  PHASE=$(read_optional_state_field "phase")
+  SLICE=$(read_optional_state_field "current_slice")
+  TASK=$(read_optional_state_field "current_task")
+  RIGOR=$(read_optional_state_field "rigor")
+  MILESTONE=$(read_optional_state_field "milestone")
 
   if [[ "$AUTO_SCOPE" == "slice" && "$SLICE" != "$START_SLICE" ]]; then
     log "Auto (this slice) complete for $START_SLICE."
@@ -726,7 +855,8 @@ while true; do
     break
   fi
 
-  validate_phase_artifacts "$PHASE" "$SLICE" "$TASK"
+  validate_current_state
+  ensure_auto_phase_ready "$PHASE"
 
   # ── 2. UNIFY enforcement ───────────────────────────────────────────────────
 
@@ -794,12 +924,15 @@ while true; do
       }
 
       log_cost "$SLICE" "unify" "$RESULT_FILE"
+      validate_current_state "$PHASE"
 
       if [[ "$AUTO_SCOPE" == "slice" ]]; then
         log "✓ UNIFY complete for $START_SLICE."
         log "Auto (this slice) complete for $START_SLICE."
         break
       fi
+
+      PHASE=$(read_optional_state_field "phase")
 
       # ── REASSESS after UNIFY ──────────────────────────────────────────────
       log "▶ Running REASSESS after $SLICE..."
@@ -834,6 +967,7 @@ while true; do
       }
 
       log_cost "$SLICE" "reassess" "$RESULT_FILE"
+      validate_current_state "$PHASE"
       log "✓ UNIFY + REASSESS complete for $SLICE."
       continue
     fi
@@ -867,11 +1001,12 @@ while true; do
       NEXT_PHASE="plan"
     fi
 
-    validate_phase_artifacts "$NEXT_PHASE" "$SLICE" "$TASK"
-    PHASE="$NEXT_PHASE"
+    validate_phase_transition "$PHASE" "$NEXT_PHASE"
     update_state_field "current_slice" "$SLICE"
-    update_state_field "phase" "$PHASE"
     update_state_field "current_task" "$TASK"
+    transition_phase "$PHASE" "$NEXT_PHASE"
+    PHASE="$NEXT_PHASE"
+    validate_current_state
     log "▶ Moving to next slice: $SLICE ($PHASE)"
   fi
 
@@ -975,6 +1110,7 @@ while true; do
   # ── 9. Log costs ──────────────────────────────────────────────────────────
 
   log_cost "${SLICE}/${TASK}" "$DISPATCH_PHASE" "$RESULT_FILE"
+  validate_current_state "$PHASE"
 
   # ── 10. Update state ──────────────────────────────────────────────────────
 

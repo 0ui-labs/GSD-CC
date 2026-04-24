@@ -5,7 +5,10 @@ const path = require('path');
 const {
   createAutoModeProject,
   readStateField,
-  runAutoLoop
+  runAutoLoop,
+  writeFile,
+  writePromptFiles,
+  writeState
 } = require('./helpers/auto-mode');
 const {
   ensureFakeBin,
@@ -78,6 +81,30 @@ function setupBin() {
   writeFakeGit(binDir);
   writeFakeJq(binDir);
   writeScopeFakeClaude(binDir);
+  return binDir;
+}
+
+function setupIllegalTransitionBin() {
+  const tempRoot = makeTempDir('gsd-cc-auto-illegal-bin-');
+  const binDir = ensureFakeBin(tempRoot);
+  writeFakeDate(binDir);
+  writeFakeGit(binDir);
+  writeFakeJq(binDir);
+  writeFakeClaude(binDir, `#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+
+const gsdDir = path.join(process.cwd(), '.gsd');
+const statePath = path.join(gsdDir, 'STATE.md');
+const state = fs.readFileSync(statePath, 'utf8');
+fs.writeFileSync(statePath, state.replace(/^phase:.*$/m, 'phase: plan-complete'));
+fs.writeFileSync(path.join(gsdDir, 'illegal-transition.marker'), 'marker\\n');
+
+console.log(JSON.stringify({
+  model: 'fake-claude',
+  usage: { input_tokens: 1, output_tokens: 1 }
+}));
+`);
   return binDir;
 }
 
@@ -158,6 +185,28 @@ function testInvalidScopeStopsBeforeWork(binDir) {
   assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'unify.marker')));
 }
 
+function testValidEarlyStateStopsWithAutoHint(binDir) {
+  const projectDir = makeTempDir('gsd-cc-auto-early-state-');
+  writePromptFiles(projectDir);
+  writeState(projectDir, {
+    phase: 'seed-complete',
+    current_slice: '-',
+    current_task: '-',
+    project_type: 'application',
+    language: 'English',
+    auto_mode_scope: 'slice'
+  });
+  writeFile(path.join(projectDir, '.gsd', 'PLANNING.md'), '# Planning\n');
+  writeFile(path.join(projectDir, '.gsd', 'PROJECT.md'), '# Project\n');
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.ifError(result.error);
+  assert.notStrictEqual(result.status, 0, 'early state should stop auto-mode');
+  assert.match(result.stdout, /Auto-mode cannot run before a roadmap/);
+  assert.doesNotMatch(result.stdout, /missing required field: current_task/);
+}
+
 function testMilestoneModeAdvances(binDir) {
   const projectDir = createAutoModeProject({
     state: {
@@ -174,10 +223,29 @@ function testMilestoneModeAdvances(binDir) {
   assert.match(result.stdout, /Moving to next slice: S02/);
 }
 
+function testIllegalPostDispatchTransitionStops() {
+  const binDir = setupIllegalTransitionBin();
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'apply-complete',
+      auto_mode_scope: 'slice'
+    }
+  });
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.ifError(result.error);
+  assert.notStrictEqual(result.status, 0, 'illegal transition should stop auto-mode');
+  assert.ok(fs.existsSync(path.join(projectDir, '.gsd', 'illegal-transition.marker')));
+  assert.match(result.stdout, /Illegal phase transition: apply-complete -> plan-complete/);
+  assert.doesNotMatch(result.stdout, /Auto \(this slice\) complete/);
+}
+
 const binDir = setupBin();
 
 testSliceModeStopsAfterUnify(binDir);
 testAlreadyUnifiedSliceDoesNotAdvance(binDir);
 testMissingScopeDefaultsToSlice(binDir);
 testInvalidScopeStopsBeforeWork(binDir);
+testValidEarlyStateStopsWithAutoHint(binDir);
 testMilestoneModeAdvances(binDir);
+testIllegalPostDispatchTransitionStops();

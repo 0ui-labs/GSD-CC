@@ -35,6 +35,12 @@ function writeState(projectDir, fields = {}) {
     `rigor: ${state.rigor}`
   ];
 
+  for (const field of ['state_schema_version', 'project_type', 'language', 'blocked_reason']) {
+    if (state[field] !== undefined) {
+      lines.push(`${field}: ${state[field]}`);
+    }
+  }
+
   if (state.auto_mode_scope !== undefined) {
     lines.push(`auto_mode_scope: ${state.auto_mode_scope}`);
   }
@@ -122,5 +128,6 @@ module.exports = {
   runAutoLoop,
   writeApplyCompleteArtifacts,
   writeFile,
+  writePromptFiles,
   writeState
 };
