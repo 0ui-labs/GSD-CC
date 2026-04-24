@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "node test/run-tests.js",
+    "test:dependency-degradation": "node test/dependency-degradation.test.js",
     "test:install-hooks": "node test/install-hooks.test.js",
     "test:installer": "node test/installer.test.js",
     "test:uninstall": "node test/uninstall.test.js"
