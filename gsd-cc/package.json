@@ -9,7 +9,8 @@
   },
   "scripts": {
     "test": "node test/run-tests.js",
-    "test:auto": "node test/auto-mode-scope.test.js",
+    "test:auto": "node test/auto-mode-scope.test.js && node test/auto-mode-git-safety.test.js",
+    "test:auto-git-safety": "node test/auto-mode-git-safety.test.js",
     "test:auto-scope": "node test/auto-mode-scope.test.js",
     "test:dependency-degradation": "node test/dependency-degradation.test.js",
     "test:install-hooks": "node test/install-hooks.test.js",
