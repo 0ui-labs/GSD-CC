@@ -6,13 +6,14 @@ A project management system for AI-powered software development. Structure your 
 
 Claude Code is the best coding agent available. But without structure, large projects degrade into chaos: context rot, lost decisions, no quality control.
 
-GSD-CC orchestrates Claude Code with native Skills (Markdown) — no API costs, no dependencies, no custom agent.
+GSD-CC orchestrates Claude Code with native Skills (Markdown) — no API costs,
+no build step, no custom agent.
 
 | Feature | GSD-CC |
 |---------|--------|
 | Runtime | Claude Code (native) |
 | Cost model | Max Plan (flat rate) |
-| Dependencies | Zero (Markdown + Bash) |
+| Dependencies | No build step (Markdown + Bash + CLI tools) |
 | Quality control | Mandatory UNIFY after every slice |
 | Boundary enforcement | Explicit DO NOT CHANGE rules per task |
 | Custom project types | Drop 3 files, done |
@@ -52,7 +53,11 @@ Artifact convention:
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
 - Claude Code **Max Plan** (recommended for auto-mode)
 - **Git** initialized in your project
-- **jq** installed (`brew install jq`) — required for auto-mode
+- **jq** installed (`brew install jq`) — required for hook activation and auto-mode
+
+Install still succeeds without `jq`, but jq-dependent hooks stay disabled and
+auto-mode remains unavailable until `jq` is installed. Rerun the installer
+after adding `jq` to activate hooks.
 
 ## Documentation
 

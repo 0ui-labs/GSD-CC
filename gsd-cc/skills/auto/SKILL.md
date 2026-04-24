@@ -40,13 +40,19 @@ before starting auto-mode."
 ```bash
 command -v jq
 ```
-If not: "jq is required for auto-mode. Install with: `brew install jq`"
+If not: "Auto-mode unavailable: jq not found. Install with: `brew install jq`. If GSD-CC was installed without jq, rerun the installer afterward to enable hooks."
+
+### git is available
+```bash
+command -v git
+```
+If not: "Auto-mode unavailable: git not found. Install Git and ensure `git` is in your PATH."
 
 ### claude CLI is available
 ```bash
 command -v claude || which claude
 ```
-If not found: "claude CLI is not installed. Make sure Claude Code is installed and in your PATH."
+If not found: "Auto-mode unavailable: claude CLI not found. Install Claude Code and ensure `claude` is in your PATH."
 Note: The auto-loop.sh script resolves the full path to claude automatically, so PATH issues in subprocesses are handled.
 
 ### No stale lock file

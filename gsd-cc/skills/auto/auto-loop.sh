@@ -31,7 +31,8 @@ if [[ -z "$CLAUDE_BIN" ]]; then
 fi
 
 if [[ -z "$CLAUDE_BIN" ]]; then
-  echo "❌ claude CLI not found. Install Claude Code first."
+  echo "❌ Auto-mode unavailable: claude CLI not found."
+  echo "   Install Claude Code and ensure \`claude\` is in your PATH."
   exit 1
 fi
 
@@ -66,7 +67,14 @@ done
 # ── Prerequisites ──────────────────────────────────────────────────────────────
 
 if ! command -v jq &>/dev/null; then
-  echo "❌ jq not found. Install with: brew install jq"
+  echo "❌ Auto-mode unavailable: jq not found. Install with: brew install jq"
+  echo "   If GSD-CC was installed without jq, rerun the installer to enable hooks."
+  exit 1
+fi
+
+if ! command -v git &>/dev/null; then
+  echo "❌ Auto-mode unavailable: git not found."
+  echo "   Install Git and ensure \`git\` is in your PATH."
   exit 1
 fi
 

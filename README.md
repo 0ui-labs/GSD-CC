@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Get (hot) Shit Done — GSD on steroids, for Claude Code.</strong><br/>
-  Structured AI development on your Max Plan. Zero API costs. Zero dependencies.
+  Structured AI development on your Max Plan. Zero API costs. No build pipeline.
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@ GSD pioneered structured AI development. Then GSD v2 dropped Claude Code for its
 |---|---|---|
 | **Runtime** | Custom agent (PI SDK) | Claude Code (native) |
 | **Costs** | API keys, pay-per-token | Max Plan (flat rate) |
-| **Dependencies** | TypeScript, build pipeline | Markdown + Bash, zero deps |
+| **Dependencies** | TypeScript, build pipeline | Markdown + Bash + existing CLI tools |
 | **Claude Code updates** | Manual migration | Automatic — you're native |
 | **Quality control** | — | Mandatory UNIFY after every slice |
 | **Boundary enforcement** | — | Explicit DO NOT CHANGE rules per task |
@@ -44,7 +44,7 @@ The right solution is not another coding agent. Claude Code is the best availabl
 
 GSD v2 bet against this. They replaced Claude Code with a custom agent built on the PI SDK. That means API costs per token, a TypeScript codebase to maintain, and no access to new Claude Code features.
 
-**We bet the other way.** Claude Code is the agent. GSD-CC is the orchestration layer — it tells Claude Code *what* to do and *in what order*, not *how* to write code. Implemented as native Claude Code Skills (Markdown) plus a Bash script. No build step. No dependencies. If Anthropic ships Claude Code 3.0 tomorrow, GSD-CC benefits automatically.
+**We bet the other way.** Claude Code is the agent. GSD-CC is the orchestration layer — it tells Claude Code *what* to do and *in what order*, not *how* to write code. Implemented as native Claude Code Skills (Markdown) plus a Bash script. No build step. Runtime readiness is checked up front. If Anthropic ships Claude Code 3.0 tomorrow, GSD-CC benefits automatically.
 
 ## What GSD-CC Adds
 
@@ -107,7 +107,7 @@ GSD-CC uses `claude -p` (non-interactive mode) for autonomous execution. That ru
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
 - Claude Code **Max Plan** (recommended for autonomous mode)
 - **Git** initialized in your project
-- **jq** installed (`brew install jq`) — required for auto-mode
+- **jq** installed (`brew install jq`) — required for hook activation and auto-mode
 
 ### Installation
 
@@ -129,6 +129,15 @@ npx gsd-cc --uninstall --local
   stops instead of overwriting it.
 - Hook scripts live under `.claude/hooks/gsd-cc/` so shared hook directories no
   longer need broad cleanup.
+
+### Runtime Readiness
+
+- Base install copies the managed skills, hooks, templates, and checklists.
+- Hooks-ready requires `jq`. If `jq` is missing, install still succeeds but
+  hook activation is skipped.
+- Auto-ready requires `jq`, `git`, and the `claude` CLI in your PATH.
+- Install `jq` later? Rerun `npx gsd-cc` (or `npx gsd-cc --local`) to enable
+  hooks.
 
 ### Quick Start
 
