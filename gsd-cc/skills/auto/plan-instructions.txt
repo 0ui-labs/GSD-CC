@@ -81,6 +81,10 @@ Do NOT use `git add .`, `git add -A`, or repo-wide staging.
 
 ## State Update
 
+Follow the phase contract in `.claude/templates/STATE_MACHINE.json` (or the
+source fallback `gsd-cc/templates/STATE_MACHINE.json`) before writing
+`.gsd/STATE.md`.
+
 Update `.gsd/STATE.md`:
 - current_task: T01
 - phase: plan-complete

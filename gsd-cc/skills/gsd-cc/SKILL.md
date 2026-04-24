@@ -29,15 +29,25 @@ Check what exists on disk:
 ```
 1. Does .gsd/ directory exist?
 2. Does .gsd/STATE.md exist? If yes, read it.
-3. Does .gsd/PLANNING.md exist?
-4. Does .gsd/M001-ROADMAP.md exist? (check for any M*-ROADMAP.md)
-5. Does .gsd/auto.lock exist? (crash/interrupt)
-6. Which S*-PLAN.md files exist?
-7. Which S*-UNIFY.md files exist?
-8. Which S*-T*-SUMMARY.md files exist?
+3. Locate the phase contract:
+   - ./.claude/templates/STATE_MACHINE.json
+   - ~/.claude/templates/STATE_MACHINE.json
+   - ./gsd-cc/templates/STATE_MACHINE.json (source repo fallback)
+4. Does .gsd/PLANNING.md exist?
+5. Does .gsd/M001-ROADMAP.md exist? (check for any M*-ROADMAP.md)
+6. Does .gsd/auto.lock exist? (crash/interrupt)
+7. Which S*-PLAN.md files exist?
+8. Which S*-UNIFY.md files exist?
+9. Which S*-T*-SUMMARY.md files exist?
 ```
 
 Use `Glob` to check for file patterns. Use `Read` for STATE.md.
+
+Before routing, validate the current `phase` against `STATE_MACHINE.json`.
+The contract is the authority for valid phases, required fields, empty values,
+required artifacts, and allowed next phases. If state is invalid, report the
+exact missing field/artifact or unknown phase, suggest the safest repair action,
+and do not continue routing from file-existence heuristics.
 
 ## Step 2: Route to Action
 
@@ -273,6 +283,7 @@ When the user confirms roadmap creation (after PLANNING.md exists):
    - Set `current_slice: S01`
    - Set `phase: roadmap-complete`
    - Update the Progress table with all slices as `pending`
+   - Follow the phase contract in `STATE_MACHINE.json`
 
 6. Instruct the user to start a fresh session:
 

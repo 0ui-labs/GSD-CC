@@ -19,6 +19,13 @@ You help the user decide on the right tech stack for their project. This is a co
 
 Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output must use that language. If not found, default to English.
 
+## State Contract
+
+Before updating `.gsd/STATE.md`, follow the phase contract in
+`./.claude/templates/STATE_MACHINE.json`, `~/.claude/templates/STATE_MACHINE.json`,
+or `./gsd-cc/templates/STATE_MACHINE.json` as the source repo fallback.
+Do not invent phase names or required-field rules locally.
+
 ## Step 1: Load Context
 
 Read these files:

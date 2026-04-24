@@ -52,6 +52,10 @@ Reviewed: {list of remaining slices with one-line confirmation each}
 
 ## State Update
 
+Follow the phase contract in `.claude/templates/STATE_MACHINE.json` (or the
+source fallback `gsd-cc/templates/STATE_MACHINE.json`) before writing
+`.gsd/STATE.md`.
+
 Update `.gsd/STATE.md`:
 - Set current_slice to the next pending slice
 - phase: unified (keep — the router will advance to the next action)

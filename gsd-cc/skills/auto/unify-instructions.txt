@@ -112,6 +112,10 @@ Do NOT delete the slice branch.
 
 ## State Update
 
+Follow the phase contract in `.claude/templates/STATE_MACHINE.json` (or the
+source fallback `gsd-cc/templates/STATE_MACHINE.json`) before writing
+`.gsd/STATE.md`.
+
 Update `.gsd/STATE.md`:
 - phase: unified
 - unify_required: false

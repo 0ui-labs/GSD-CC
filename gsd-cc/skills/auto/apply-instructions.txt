@@ -95,6 +95,10 @@ If those checks fail, auto-mode stops safely instead of broad-staging the repo.
 
 ## State Update
 
+Follow the phase contract in `.claude/templates/STATE_MACHINE.json` (or the
+source fallback `gsd-cc/templates/STATE_MACHINE.json`) before writing
+`.gsd/STATE.md`.
+
 Update `.gsd/STATE.md`:
 - If more tasks remain: `current_task: T{nn+1}`, `phase: applying`
 - If this was the last task: `phase: apply-complete`, `unify_required: true`

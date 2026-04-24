@@ -23,6 +23,13 @@ Tell the user which language you're using:
 Language: {language} (change with /gsd-cc-config)
 ```
 
+### State Contract
+
+Before updating `.gsd/STATE.md`, follow the phase contract in
+`./.claude/templates/STATE_MACHINE.json`, `~/.claude/templates/STATE_MACHINE.json`,
+or `./gsd-cc/templates/STATE_MACHINE.json` as the source repo fallback.
+Do not invent phase names or required-field rules locally.
+
 ### Step 1: Check for Prior Ideation
 
 Check if `.gsd/IDEATION.md` exists. If it does:

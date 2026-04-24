@@ -15,6 +15,13 @@ You turn a slice description into a set of executable task plans. Each task gets
 
 Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, plans, acceptance criteria, boundaries — must use that language. If not found, default to English.
 
+## State Contract
+
+Before updating `.gsd/STATE.md`, follow the phase contract in
+`./.claude/templates/STATE_MACHINE.json`, `~/.claude/templates/STATE_MACHINE.json`,
+or `./gsd-cc/templates/STATE_MACHINE.json` as the source repo fallback.
+Do not invent phase names or required-field rules locally.
+
 ## Step 1: Load Context
 
 Read these files (all that exist):

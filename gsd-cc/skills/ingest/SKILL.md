@@ -18,6 +18,13 @@ Your job: understand it, verify your understanding, fill the gaps, and produce s
 
 Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output must use that language. If not found, default to English.
 
+## State Contract
+
+Before updating `.gsd/STATE.md`, follow the phase contract in
+`./.claude/templates/STATE_MACHINE.json`, `~/.claude/templates/STATE_MACHINE.json`,
+or `./gsd-cc/templates/STATE_MACHINE.json` as the source repo fallback.
+Do not invent phase names or required-field rules locally.
+
 ## Step 1: Receive the Input
 
 The input can come in many forms:

@@ -16,6 +16,13 @@ You help the user resolve ambiguities BEFORE planning begins. Your job is to ide
 
 Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, questions, decision records — must use that language. If not found, default to English.
 
+## State Contract
+
+Before updating `.gsd/STATE.md`, follow the phase contract in
+`./.claude/templates/STATE_MACHINE.json`, `~/.claude/templates/STATE_MACHINE.json`,
+or `./gsd-cc/templates/STATE_MACHINE.json` as the source repo fallback.
+Do not invent phase names or required-field rules locally.
+
 ## Step 0: Guard
 
 If `.gsd/STATE.md` does not exist or has no `current_slice`, stop immediately:

@@ -24,6 +24,13 @@ If none of these are found, default to English and warn the user: "No language c
 
 All output — messages, summaries, commit messages — must use the resolved language.
 
+## State Contract
+
+Before updating `.gsd/STATE.md`, follow the phase contract in
+`./.claude/templates/STATE_MACHINE.json`, `~/.claude/templates/STATE_MACHINE.json`,
+or `./gsd-cc/templates/STATE_MACHINE.json` as the source repo fallback.
+Do not invent phase names or required-field rules locally.
+
 ## Step 1: Determine Current Task
 
 1. Read `.gsd/STATE.md` — get `current_slice` and `current_task`

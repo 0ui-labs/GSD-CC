@@ -19,6 +19,18 @@ Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All out
 
 Before starting, verify ALL of these:
 
+### State contract is available
+```
+Check ./.claude/templates/STATE_MACHINE.json, then
+~/.claude/templates/STATE_MACHINE.json, then
+./gsd-cc/templates/STATE_MACHINE.json.
+```
+If not found: "State contract missing. Reinstall GSD-CC or restore
+STATE_MACHINE.json before starting auto-mode."
+
+Use the contract as the authority for valid phases, required fields, empty
+values, artifacts, and allowed transitions. Do not restate phase rules locally.
+
 ### .gsd/STATE.md exists
 ```
 If not: "No project set up. Run /gsd-cc first."

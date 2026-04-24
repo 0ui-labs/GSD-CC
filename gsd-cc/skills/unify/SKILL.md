@@ -17,6 +17,13 @@ UNIFY is not optional. It runs after every slice. The `/gsd-cc` router blocks al
 
 Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, UNIFY reports, deviation analysis — must use that language. If not found, default to English.
 
+## State Contract
+
+Before updating `.gsd/STATE.md`, follow the phase contract in
+`./.claude/templates/STATE_MACHINE.json`, `~/.claude/templates/STATE_MACHINE.json`,
+or `./gsd-cc/templates/STATE_MACHINE.json` as the source repo fallback.
+Do not invent phase names or required-field rules locally.
+
 ## Why UNIFY Exists
 
 - Without UNIFY, the next slice builds on assumptions instead of facts.
