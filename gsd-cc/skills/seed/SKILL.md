@@ -23,9 +23,24 @@ Tell the user which language you're using:
 Language: {language} (change with /gsd-cc-config)
 ```
 
-### Step 1: Ask What They're Building
+### Step 1: Check for Prior Ideation
 
-If not already answered in Step 0, ask:
+Check if `.gsd/IDEATION.md` exists. If it does:
+
+1. Read it fully.
+2. Summarize what was explored:
+   ```
+   I found your ideation notes. Here's what you worked out:
+
+   Problem: {from IDEATION.md}
+   Approach: {from IDEATION.md}
+
+   I'll use this as our starting point. Correct me if anything changed.
+   ```
+3. Skip to Step 2 — you already know what they're building.
+4. During Step 4 (Guided Exploration), pre-fill answers from IDEATION.md where they apply. Still ask if the user wants to adjust, but don't make them repeat themselves.
+
+If no `IDEATION.md` exists, ask:
 
 ```
 What are you building?

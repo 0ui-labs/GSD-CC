@@ -63,6 +63,7 @@ Let me think about this with you. There are a few angles:
 ```
 
 **Show the landscape:**
+- **Search first, then talk.** Use WebSearch to find existing solutions, tools, and competitors before presenting the landscape. Don't rely on your training data alone — it may be outdated or incomplete.
 - What existing solutions address this? (Be honest: "Git does this, Google Docs does that")
 - What are their tradeoffs? Why might they NOT be right for this user?
 - What's the user's original idea? What's good about it? What's risky?
@@ -101,27 +102,7 @@ Before handing off to Seed, do a gentle reality check:
 
 When the user has a clear vision:
 
-```
-✓ Ideation complete.
-
-  Problem: {one sentence}
-  Solution: {one sentence}
-  Key insight: {what makes this different from existing solutions, if anything}
-
-┌─────────────────────────────────────────────┐
-│  Start a fresh session for Seed:            │
-│                                             │
-│  1. Exit this session                       │
-│  2. Run: claude                             │
-│  3. Type: /gsd-cc                           │
-│                                             │
-│  I'll structure your idea into a plan.      │
-└─────────────────────────────────────────────┘
-```
-
-**Do NOT continue in this session.** Each phase gets a fresh context window.
-
-Write a brief `.gsd/IDEATION.md` capturing the key insights from this conversation:
+**First**, create `.gsd/` (if it doesn't exist) and write `.gsd/IDEATION.md` capturing the key insights:
 
 ```markdown
 # Ideation Summary
@@ -142,6 +123,28 @@ to be valuable, assumptions that were challenged, etc.}
 ## Open Questions
 {Things to resolve during Seed or Discuss}
 ```
+
+**Then** — and only after the file is written — show the handoff:
+
+```
+✓ Ideation complete. Saved to .gsd/IDEATION.md
+
+  Problem: {one sentence}
+  Solution: {one sentence}
+  Key insight: {what makes this different from existing solutions, if anything}
+
+┌─────────────────────────────────────────────┐
+│  Start a fresh session for Seed:            │
+│                                             │
+│  1. Exit this session                       │
+│  2. Run: claude                             │
+│  3. Type: /gsd-cc                           │
+│                                             │
+│  I'll structure your idea into a plan.      │
+└─────────────────────────────────────────────┘
+```
+
+**Do NOT continue in this session.** Each phase gets a fresh context window.
 
 ## Rules
 
