@@ -13,10 +13,10 @@ status: {{complete|partial|failed}}
 
 ## Acceptance Criteria
 
-| AC   | Status | Evidence |
-|------|--------|----------|
-| AC-1 | {{PASS/PARTIAL/FAIL}} | {{TEST_OUTPUT_OR_EVIDENCE}} |
-| AC-2 | {{PASS/PARTIAL/FAIL}} | {{TEST_OUTPUT_OR_EVIDENCE}} |
+| AC   | Task | Status | Evidence |
+|------|------|--------|----------|
+| AC-1 | T01  | {{PASS/PARTIAL/FAIL}} | {{TEST_OUTPUT_OR_EVIDENCE}} |
+| AC-2 | T01  | {{PASS/PARTIAL/FAIL}} | {{TEST_OUTPUT_OR_EVIDENCE}} |
 
 ## Decisions Made
 
@@ -41,3 +41,17 @@ status: {{complete|partial|failed}}
 <!-- Does the rest of the roadmap still make sense given what was learned? -->
 <!-- One of: "Roadmap still valid." / "Roadmap needs update: {{REASON}}" -->
 {{REASSESSMENT_VERDICT}}
+
+## Vision Alignment
+
+<!-- Skip this section if no VISION.md exists -->
+
+| Vision Detail | What User Wanted | What Was Built | Alignment |
+|--------------|-----------------|----------------|-----------|
+| {{DETAIL}} | {{USER_WORDS}} | {{WHAT_WE_DID}} | ✓ Aligned / ⚠ Adjusted / ✗ Deviated |
+
+Adjustments:
+<!-- {{DETAIL}}: Vision said "{{USER_WORDS}}". Implemented as {{WHAT_WE_DID}} because {{REASON}}. -->
+
+Deviations:
+<!-- {{DETAIL}}: Vision said "{{USER_WORDS}}". Could not implement because {{REASON}}. Alternative: {{ALTERNATIVE}}. Recommendation: keep as-is / revisit later. -->

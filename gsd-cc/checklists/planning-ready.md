@@ -21,6 +21,7 @@ Check ALL items before allowing execution to start. If any item fails, fix the p
 - [ ] Every `<files>` section lists concrete file paths, not placeholders
 - [ ] Every `<action>` section has numbered, concrete steps
 - [ ] Every `<verify>` references at least one AC by ID
+- [ ] Each task is independently verifiable — after completing T{nn}, its ACs can be proven before starting T{nn+1}
 
 ## Scope
 
@@ -32,5 +33,7 @@ Check ALL items before allowing execution to start. If any item fails, fix the p
 ## Completeness
 
 - [ ] Slice plan (S{nn}-PLAN.md) has overview, task table, AC table, boundaries summary
-- [ ] Every task has a per-task plan file (S{nn}-T{nn}-PLAN.md)
+- [ ] Every task has a per-task plan file (S{nn}-T{nn}-PLAN.xml)
 - [ ] Git branch created for this slice (gsd/M{n}/S{nn})
+- [ ] If S{nn}-CONTEXT.md exists: all open questions from discuss phase are addressed in the plan
+- [ ] External dependencies (APIs, libraries, services) identified in research are listed in S{nn}-PLAN.md

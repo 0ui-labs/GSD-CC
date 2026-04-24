@@ -34,8 +34,18 @@ Check ALL items before allowing the next slice to start. If any item fails, comp
 - [ ] Each deferred issue names a target slice or "later"
 - [ ] Deferred items are actionable, not vague
 
+## Commit Status
+
+- [ ] All changes are committed to git
+
 ## Reassessment
 
 - [ ] Reassessment verdict is present
 - [ ] One of: "Roadmap still valid." or "Roadmap needs update: {reason}"
 - [ ] If roadmap needs update, specific changes are described
+
+## Vision Alignment
+
+- [ ] Vision Alignment section is present (or "Skipped — no VISION.md" if none exists)
+- [ ] If present: alignment table with each relevant vision detail
+- [ ] Adjustments and deviations are documented with reasons

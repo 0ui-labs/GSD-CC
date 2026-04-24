@@ -1,7 +1,7 @@
 <!--
   GSD-CC Task Plan Template
 
-  Usage: Copy this template for each task as .gsd/S{nn}-T{nn}-PLAN.md
+  Usage: Copy this template for each task as .gsd/S{nn}-T{nn}-PLAN.xml
 
   Fields:
   - id:   Slice + Task identifier (e.g. S01-T02)
