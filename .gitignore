@@ -9,3 +9,6 @@ node_modules/
 .gsd/COSTS.jsonl
 .docs
 docs/MARKETING-PLAN.md
+
+# roro workspace
+.roro/
