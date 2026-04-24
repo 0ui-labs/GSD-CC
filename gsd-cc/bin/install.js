@@ -361,6 +361,130 @@ function collectManagedDirectories(relativeFilePaths) {
   return sortPathsDeepFirst([...directories]);
 }
 
+function findExecutable(command) {
+  const searchPath = process.env.PATH || '';
+
+  for (const directory of searchPath.split(path.delimiter)) {
+    if (!directory) {
+      continue;
+    }
+
+    const candidate = path.join(directory, command);
+
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch (error) {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function buildReadinessState(reasons) {
+  return {
+    ready: reasons.length === 0,
+    reasons
+  };
+}
+
+function probeDependencies() {
+  const dependencies = {
+    jq: {
+      label: 'jq',
+      path: findExecutable('jq')
+    },
+    git: {
+      label: 'git',
+      path: findExecutable('git')
+    },
+    claude: {
+      label: 'claude CLI',
+      path: findExecutable('claude')
+    }
+  };
+
+  for (const dependency of Object.values(dependencies)) {
+    dependency.available = Boolean(dependency.path);
+  }
+
+  const hookReasons = [];
+  if (!dependencies.jq.available) {
+    hookReasons.push('jq not found');
+  }
+
+  const autoReasons = [];
+  if (!dependencies.jq.available) {
+    autoReasons.push('jq not found');
+  }
+  if (!dependencies.git.available) {
+    autoReasons.push('git not found');
+  }
+  if (!dependencies.claude.available) {
+    autoReasons.push('claude CLI not found');
+  }
+
+  return {
+    dependencies,
+    readiness: {
+      install: buildReadinessState([]),
+      hooks: buildReadinessState(hookReasons),
+      auto: buildReadinessState(autoReasons)
+    }
+  };
+}
+
+function getReadinessStatusLabel(name, readiness) {
+  if (readiness.ready) {
+    return `${green}ready${reset}`;
+  }
+
+  return name === 'hooks'
+    ? `${yellow}disabled${reset}`
+    : `${yellow}unavailable${reset}`;
+}
+
+function formatReadinessLine(name, label, readiness) {
+  const suffix = readiness.ready
+    ? ''
+    : ` (${readiness.reasons.join(', ')})`;
+
+  return `  ${label}: ${getReadinessStatusLabel(name, readiness)}${suffix}`;
+}
+
+function getRecoverySteps(probe, isGlobal) {
+  const steps = [];
+  const reinstallCommand = isGlobal ? 'npx gsd-cc' : 'npx gsd-cc --local';
+
+  if (!probe.dependencies.jq.available) {
+    steps.push('Install jq: brew install jq');
+    steps.push(`Rerun ${reinstallCommand} to enable hooks after jq is available`);
+  }
+
+  if (!probe.dependencies.git.available) {
+    steps.push('Install Git and ensure `git` is available in your PATH');
+  }
+
+  if (!probe.dependencies.claude.available) {
+    steps.push('Install Claude Code and ensure `claude` is available in your PATH');
+  }
+
+  return steps;
+}
+
+function printReadinessSummary(probe, isGlobal) {
+  console.log('\n  Readiness summary:');
+  console.log(formatReadinessLine('install', 'Installation', probe.readiness.install));
+  console.log(formatReadinessLine('hooks', 'Hooks', probe.readiness.hooks));
+  console.log(formatReadinessLine('auto', 'Auto-mode', probe.readiness.auto));
+
+  const steps = getRecoverySteps(probe, isGlobal);
+  for (const step of steps) {
+    console.log(`  Next step: ${step}`);
+  }
+}
+
 function buildHookSpecs(claudeBase, relativeHookDir) {
   return HOOK_SPECS.map((group) => {
     const commands = group.hooks.map((hook) => path.join(relativeHookDir, hook.file));
@@ -482,6 +606,10 @@ function removeHookEntries(settings, specs) {
 }
 
 function addHookEntries(settings, specs) {
+  if (specs.length === 0) {
+    return;
+  }
+
   if (!settings.hooks) {
     settings.hooks = {};
   }
@@ -754,7 +882,7 @@ function ensureNoConflicts(assets, ownedRelativePaths) {
   );
 }
 
-function createManifest(isGlobal, assets, migratedLegacyPaths) {
+function createManifest(isGlobal, assets, migratedLegacyPaths, managedHookSpecs, probe) {
   return {
     source: MANAGED_BY,
     manifestVersion: MANIFEST_VERSION,
@@ -765,7 +893,7 @@ function createManifest(isGlobal, assets, migratedLegacyPaths) {
     directories: collectManagedDirectories(
       assets.map((asset) => asset.targetRelativePath)
     ),
-    managedHooks: buildHookSpecs(getClaudeBase(isGlobal), CURRENT_HOOK_DIR).map((spec) => ({
+    managedHooks: managedHookSpecs.map((spec) => ({
       event: spec.event,
       matcher: spec.matcher,
       commands: spec.commands
@@ -776,6 +904,15 @@ function createManifest(isGlobal, assets, migratedLegacyPaths) {
       startMarker: CLAUDE_CONFIG_BLOCK_START,
       endMarker: CLAUDE_CONFIG_BLOCK_END
     }],
+    dependencies: Object.fromEntries(
+      Object.entries(probe.dependencies).map(([name, dependency]) => {
+        return [name, {
+          available: dependency.available,
+          path: dependency.path
+        }];
+      })
+    ),
+    readiness: probe.readiness,
     migratedLegacyPaths: [...new Set(migratedLegacyPaths)].sort()
   };
 }
@@ -906,6 +1043,10 @@ function install(isGlobal) {
   const assets = collectAssets(srcBase, claudeBase);
   const currentManifest = loadManifest(claudeBase);
   const legacyPaths = collectLegacyPaths(claudeBase, assets);
+  const dependencyProbe = probeDependencies();
+  const managedHookSpecs = dependencyProbe.readiness.hooks.ready
+    ? buildHookSpecs(claudeBase, CURRENT_HOOK_DIR)
+    : [];
 
   console.log(`  Installing to ${cyan}${label}${reset}\n`);
 
@@ -967,16 +1108,29 @@ function install(isGlobal) {
     copyAsset(asset);
   }
 
-  addHookEntries(settings, buildHookSpecs(claudeBase, CURRENT_HOOK_DIR));
+  addHookEntries(settings, managedHookSpecs);
   writeJsonAtomic(settingsPath, settings);
 
-  const manifest = createManifest(isGlobal, assets, migratedLegacyPaths);
+  const manifest = createManifest(
+    isGlobal,
+    assets,
+    migratedLegacyPaths,
+    managedHookSpecs,
+    dependencyProbe
+  );
   writeJsonAtomic(getManifestPath(claudeBase), manifest);
 
-  console.log(
-    `  ${green}✓${reset} Hooks configured in ` +
-    `${formatPath(settingsPath)}`
-  );
+  if (managedHookSpecs.length > 0) {
+    console.log(
+      `  ${green}✓${reset} Hooks configured in ` +
+      `${formatPath(settingsPath)}`
+    );
+  } else {
+    console.log(
+      `  ${yellow}!${reset} Hooks were left disabled in ` +
+      `${formatPath(settingsPath)} because jq was not found`
+    );
+  }
 
   if (legacyPaths.warnings.length > 0) {
     for (const warning of legacyPaths.warnings) {
@@ -985,6 +1139,7 @@ function install(isGlobal) {
   }
 
   console.log(`  ${green}✓${reset} Installed ${assets.length} managed files to ${label}`);
+  printReadinessSummary(dependencyProbe, isGlobal);
 }
 
 function uninstall() {
