@@ -122,14 +122,19 @@ for it AND no T*-SUMMARY.md files exist for it:
       description: "Claude does everything autonomously: plan, execute, UNIFY, next slice, repeat. Fastest, but no input from you between slices."
 
   → "Manual" → delegate to /gsd-cc-apply
-  → "Auto (this slice)" → delegate to /gsd-cc-auto (slice mode)
+  → "Auto (this slice)":
+    Set auto_mode_scope in STATE.md to "slice"
+    If auto_mode_scope is absent, insert it near auto_mode
+    Delegate to /gsd-cc-auto (slice mode)
   → "Auto (full milestone)":
     Check if .gsd/PROFILE.md exists.
     If NOT: "Full auto needs a decision profile so Claude can make
     decisions on your behalf. Run /gsd-cc-profile first (15-25 min).
     Or choose option 2 instead."
-    If YES: delegate to /gsd-cc-auto (full milestone mode)
-    Set auto_mode_scope in STATE.md: "slice" or "milestone"
+    If YES:
+      Set auto_mode_scope in STATE.md to "milestone"
+      If auto_mode_scope is absent, insert it near auto_mode
+      Delegate to /gsd-cc-auto (full milestone mode)
 ```
 
 If the current slice only has legacy `T*-PLAN.md` task-plan files, route back

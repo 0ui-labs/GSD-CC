@@ -72,6 +72,7 @@ Display what auto-mode will do:
 Auto-mode ready.
 
   Milestone: M{n}
+  Scope: {this slice | full milestone}
   Starting from: S{nn} / T{nn}
   Phase: {phase}
   Rigor: {rigor} (timeouts: {timeout}s, max turns: {max_turns})
@@ -132,6 +133,7 @@ Run this via the Bash tool. The output streams in real-time — the user sees ea
 
 Auto-mode stops when:
 - **Milestone complete** — all slices unified
+- **Slice complete** — current slice unified in slice mode
 - **Budget reached** — token limit hit
 - **Stuck** — a task failed twice
 - **Timeout** — a single task exceeded its time limit

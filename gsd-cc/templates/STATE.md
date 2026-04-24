@@ -9,6 +9,7 @@ rigor: standard
 project_type: application
 language: English
 auto_mode: false
+auto_mode_scope: slice
 last_updated: {{ISO_DATE}}
 ---
 

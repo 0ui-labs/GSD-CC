@@ -119,6 +119,10 @@ read_state_field() {
   grep "^$1:" "$GSD_DIR/STATE.md" | head -1 | sed "s/^$1:[[:space:]]*//"
 }
 
+read_optional_state_field() {
+  grep "^$1:" "$GSD_DIR/STATE.md" | head -1 | sed "s/^$1:[[:space:]]*//" || true
+}
+
 update_state_field() {
   local field="$1" value="$2"
   if grep -q "^${field}:" "$GSD_DIR/STATE.md"; then
@@ -141,6 +145,20 @@ fail_validation() {
     log "   $hint"
   fi
   exit 1
+}
+
+read_auto_scope() {
+  local raw
+  raw=$(read_optional_state_field "auto_mode_scope")
+
+  case "$raw" in
+    ""|"slice") echo "slice" ;;
+    "milestone") echo "milestone" ;;
+    *)
+      fail_validation "Unsupported auto_mode_scope: $raw" \
+        "Use 'slice' or 'milestone' in .gsd/STATE.md."
+      ;;
+  esac
 }
 
 slice_plan_path() {
@@ -656,9 +674,22 @@ echo ""
 PHASE=$(read_state_field "phase")
 SLICE=$(read_state_field "current_slice")
 TASK=$(read_state_field "current_task")
+AUTO_SCOPE_MISSING=0
+if [[ -z "$(read_optional_state_field "auto_mode_scope")" ]]; then
+  AUTO_SCOPE_MISSING=1
+fi
+AUTO_SCOPE=$(read_auto_scope)
+START_SLICE="$SLICE"
 validate_phase_artifacts "$PHASE" "$SLICE" "$TASK"
 acquire_lock
 warn_if_dirty_worktree
+
+log "  Scope: $AUTO_SCOPE"
+log "  Starting slice: $START_SLICE"
+if [[ "$AUTO_SCOPE_MISSING" -eq 1 ]]; then
+  log "⚠ auto_mode_scope is missing; defaulting to slice mode."
+  log "   Choose Auto (full milestone) through /gsd-cc to run beyond one slice."
+fi
 
 RETRY_COUNT=0
 MAX_RETRIES=2
@@ -671,6 +702,13 @@ while true; do
   TASK=$(read_state_field "current_task")
   RIGOR=$(read_state_field "rigor")
   MILESTONE=$(read_state_field "milestone")
+
+  if [[ "$AUTO_SCOPE" == "slice" && "$SLICE" != "$START_SLICE" ]]; then
+    log "Auto (this slice) complete for $START_SLICE."
+    log "   Refusing to continue with $SLICE in slice scope."
+    break
+  fi
+
   validate_phase_artifacts "$PHASE" "$SLICE" "$TASK"
 
   # ── 2. UNIFY enforcement ───────────────────────────────────────────────────
@@ -740,6 +778,12 @@ while true; do
 
       log_cost "$SLICE" "unify" "$RESULT_FILE"
 
+      if [[ "$AUTO_SCOPE" == "slice" ]]; then
+        log "✓ UNIFY complete for $START_SLICE."
+        log "Auto (this slice) complete for $START_SLICE."
+        break
+      fi
+
       # ── REASSESS after UNIFY ──────────────────────────────────────────────
       log "▶ Running REASSESS after $SLICE..."
 
@@ -781,6 +825,12 @@ while true; do
   # ── 3. Determine next unit ─────────────────────────────────────────────────
 
   # Check if milestone is complete (all slices unified)
+  if [[ "$AUTO_SCOPE" == "slice" && "$PHASE" == "unified" ]]; then
+    log "Auto (this slice) complete for $START_SLICE."
+    log "   Run /gsd-cc to review and choose the next step."
+    break
+  fi
+
   if [[ "$PHASE" == "unified" ]]; then
     NEXT_SLICE=$(find_next_slice)
 
