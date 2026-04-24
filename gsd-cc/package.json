@@ -8,6 +8,7 @@
     "gsd-cc": "./bin/install.js"
   },
   "scripts": {
+    "test": "node test/run-tests.js",
     "test:install-hooks": "node test/install-hooks.test.js"
   },
   "license": "MIT",
