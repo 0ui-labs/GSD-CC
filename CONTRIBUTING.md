@@ -56,6 +56,14 @@ PRs for clearer wording, better examples, or typo fixes are always welcome.
 - **Protect shared Claude directories.** Changes to `gsd-cc/bin/install.js` must preserve manifest-driven ownership, conservative uninstall behavior, and conflict-safe installs in mixed `.claude/` setups.
 - **Respect the architecture.** Claude Code is the agent. GSD-CC tells it *what* to do, not *how* to write code.
 
+## Repository Hygiene
+
+- **Never commit Finder metadata.** Files like `.DS_Store` are machine-generated noise and should be deleted, not versioned.
+- **Treat repo-root `./.claude/` as disposable local install output.** It is a runtime target for local installs in this source repo, not project source.
+- **Treat `.gsd/auto.lock`, `.gsd/auto.log`, and `.gsd/COSTS.jsonl` as generated runtime state.** They support local execution and inspection, but they are safe to recreate and should not be committed from this repo.
+- **Classify ambiguous artifacts before ignoring them.** If a file could be meaningful project input, fixture data, or documentation, decide its role first instead of hiding it with a broad ignore rule.
+- **Keep ignore rules narrow.** Prefer root-anchored or file-specific patterns over recursive directory globs that could hide real source files.
+
 ## Documentation Sync
 
 If you change install behavior, runtime paths, dependency readiness, or plan
