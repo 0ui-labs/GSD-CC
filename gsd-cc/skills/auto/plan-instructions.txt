@@ -65,6 +65,20 @@ Create the slice branch:
 git checkout -b gsd/M{n}/S{nn}
 ```
 
+After writing the planning artifacts, stage only the slice-scoped files you
+changed for this run:
+```bash
+git add {specific slice planning files} .gsd/M{n}-RESEARCH.md .gsd/STATE.md
+```
+
+Then create a planning commit with a slice-specific message:
+```bash
+git commit -m "docs(S{nn}): plan slice" \
+  -m "Auto-mode saved the slice planning artifacts and only staged files owned by this slice."
+```
+
+Do NOT use `git add .`, `git add -A`, or repo-wide staging.
+
 ## State Update
 
 Update `.gsd/STATE.md`:

@@ -212,6 +212,321 @@ validate_phase_artifacts() {
   esac
 }
 
+trim_whitespace() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+normalize_repo_path() {
+  local path
+  path=$(trim_whitespace "$1")
+
+  while [[ "$path" == ./* ]]; do
+    path="${path#./}"
+  done
+
+  case "$path" in
+    ""|"."|".."|/*|~*|*/ ) return 1 ;;
+  esac
+
+  if [[ "$path" =~ (^|/)\.\.(/|$) ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$path"
+}
+
+extract_task_name() {
+  awk '
+    /<name>/ {
+      sub(/^.*<name>/, "")
+      sub(/<\/name>.*$/, "")
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+      if ($0 != "") {
+        print
+        exit
+      }
+    }
+  ' "$1"
+}
+
+parse_task_plan_files() {
+  local plan_path="$1"
+  local raw_lines=()
+  local raw_line
+  local cleaned_line
+  local normalized_path
+  local found=0
+
+  mapfile -t raw_lines < <(
+    awk '
+      /<files>/ {
+        in_files=1
+        sub(/^.*<files>/, "")
+      }
+      in_files {
+        if (/<\/files>/) {
+          sub(/<\/files>.*$/, "")
+          print
+          exit
+        }
+        print
+      }
+    ' "$plan_path"
+  )
+
+  for raw_line in "${raw_lines[@]}"; do
+    cleaned_line=$(printf '%s' "$raw_line" | sed -E 's/<!--.*-->//g')
+    cleaned_line=$(trim_whitespace "$cleaned_line")
+
+    [[ -z "$cleaned_line" ]] && continue
+
+    case "$cleaned_line" in
+      \#*|//*|*:) continue ;;
+    esac
+
+    cleaned_line=$(printf '%s' "$cleaned_line" | sed -E 's/^[-*][[:space:]]+//; s/^[0-9]+[.)][[:space:]]+//')
+    cleaned_line=$(trim_whitespace "$cleaned_line")
+
+    [[ -z "$cleaned_line" ]] && continue
+
+    normalized_path=$(normalize_repo_path "$cleaned_line") || return 1
+    printf '%s\n' "$normalized_path"
+    found=1
+  done
+
+  [[ "$found" -eq 1 ]]
+}
+
+extract_summary_status() {
+  awk '
+    /^##[[:space:]]+Status[[:space:]]*$/ {
+      in_status=1
+      next
+    }
+    /^##[[:space:]]+/ && in_status {
+      exit
+    }
+    in_status {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+      if ($0 != "") {
+        print tolower($0)
+        exit
+      }
+    }
+  ' "$1"
+}
+
+path_in_list() {
+  local needle="$1"
+  shift
+
+  local candidate
+  for candidate in "$@"; do
+    [[ "$candidate" == "$needle" ]] && return 0
+  done
+
+  return 1
+}
+
+collect_tracked_changes() {
+  if git rev-parse --verify HEAD >/dev/null 2>&1; then
+    git diff --name-only HEAD -- 2>/dev/null || true
+  else
+    git status --porcelain | awk '
+      substr($0, 1, 2) != "??" {
+        path = substr($0, 4)
+        sub(/^.* -> /, "", path)
+        if (path != "") {
+          print path
+        }
+      }
+    ' || true
+  fi
+}
+
+collect_untracked_changes() {
+  git ls-files --others --exclude-standard 2>/dev/null || true
+}
+
+CLASSIFIED_ALLOWED_TRACKED=()
+CLASSIFIED_ALLOWED_UNTRACKED=()
+CLASSIFIED_DISALLOWED_TRACKED=()
+CLASSIFIED_DISALLOWED_UNTRACKED=()
+
+reset_change_classification() {
+  CLASSIFIED_ALLOWED_TRACKED=()
+  CLASSIFIED_ALLOWED_UNTRACKED=()
+  CLASSIFIED_DISALLOWED_TRACKED=()
+  CLASSIFIED_DISALLOWED_UNTRACKED=()
+}
+
+classify_worktree_changes() {
+  local allowlist=("$@")
+  local tracked_changes=()
+  local untracked_changes=()
+  local path
+
+  reset_change_classification
+
+  mapfile -t tracked_changes < <(collect_tracked_changes)
+  mapfile -t untracked_changes < <(collect_untracked_changes)
+
+  for path in "${tracked_changes[@]}"; do
+    [[ -z "$path" ]] && continue
+    if path_in_list "$path" "${allowlist[@]}"; then
+      CLASSIFIED_ALLOWED_TRACKED+=("$path")
+    else
+      CLASSIFIED_DISALLOWED_TRACKED+=("$path")
+    fi
+  done
+
+  for path in "${untracked_changes[@]}"; do
+    [[ -z "$path" ]] && continue
+    if path_in_list "$path" "${allowlist[@]}"; then
+      CLASSIFIED_ALLOWED_UNTRACKED+=("$path")
+    else
+      CLASSIFIED_DISALLOWED_UNTRACKED+=("$path")
+    fi
+  done
+}
+
+has_allowed_classified_changes() {
+  [[ "${#CLASSIFIED_ALLOWED_TRACKED[@]}" -gt 0 || "${#CLASSIFIED_ALLOWED_UNTRACKED[@]}" -gt 0 ]]
+}
+
+has_disallowed_classified_changes() {
+  [[ "${#CLASSIFIED_DISALLOWED_TRACKED[@]}" -gt 0 || "${#CLASSIFIED_DISALLOWED_UNTRACKED[@]}" -gt 0 ]]
+}
+
+log_paths() {
+  local path
+  for path in "$@"; do
+    log "   - $path"
+  done
+}
+
+warn_if_dirty_worktree() {
+  local tracked_changes=()
+  local untracked_changes=()
+
+  mapfile -t tracked_changes < <(collect_tracked_changes)
+  mapfile -t untracked_changes < <(collect_untracked_changes)
+
+  if [[ "${#tracked_changes[@]}" -gt 0 || "${#untracked_changes[@]}" -gt 0 ]]; then
+    log "⚠ Git worktree is already dirty."
+    log "   Auto-mode will only create fallback commits when the remaining"
+    log "   changes are limited to the current task's owned files."
+  fi
+}
+
+run_apply_fallback_commit() {
+  local slice="$1"
+  local task="$2"
+  local task_plan
+  local summary_path
+  local task_files_output
+  local summary_status
+  local task_name
+  local commit_subject
+  local commit_body
+  local allowlist=()
+  local stage_paths=()
+  local path
+
+  task_plan=$(task_plan_xml_path "$slice" "$task")
+  summary_path="$GSD_DIR/${slice}-${task}-SUMMARY.md"
+
+  if [[ ! -f "$task_plan" ]]; then
+    log "❌ Fallback commit aborted: missing task plan $task_plan."
+    log "   Auto-mode stops instead of guessing which files belong to ${slice}/${task}."
+    return 1
+  fi
+
+  task_files_output=$(parse_task_plan_files "$task_plan") || {
+    log "❌ Fallback commit aborted: could not parse <files> in $task_plan."
+    log "   Auto-mode stops instead of guessing which files belong to ${slice}/${task}."
+    return 1
+  }
+
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    if ! path_in_list "$path" "${allowlist[@]}"; then
+      allowlist+=("$path")
+    fi
+  done <<< "$task_files_output"
+
+  for path in "$summary_path" "$GSD_DIR/STATE.md"; do
+    if ! path_in_list "$path" "${allowlist[@]}"; then
+      allowlist+=("$path")
+    fi
+  done
+
+  classify_worktree_changes "${allowlist[@]}"
+
+  if ! has_allowed_classified_changes; then
+    if has_disallowed_classified_changes; then
+      log "ℹ No fallback commit needed for ${slice}/${task}; unrelated worktree changes remain untouched."
+    fi
+    return 0
+  fi
+
+  if has_disallowed_classified_changes; then
+    log "❌ Fallback commit aborted: unrelated changes detected."
+    log "   Current task: ${slice}/${task}"
+    log "   Unrelated files:"
+    log_paths "${CLASSIFIED_DISALLOWED_TRACKED[@]}" "${CLASSIFIED_DISALLOWED_UNTRACKED[@]}"
+    log "   Resolve or stash unrelated worktree changes before restarting auto-mode."
+    return 1
+  fi
+
+  if [[ ! -f "$summary_path" ]]; then
+    log "❌ Fallback commit aborted: missing task summary $summary_path."
+    log "   Auto-mode only fallback-commits tasks with a recorded complete status."
+    return 1
+  fi
+
+  summary_status=$(extract_summary_status "$summary_path")
+  if [[ "$summary_status" != "complete" ]]; then
+    log "❌ Fallback commit aborted: ${summary_path} status is '${summary_status:-missing}'."
+    log "   Auto-mode only fallback-commits tasks with status 'complete'."
+    return 1
+  fi
+
+  task_name=$(extract_task_name "$task_plan")
+  if [[ -z "$task_name" ]]; then
+    log "❌ Fallback commit aborted: could not parse <name> in $task_plan."
+    log "   Auto-mode stops instead of inventing a vague commit message."
+    return 1
+  fi
+
+  stage_paths=("${CLASSIFIED_ALLOWED_TRACKED[@]}" "${CLASSIFIED_ALLOWED_UNTRACKED[@]}")
+  for path in "${stage_paths[@]}"; do
+    git add -- "$path"
+  done
+
+  if git diff --cached --quiet 2>/dev/null; then
+    log "❌ Fallback commit aborted: no staged task-scoped changes were produced."
+    log "   Inspect the git worktree before restarting auto-mode."
+    return 1
+  fi
+
+  commit_subject="feat(${slice}/${task}): ${task_name}"
+  commit_body=$'Auto-mode applied fallback Git handling after the task\ncompleted without creating its own commit.\n\nOnly task-scoped files from the plan, summary, and\nSTATE metadata were staged.'
+
+  if ! git commit -m "$commit_subject" -m "$commit_body"; then
+    log "❌ Fallback commit failed for ${slice}/${task}."
+    log "   Inspect the git worktree before restarting auto-mode."
+    return 1
+  fi
+
+  log "✓ Fallback committed task-scoped changes for ${slice}/${task}."
+  log_paths "${stage_paths[@]}"
+  return 0
+}
+
 # Acquire lock atomically using mkdir (atomic on all filesystems)
 acquire_lock() {
   local lock_dir="${LOCK_FILE}.d"
@@ -287,6 +602,7 @@ SLICE=$(read_state_field "current_slice")
 TASK=$(read_state_field "current_task")
 validate_phase_artifacts "$PHASE" "$SLICE" "$TASK"
 acquire_lock
+warn_if_dirty_worktree
 
 RETRY_COUNT=0
 MAX_RETRIES=2
@@ -505,7 +821,7 @@ while true; do
   RESULT_FILE="/tmp/gsd-result-$$.json"
 
   if [[ "$DISPATCH_PHASE" == "plan" ]]; then
-    ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git checkout *),Bash(git branch *)"
+    ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git checkout *),Bash(git branch *),Bash(git add *),Bash(git commit *)"
   else
     ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(npm *),Bash(npx *),Bash(git add *),Bash(git commit *),Bash(node *),Bash(python3 *)"
   fi
@@ -559,13 +875,13 @@ while true; do
     RETRY_COUNT=0
   fi
 
-  # ── 12. Git commit (fallback if task didn't commit) ────────────────────────
+  # ── 12. Git fallback (apply only) ──────────────────────────────────────────
 
-  if ! git diff --quiet HEAD 2>/dev/null || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
-    # Stage only .gsd/ state files and tracked files with changes — never blindly add everything
-    git add "$GSD_DIR"/*.md "$GSD_DIR"/*.jsonl 2>/dev/null || true
-    git diff --name-only HEAD 2>/dev/null | xargs -I{} git add "{}" 2>/dev/null || true
-    git commit -m "feat(${SLICE}/${TASK}): auto-mode execution" 2>/dev/null || true
+  if [[ "$DISPATCH_PHASE" == "apply" ]]; then
+    if ! run_apply_fallback_commit "$SLICE" "$TASK"; then
+      log "🛑 Stopping auto-mode so the git worktree can be inspected safely."
+      break
+    fi
   fi
 
   # ── 13. Release lock ──────────────────────────────────────────────────────
