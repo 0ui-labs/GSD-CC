@@ -1,0 +1,269 @@
+{
+  "version": 1,
+  "emptyValues": [
+    "",
+    "-",
+    "\u2014"
+  ],
+  "phases": {
+    "seed": {
+      "description": "Initial template state before Seed completes.",
+      "requiredFields": [
+        "phase",
+        "rigor",
+        "project_type",
+        "language"
+      ],
+      "optionalFields": [
+        "milestone",
+        "current_slice",
+        "current_task"
+      ],
+      "requiredArtifacts": [],
+      "next": [
+        "seed-complete"
+      ]
+    },
+    "seed-complete": {
+      "description": "Project brief exists; tech stack is next.",
+      "requiredFields": [
+        "phase",
+        "rigor",
+        "project_type",
+        "language"
+      ],
+      "optionalFields": [
+        "milestone",
+        "current_slice",
+        "current_task"
+      ],
+      "requiredArtifacts": [
+        ".gsd/PLANNING.md",
+        ".gsd/PROJECT.md"
+      ],
+      "next": [
+        "stack-complete"
+      ]
+    },
+    "stack-complete": {
+      "description": "Tech stack exists; roadmap is next.",
+      "requiredFields": [
+        "phase",
+        "rigor",
+        "project_type",
+        "language"
+      ],
+      "optionalFields": [
+        "milestone",
+        "current_slice",
+        "current_task"
+      ],
+      "requiredArtifacts": [
+        ".gsd/PLANNING.md",
+        ".gsd/PROJECT.md",
+        ".gsd/STACK.md"
+      ],
+      "next": [
+        "roadmap-complete"
+      ]
+    },
+    "roadmap-complete": {
+      "description": "Roadmap exists; current slice needs planning.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "rigor"
+      ],
+      "optionalFields": [
+        "current_task"
+      ],
+      "requiredArtifacts": [
+        ".gsd/M*-ROADMAP.md"
+      ],
+      "next": [
+        "discuss-complete",
+        "plan",
+        "plan-complete"
+      ]
+    },
+    "discuss-complete": {
+      "description": "Ambiguities are resolved for the current slice.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "rigor"
+      ],
+      "optionalFields": [
+        "current_task"
+      ],
+      "requiredArtifacts": [
+        ".gsd/M*-ROADMAP.md",
+        ".gsd/{current_slice}-CONTEXT.md"
+      ],
+      "next": [
+        "plan-complete"
+      ]
+    },
+    "plan": {
+      "description": "Auto-mode is planning the current slice.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "rigor"
+      ],
+      "optionalFields": [
+        "current_task"
+      ],
+      "requiredArtifacts": [
+        ".gsd/M*-ROADMAP.md"
+      ],
+      "next": [
+        "discuss-complete",
+        "plan-complete"
+      ]
+    },
+    "plan-complete": {
+      "description": "Current slice has XML task plans.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "current_task",
+        "rigor"
+      ],
+      "requiredArtifacts": [
+        ".gsd/{current_slice}-PLAN.md",
+        ".gsd/{current_slice}-T*-PLAN.xml"
+      ],
+      "next": [
+        "applying",
+        "apply-complete",
+        "apply-blocked"
+      ]
+    },
+    "applying": {
+      "description": "A task in the current slice is ready or in progress.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "current_task",
+        "rigor"
+      ],
+      "requiredArtifacts": [
+        ".gsd/{current_slice}-PLAN.md",
+        ".gsd/{current_slice}-{current_task}-PLAN.xml"
+      ],
+      "next": [
+        "applying",
+        "apply-complete",
+        "apply-blocked"
+      ]
+    },
+    "apply-blocked": {
+      "description": "Current task is partial or blocked.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "current_task",
+        "blocked_reason",
+        "rigor"
+      ],
+      "requiredArtifacts": [
+        ".gsd/{current_slice}-{current_task}-PLAN.xml",
+        ".gsd/{current_slice}-{current_task}-SUMMARY.md"
+      ],
+      "next": [
+        "applying",
+        "plan-complete"
+      ]
+    },
+    "apply-complete": {
+      "description": "All tasks in the current slice have summaries.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "current_task",
+        "rigor"
+      ],
+      "requiredArtifacts": [
+        ".gsd/{current_slice}-PLAN.md",
+        ".gsd/{current_slice}-T*-PLAN.xml",
+        ".gsd/{current_slice}-T*-SUMMARY.md"
+      ],
+      "next": [
+        "unified",
+        "unify-failed",
+        "unify-blocked"
+      ]
+    },
+    "unify-failed": {
+      "description": "UNIFY found critical problems.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "rigor"
+      ],
+      "requiredArtifacts": [
+        ".gsd/{current_slice}-UNIFY.md"
+      ],
+      "next": [
+        "applying",
+        "apply-complete",
+        "unify-blocked"
+      ]
+    },
+    "unify-blocked": {
+      "description": "UNIFY cannot merge or complete without user action.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "rigor"
+      ],
+      "requiredArtifacts": [
+        ".gsd/{current_slice}-UNIFY.md"
+      ],
+      "next": [
+        "unified",
+        "unify-failed"
+      ]
+    },
+    "unified": {
+      "description": "Current slice is reconciled and complete.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "current_slice",
+        "rigor"
+      ],
+      "requiredArtifacts": [
+        ".gsd/{current_slice}-UNIFY.md"
+      ],
+      "next": [
+        "roadmap-complete",
+        "plan",
+        "plan-complete",
+        "milestone-complete"
+      ]
+    },
+    "milestone-complete": {
+      "description": "All slices in the milestone are unified.",
+      "requiredFields": [
+        "phase",
+        "milestone",
+        "rigor"
+      ],
+      "requiredArtifacts": [
+        ".gsd/M*-ROADMAP.md"
+      ],
+      "next": []
+    }
+  }
+}

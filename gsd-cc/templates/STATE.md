@@ -1,4 +1,5 @@
 ---
+state_schema_version: 1
 milestone: M001
 current_slice: S01
 current_task: T01
