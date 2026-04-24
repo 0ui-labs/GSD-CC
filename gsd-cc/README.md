@@ -67,6 +67,18 @@ Install still succeeds without `jq`, but jq-dependent hooks stay disabled and
 auto-mode remains unavailable until `jq` is installed. Rerun the installer
 after adding `jq` to activate hooks.
 
+## Testing
+
+From this package directory:
+
+```bash
+npm test
+```
+
+The suite uses temporary homes, projects, fake `claude`/`jq` binaries, and
+temporary Git repositories. It must not touch the developer's real
+`~/.claude`, call the real `claude` CLI, or require network access.
+
 ## Documentation
 
 Full documentation, architecture details, and custom type guide: [GitHub](https://github.com/0ui-labs/GSD-CC)

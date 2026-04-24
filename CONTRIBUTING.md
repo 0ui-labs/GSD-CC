@@ -16,8 +16,10 @@ Open an [issue](https://github.com/0ui-labs/GSD-CC/issues). Include:
 1. Fork the repo
 2. Create a branch (`git checkout -b fix/your-fix`)
 3. Make your changes
-4. Test the full cycle: `/gsd-cc-seed` → `/gsd-cc-plan` → `/gsd-cc-apply` → `/gsd-cc-unify`
-5. Open a PR with a clear description of what changed and why
+4. Run the automated safety suite from `gsd-cc/`: `npm test`
+5. Test the full cycle manually when behavior changes:
+   `/gsd-cc-seed` → `/gsd-cc-plan` → `/gsd-cc-apply` → `/gsd-cc-unify`
+6. Open a PR with a clear description of what changed and why
 
 ### Add a Project Type
 
@@ -55,6 +57,32 @@ PRs for clearer wording, better examples, or typo fixes are always welcome.
 - **Test your changes.** Run at least one full Seed → Plan → Apply → Unify cycle before submitting.
 - **Protect shared Claude directories.** Changes to `gsd-cc/bin/install.js` must preserve manifest-driven ownership, conservative uninstall behavior, and conflict-safe installs in mixed `.claude/` setups.
 - **Respect the architecture.** Claude Code is the agent. GSD-CC tells it *what* to do, not *how* to write code.
+
+## Automated Safety Tests
+
+Run the full dependency-free suite from the package directory:
+
+```bash
+cd gsd-cc
+npm test
+```
+
+Useful focused commands:
+
+```bash
+npm run test:installer
+npm run test:uninstall
+npm run test:dependency-degradation
+npm run test:auto
+```
+
+Test rules:
+
+- Use temporary `HOME`, project, and Git repository directories only.
+- Never read from or write to the developer's real `~/.claude`.
+- Never call the real `claude` CLI; use fake binaries under `test/helpers/`.
+- Do not require network access.
+- Keep installer, hook, and auto-mode tests runnable with plain Node `assert`.
 
 ## Repository Hygiene
 
