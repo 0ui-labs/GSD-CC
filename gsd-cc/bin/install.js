@@ -35,6 +35,8 @@ const LEGACY_HOOK_DIR = 'hooks';
 const CLAUDE_CONFIG_BLOCK_START = '<!-- gsd-cc:config:start -->';
 const CLAUDE_CONFIG_BLOCK_END = '<!-- gsd-cc:config:end -->';
 const LEGACY_CLAUDE_CONFIG_REGEX = /\n?# GSD-CC Config\nGSD-CC language: .+\n?/;
+const LEGACY_LANGUAGE_CONFIG_REGEX = /(?:^|\n)# GSD-CC Config\nGSD-CC language:\s*([^\n]+)(?:\n|$)/;
+const LANGUAGE_LINE_REGEX = /^GSD-CC language:\s*(.+?)\s*$/m;
 
 const INSTALL_LAYOUT = [
   { sourceDir: 'skills', targetDir: 'skills' },
@@ -68,11 +70,18 @@ const HOOK_SPECS = [
 ];
 
 // Parse args
-const args = process.argv.slice(2);
-const hasGlobal = args.includes('--global') || args.includes('-g');
-const hasLocal = args.includes('--local') || args.includes('-l');
-const hasUninstall = args.includes('--uninstall');
-const hasHelp = args.includes('--help') || args.includes('-h');
+let options;
+try {
+  options = parseArgs(process.argv.slice(2));
+} catch (error) {
+  console.log(banner);
+  fail(error);
+}
+
+const hasGlobal = options.global;
+const hasLocal = options.local;
+const hasUninstall = options.uninstall;
+const hasHelp = options.help;
 
 console.log(banner);
 
@@ -83,6 +92,8 @@ if (hasHelp) {
     ${cyan}-g, --global${reset}      Install globally to ~/.claude/skills/ ${dim}(default)${reset}
     ${cyan}-l, --local${reset}       Install locally to ./.claude/skills/
     ${cyan}--uninstall${reset}       Remove GSD-CC safely from detected installs
+    ${cyan}-y, --yes${reset}         Run without prompts
+    ${cyan}--language <name>${reset} Set GSD-CC language non-interactively
     ${cyan}-h, --help${reset}        Show this help message
 
   ${yellow}Examples:${reset}
@@ -92,10 +103,85 @@ if (hasHelp) {
     ${dim}# Install to current project only${reset}
     npx gsd-cc --local
 
+    ${dim}# Update or automate without prompts${reset}
+    npx gsd-cc --global --yes
+
     ${dim}# Remove GSD-CC${reset}
     npx gsd-cc --uninstall
 `);
   process.exit(0);
+}
+
+function parseArgs(rawArgs) {
+  const parsed = {
+    global: false,
+    local: false,
+    uninstall: false,
+    help: false,
+    yes: false,
+    language: null,
+    interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY)
+  };
+
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const arg = rawArgs[index];
+
+    if (arg === '--global' || arg === '-g') {
+      parsed.global = true;
+      continue;
+    }
+
+    if (arg === '--local' || arg === '-l') {
+      parsed.local = true;
+      continue;
+    }
+
+    if (arg === '--uninstall') {
+      parsed.uninstall = true;
+      continue;
+    }
+
+    if (arg === '--help' || arg === '-h') {
+      parsed.help = true;
+      continue;
+    }
+
+    if (arg === '--yes' || arg === '-y') {
+      parsed.yes = true;
+      continue;
+    }
+
+    if (arg === '--language') {
+      const value = rawArgs[index + 1];
+      if (value === undefined || value.startsWith('-') || !value.trim()) {
+        throw new Error('--language requires a non-empty value.');
+      }
+      parsed.language = value.trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--language=')) {
+      const value = arg.slice('--language='.length).trim();
+      if (!value) {
+        throw new Error('--language requires a non-empty value.');
+      }
+      parsed.language = value;
+      continue;
+    }
+
+    if (arg.startsWith('-')) {
+      throw new Error(`Unknown option: ${arg}`);
+    }
+
+    throw new Error(`Unexpected argument: ${arg}`);
+  }
+
+  if (parsed.global && parsed.local) {
+    throw new Error('Cannot specify both --global and --local.');
+  }
+
+  return parsed;
 }
 
 function getClaudeBase(isGlobal) {
@@ -232,6 +318,31 @@ function replaceLanguageBlock(content, language) {
 
   const suffix = content.endsWith('\n') ? '' : '\n';
   return `${content}${suffix}\n${block}\n`;
+}
+
+function extractLanguageFromConfig(content) {
+  const markerRegex = new RegExp(
+    `${escapeRegExp(CLAUDE_CONFIG_BLOCK_START)}[\\s\\S]*?${escapeRegExp(CLAUDE_CONFIG_BLOCK_END)}`
+  );
+  const markerMatch = content.match(markerRegex);
+
+  if (markerMatch) {
+    const languageMatch = markerMatch[0].match(LANGUAGE_LINE_REGEX);
+    return languageMatch ? languageMatch[1].trim() || null : null;
+  }
+
+  const legacyMatch = content.match(LEGACY_LANGUAGE_CONFIG_REGEX);
+  return legacyMatch ? legacyMatch[1].trim() || null : null;
+}
+
+function readLanguageConfig(isGlobal) {
+  const claudeMdPath = getClaudeMdPath(isGlobal);
+  if (!fs.existsSync(claudeMdPath)) {
+    return null;
+  }
+
+  const content = fs.readFileSync(claudeMdPath, 'utf8');
+  return extractLanguageFromConfig(content);
 }
 
 function cleanLanguageBlockRemoval(content) {
@@ -1221,7 +1332,54 @@ function uninstall() {
   }
 }
 
-function promptLanguage(isGlobal) {
+function printLanguageSet(language) {
+  console.log(`  ${green}✓${reset} Language set to ${language}`);
+}
+
+function printLanguagePreserved(language) {
+  console.log(`  ${green}✓${reset} Language preserved: ${language}`);
+}
+
+function printInstallDone() {
+  console.log(`\n  ${green}Done.${reset} Open Claude Code and type ${cyan}/gsd-cc${reset} to start.\n`);
+}
+
+function configureLanguage(isGlobal, installOptions, onDone) {
+  const existingLanguage = readLanguageConfig(isGlobal);
+
+  if (installOptions.language) {
+    writeLanguageConfig(isGlobal, installOptions.language);
+    printLanguageSet(installOptions.language);
+    onDone();
+    return;
+  }
+
+  if (existingLanguage) {
+    printLanguagePreserved(existingLanguage);
+    onDone();
+    return;
+  }
+
+  if (!installOptions.interactive || installOptions.yes) {
+    writeLanguageConfig(isGlobal, 'English');
+    printLanguageSet('English');
+    onDone();
+    return;
+  }
+
+  promptLanguage(isGlobal, onDone);
+}
+
+function installAndConfigure(isGlobal, installOptions) {
+  install(isGlobal);
+  configureLanguage(isGlobal, installOptions, printInstallDone);
+}
+
+function printDefaultGlobalChoice() {
+  console.log(`  ${dim}No install scope selected; defaulting to global install.${reset}\n`);
+}
+
+function promptLanguage(isGlobal, onDone) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -1239,17 +1397,15 @@ function promptLanguage(isGlobal) {
     try {
       const language = answer.trim() || 'English';
       writeLanguageConfig(isGlobal, language);
-      console.log(`  ${green}✓${reset} Language set to ${cyan}${language}${reset}
-`);
-      console.log(`  ${green}Done.${reset} Open Claude Code and type ${cyan}/gsd-cc${reset} to start.
-`);
+      printLanguageSet(language);
+      onDone();
     } catch (error) {
       fail(error);
     }
   });
 }
 
-function promptLocation() {
+function promptLocation(installOptions) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -1269,8 +1425,7 @@ function promptLocation() {
 
     try {
       const isGlobal = (answer.trim() || '1') !== '2';
-      install(isGlobal);
-      promptLanguage(isGlobal);
+      installAndConfigure(isGlobal, installOptions);
     } catch (error) {
       fail(error);
     }
@@ -1287,17 +1442,15 @@ function fail(error) {
 try {
   if (hasUninstall) {
     uninstall();
-  } else if (hasGlobal && hasLocal) {
-    console.error(`  ${yellow}Cannot specify both --global and --local${reset}`);
-    process.exit(1);
   } else if (hasGlobal) {
-    install(true);
-    promptLanguage(true);
+    installAndConfigure(true, options);
   } else if (hasLocal) {
-    install(false);
-    promptLanguage(false);
+    installAndConfigure(false, options);
+  } else if (options.yes || !options.interactive) {
+    printDefaultGlobalChoice();
+    installAndConfigure(true, options);
   } else {
-    promptLocation();
+    promptLocation(options);
   }
 } catch (error) {
   fail(error);

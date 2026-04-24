@@ -43,9 +43,12 @@ the installed `seed/types/` tree:
 
 Based on where it's installed, run:
 
-- **Global only:** `npx -y gsd-cc@latest --global`
-- **Local only:** `npx -y gsd-cc@latest --local`
-- **Both:** `npx -y gsd-cc@latest --global && npx -y gsd-cc@latest --local`
+- **Global only:** `npx -y gsd-cc@latest --global --yes`
+- **Local only:** `npx -y gsd-cc@latest --local --yes`
+- **Both:** `npx -y gsd-cc@latest --global --yes && npx -y gsd-cc@latest --local --yes`
+
+The installer preserves the existing GSD-CC language by default. To change
+language after updating, tell the user to run `/gsd-cc-config`.
 
 ## Step 4: Confirm
 
