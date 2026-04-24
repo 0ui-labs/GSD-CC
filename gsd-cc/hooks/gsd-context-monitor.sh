@@ -9,6 +9,15 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
+tmp_dir() {
+  local dir="${TMPDIR:-/tmp}"
+  dir="${dir%/}"
+  if [ -z "$dir" ]; then
+    dir="/tmp"
+  fi
+  printf '%s\n' "$dir"
+}
+
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // empty')
 
@@ -28,7 +37,7 @@ LINE_COUNT=$(wc -l < "$TRANSCRIPT" | xargs)
 
 # Debounce: only warn when line count grows by 50+ since last warning
 SESSION_ID=$(echo "$TRANSCRIPT" | md5 -q 2>/dev/null || echo "$TRANSCRIPT" | md5sum | cut -d' ' -f1)
-DEBOUNCE_FILE="/tmp/gsd-cc-ctx-monitor-$SESSION_ID"
+DEBOUNCE_FILE="$(tmp_dir)/gsd-cc-ctx-monitor-$SESSION_ID"
 if [ -f "$DEBOUNCE_FILE" ]; then
   LAST_WARN=$(cat "$DEBOUNCE_FILE")
   DIFF=$((LINE_COUNT - LAST_WARN))

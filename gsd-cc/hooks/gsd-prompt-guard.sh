@@ -5,6 +5,14 @@
 
 INPUT=$(cat)
 
+iso_now() {
+  if date -Iseconds >/dev/null 2>&1; then
+    date -Iseconds
+  else
+    date '+%Y-%m-%dT%H:%M:%S%z'
+  fi
+}
+
 if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
@@ -83,7 +91,7 @@ if echo "$CONTENT" | grep -iqE '<script|javascript:|on(load|error|click)='; then
 fi
 
 if [ "$SUSPICIOUS" = true ]; then
-  echo "$(date -Iseconds) BLOCKED file=$FILE_PATH reason=$REASON" >> "${HOME}/.gsd/guard.log"
+  echo "$(iso_now) BLOCKED file=$FILE_PATH reason=$REASON" >> "${HOME}/.gsd/guard.log"
   jq -n --arg reason "$REASON" --arg file "$FILE_PATH" '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",

@@ -10,6 +10,15 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
+tmp_dir() {
+  local dir="${TMPDIR:-/tmp}"
+  dir="${dir%/}"
+  if [ -z "$dir" ]; then
+    dir="/tmp"
+  fi
+  printf '%s\n' "$dir"
+}
+
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 
 # Only render if this is a GSD-CC project
@@ -19,7 +28,7 @@ if [ ! -f "$STATE_FILE" ]; then
 fi
 
 # Debounce: only inject status every 10 tool calls
-DEBOUNCE_FILE="/tmp/gsd-cc-statusline-$(echo "$CWD" | cksum | cut -d' ' -f1)"
+DEBOUNCE_FILE="$(tmp_dir)/gsd-cc-statusline-$(echo "$CWD" | cksum | cut -d' ' -f1)"
 COUNTER=0
 if [ -f "$DEBOUNCE_FILE" ]; then
   COUNTER=$(cat "$DEBOUNCE_FILE")
@@ -50,7 +59,7 @@ TOTAL_SLICES=$(grep -c '| S[0-9]' "$STATE_FILE" 2>/dev/null || echo "0")
 DONE_SLICES=$(grep '| done' "$STATE_FILE" 2>/dev/null | wc -l | xargs)
 
 # Write bridge file for other hooks
-BRIDGE_FILE="/tmp/gsd-cc-bridge-$(echo "$CWD" | cksum | cut -d' ' -f1).json"
+BRIDGE_FILE="$(tmp_dir)/gsd-cc-bridge-$(echo "$CWD" | cksum | cut -d' ' -f1).json"
 jq -n \
   --arg phase "$PHASE" \
   --arg position "$POSITION" \

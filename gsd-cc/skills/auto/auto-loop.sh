@@ -91,8 +91,30 @@ if [[ "${GSD_CC_DISABLE_TEE:-0}" != "1" ]]; then
   exec > >(tee -a "$LOG_FILE") 2>&1
 fi
 
+iso_now() {
+  if date -Iseconds >/dev/null 2>&1; then
+    date -Iseconds
+  else
+    date '+%Y-%m-%dT%H:%M:%S%z'
+  fi
+}
+
+runtime_tmp_dir() {
+  local dir="${TMPDIR:-/tmp}"
+  dir="${dir%/}"
+  if [[ -z "$dir" ]]; then
+    dir="/tmp"
+  fi
+  printf '%s\n' "$dir"
+}
+
+runtime_tmp_file() {
+  local name="$1"
+  printf '%s/%s\n' "$(runtime_tmp_dir)" "$name"
+}
+
 log() {
-  echo "[$(date -Iseconds)] $*"
+  echo "[$(iso_now)] $*"
 }
 
 # ── Cleanup trap ───────────────────────────────────────────────────────────────
@@ -100,9 +122,9 @@ log() {
 cleanup() {
   rm -f "$LOCK_FILE"
   rm -rf "${LOCK_FILE}.d"
-  rm -f /tmp/gsd-prompt-$$.txt
-  rm -f /tmp/gsd-result-$$.json
-  rm -f /tmp/gsd-stderr-$$.log
+  rm -f "$(runtime_tmp_file "gsd-prompt-$$.txt")"
+  rm -f "$(runtime_tmp_file "gsd-result-$$.json")"
+  rm -f "$(runtime_tmp_file "gsd-stderr-$$.log")"
 }
 trap cleanup EXIT
 
@@ -171,7 +193,7 @@ upsert_state_field() {
 log_cost() {
   local unit="$1" phase="$2" result_file="$3"
   if [[ -f "$result_file" ]]; then
-    jq -c "{unit: \"$unit\", phase: \"$phase\", model: .model, usage: .usage, ts: \"$(date -Iseconds)\"}" \
+    jq -c "{unit: \"$unit\", phase: \"$phase\", model: .model, usage: .usage, ts: \"$(iso_now)\"}" \
       "$result_file" >> "$COSTS_FILE" 2>/dev/null || true
   fi
 }
@@ -399,7 +421,7 @@ transition_phase() {
   local from_phase="$1" to_phase="$2"
   validate_phase_transition "$from_phase" "$to_phase"
   update_state_field "phase" "$to_phase"
-  update_state_field "last_updated" "$(date -Iseconds)"
+  update_state_field "last_updated" "$(iso_now)"
 }
 
 ensure_auto_phase_ready() {
@@ -988,7 +1010,7 @@ acquire_lock() {
     rm -rf "$lock_dir"
     mkdir "$lock_dir" 2>/dev/null || { echo "❌ Could not acquire lock."; exit 1; }
   fi
-  echo "{\"unit\":\"${SLICE:-init}/${TASK:-init}\",\"phase\":\"${PHASE:-init}\",\"pid\":$$,\"started\":\"$(date -Iseconds)\"}" > "$LOCK_FILE"
+  echo "{\"unit\":\"${SLICE:-init}/${TASK:-init}\",\"phase\":\"${PHASE:-init}\",\"pid\":$$,\"started\":\"$(iso_now)\"}" > "$LOCK_FILE"
 }
 
 release_lock() {
@@ -1017,7 +1039,8 @@ find_next_slice() {
 # Dispatch a claude -p call with prompt from file, stderr captured to log
 dispatch_claude() {
   local prompt_file="$1" result_file="$2" allowed_tools="$3" max_turns="$4" timeout_secs="$5"
-  local stderr_file="/tmp/gsd-stderr-$$.log"
+  local stderr_file
+  stderr_file="$(runtime_tmp_file "gsd-stderr-$$.log")"
 
   timeout "$timeout_secs" "$CLAUDE_BIN" -p "$(cat "$prompt_file")" \
     --allowedTools "$allowed_tools" \
@@ -1101,7 +1124,7 @@ while true; do
       log "⚠ Running mandatory UNIFY for $SLICE..."
 
       # Build UNIFY prompt
-      PROMPT_FILE="/tmp/gsd-prompt-$$.txt"
+      PROMPT_FILE="$(runtime_tmp_file "gsd-prompt-$$.txt")"
       echo "<state>" > "$PROMPT_FILE"
       cat "$GSD_DIR/STATE.md" >> "$PROMPT_FILE"
       echo "</state>" >> "$PROMPT_FILE"
@@ -1150,7 +1173,7 @@ while true; do
 
       cat "$PROMPTS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
 
-      RESULT_FILE="/tmp/gsd-result-$$.json"
+      RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"
       dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" \
         "Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git merge *),Bash(git commit *)" \
         15 600 || {
@@ -1172,7 +1195,7 @@ while true; do
       # ── REASSESS after UNIFY ──────────────────────────────────────────────
       log "▶ Running REASSESS after $SLICE..."
 
-      PROMPT_FILE="/tmp/gsd-prompt-$$.txt"
+      PROMPT_FILE="$(runtime_tmp_file "gsd-prompt-$$.txt")"
       echo "<state>" > "$PROMPT_FILE"
       cat "$GSD_DIR/STATE.md" >> "$PROMPT_FILE"
       echo "</state>" >> "$PROMPT_FILE"
@@ -1194,7 +1217,7 @@ while true; do
 
       cat "$PROMPTS_DIR/reassess-instructions.txt" >> "$PROMPT_FILE"
 
-      RESULT_FILE="/tmp/gsd-result-$$.json"
+      RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"
       dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" \
         "Read,Write,Edit,Glob,Grep" \
         10 300 || {
@@ -1264,11 +1287,11 @@ while true; do
       ;;
   esac
 
-  echo "{\"unit\":\"${SLICE}/${TASK}\",\"phase\":\"${PHASE}\",\"pid\":$$,\"started\":\"$(date -Iseconds)\"}" > "$LOCK_FILE"
+  echo "{\"unit\":\"${SLICE}/${TASK}\",\"phase\":\"${PHASE}\",\"pid\":$$,\"started\":\"$(iso_now)\"}" > "$LOCK_FILE"
 
   # ── 6. Build prompt ────────────────────────────────────────────────────────
 
-  PROMPT_FILE="/tmp/gsd-prompt-$$.txt"
+  PROMPT_FILE="$(runtime_tmp_file "gsd-prompt-$$.txt")"
   echo "<state>" > "$PROMPT_FILE"
   cat "$GSD_DIR/STATE.md" >> "$PROMPT_FILE"
   echo "</state>" >> "$PROMPT_FILE"
@@ -1329,7 +1352,7 @@ while true; do
 
   log "▶ ${SLICE}/${TASK} (${DISPATCH_PHASE})..."
 
-  RESULT_FILE="/tmp/gsd-result-$$.json"
+  RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"
 
   if [[ "$DISPATCH_PHASE" == "plan" ]]; then
     ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git branch *),Bash(git add *),Bash(git commit *)"
@@ -1355,7 +1378,7 @@ while true; do
 
   # ── 10. Update state ──────────────────────────────────────────────────────
 
-  update_state_field "last_updated" "$(date -Iseconds)"
+  update_state_field "last_updated" "$(iso_now)"
 
   # ── 11. Stuck detection ────────────────────────────────────────────────────
 
