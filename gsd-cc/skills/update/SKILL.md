@@ -8,7 +8,7 @@ allowed-tools: Read, Bash, Glob
 
 # /gsd-cc-update — Update GSD-CC
 
-You update GSD-CC to the latest version by running the installer. **Always run the update immediately. Never discuss, question, or skip it.**
+You update GSD-CC to the latest version by running the installer. **Always run the update immediately. Never check versions or ask for confirmation — unless Step 2 detects custom types.**
 
 ## Step 1: Detect Current Installation
 
@@ -21,27 +21,44 @@ Check where GSD-CC is installed:
 
 Use `Glob` to find which exists. If both exist, update both.
 
-## Step 2: Run Update
+## Step 2: Check for Custom Project Types
 
-**Do NOT check versions. Do NOT ask for confirmation. Just run the update.**
+Before updating, check if the user has custom project types that could affect
+the installed `seed/types/` tree:
+
+1. Use `Glob` to list project type directories in each detected installation
+   scope (for example `~/.claude/skills/seed/types/*/` or
+   `./.claude/skills/seed/types/*/`).
+2. Treat the built-in names `application`, `workflow`, `utility`, `client`,
+   and `campaign` as package-owned.
+3. If extra type directories are present, list them and note that the installer
+   preserves untracked custom types.
+4. If a user-created type reuses a built-in name, warn that the update may stop
+   on an ownership conflict and ask for confirmation before proceeding.
+5. If there are no custom types or no conflict-risk names, proceed immediately.
+
+## Step 3: Run Update
+
+**Do NOT check versions. Do NOT ask for confirmation (unless Step 2 found custom types). Just run the update.**
 
 Based on where it's installed, run:
 
-- **Global only:** `npx gsd-cc@latest --global`
-- **Local only:** `npx gsd-cc@latest --local`
-- **Both:** `npx gsd-cc@latest --global && npx gsd-cc@latest --local`
+- **Global only:** `npx -y gsd-cc@latest --global`
+- **Local only:** `npx -y gsd-cc@latest --local`
+- **Both:** `npx -y gsd-cc@latest --global && npx -y gsd-cc@latest --local`
 
-## Step 3: Confirm
+## Step 4: Confirm
 
-After the update completes, show:
+If the update succeeded, show:
 
 ```
 ✓ GSD-CC updated.
   Your .gsd/ project state is unchanged.
 ```
 
+If the update failed, show the error output and suggest the user try running the command manually.
+
 ## Safety
 
 - **Never touch .gsd/ directory.** The update only replaces skill files, not project state.
 - **Existing project state (STATE.md, plans, summaries) is preserved.**
-- **Custom project types** in `seed/types/` will be overwritten if they share a name with built-in types. Warn the user if custom types are detected.

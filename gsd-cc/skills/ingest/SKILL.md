@@ -181,7 +181,14 @@ Generate these now?
 On confirmation, create the `.gsd/` directory and write:
 
 ### `.gsd/PLANNING.md`
-Same format as Seed output. Map the document's content to the standard sections:
+Use the first template path that exists as reference for structure and
+frontmatter:
+
+- `./.claude/templates/PLANNING.md`
+- `~/.claude/templates/PLANNING.md`
+- `./gsd-cc/templates/PLANNING.md` (source repo fallback)
+
+Map the document's content to the standard sections:
 - Vision (from the document's intro/summary)
 - Users (from any user descriptions, personas, or target audience sections)
 - Requirements v1, v2, Out of Scope (from feature lists, must-haves, nice-to-haves)
@@ -198,9 +205,18 @@ Only generate this if the document contains detailed descriptions of how things 
 3-5 sentence elevator pitch, distilled from the document.
 
 ### `.gsd/type.json`
-Detect project type and rigor from the document content, same logic as Seed.
+Detect project type and rigor from the document content, same logic as
+`/gsd-cc-seed` (see the active `seed` skill file, preferring
+`./.claude/skills/seed/SKILL.md`, then `~/.claude/skills/seed/SKILL.md`, then
+`./gsd-cc/skills/seed/SKILL.md` as a source repo fallback).
 
 ### `.gsd/STATE.md`
+Use the first template path that exists as reference:
+
+- `./.claude/templates/STATE.md`
+- `~/.claude/templates/STATE.md`
+- `./gsd-cc/templates/STATE.md` (source repo fallback)
+
 Initialize with phase: seed-complete (since we're replacing the Seed step).
 
 ### `.gsd/DECISIONS.md`

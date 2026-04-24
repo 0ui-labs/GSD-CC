@@ -104,11 +104,13 @@ Options:
 Resolve the script location:
 
 ```bash
-# Check local first, then global
-if [[ -f "./gsd-cc/skills/auto/auto-loop.sh" ]]; then
-  SCRIPT="./gsd-cc/skills/auto/auto-loop.sh"
+# Check local install first, then global, then the source repo fallback
+if [[ -f "./.claude/skills/auto/auto-loop.sh" ]]; then
+  SCRIPT="./.claude/skills/auto/auto-loop.sh"
 elif [[ -f "$HOME/.claude/skills/auto/auto-loop.sh" ]]; then
   SCRIPT="$HOME/.claude/skills/auto/auto-loop.sh"
+elif [[ -f "./gsd-cc/skills/auto/auto-loop.sh" ]]; then
+  SCRIPT="./gsd-cc/skills/auto/auto-loop.sh"
 fi
 ```
 

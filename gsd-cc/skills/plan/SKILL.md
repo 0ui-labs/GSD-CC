@@ -208,8 +208,11 @@ overview file `.gsd/S{nn}-PLAN.md`.
 
 Before finishing, check against `checklists/planning-ready.md`:
 
-Read: `./gsd-cc/checklists/planning-ready.md`
-(or `~/.claude/checklists/planning-ready.md`)
+Read the first checklist path that exists:
+
+- `./.claude/checklists/planning-ready.md`
+- `~/.claude/checklists/planning-ready.md`
+- `./gsd-cc/checklists/planning-ready.md` (source repo fallback)
 
 Verify ALL items from the checklist. Do not cherry-pick — every item must pass.
 

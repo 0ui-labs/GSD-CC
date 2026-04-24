@@ -57,17 +57,18 @@ If ambiguous, ask ONE clarifying question. Don't overthink it.
 
 ### Step 3: Load Type Guide
 
-Read the type-specific guide from:
-```
-./gsd-cc/skills/seed/types/{type}/guide.md
-```
+Read the type-specific guide from the active installation. Use the first path
+that exists:
 
-If installed globally, check `~/.claude/skills/seed/types/{type}/guide.md` instead.
+- `./.claude/skills/seed/types/{type}/guide.md` (local install)
+- `~/.claude/skills/seed/types/{type}/guide.md` (global install)
+- `./gsd-cc/skills/seed/types/{type}/guide.md` (source repo fallback when developing GSD-CC itself)
 
-Also read the config:
-```
-./gsd-cc/skills/seed/types/{type}/config.md
-```
+Also read the matching config from the same location:
+
+- `./.claude/skills/seed/types/{type}/config.md`
+- `~/.claude/skills/seed/types/{type}/config.md`
+- `./gsd-cc/skills/seed/types/{type}/config.md`
 
 The guide contains numbered sections with `Explore` and `Suggest` fields. The config sets the rigor level and section count.
 
@@ -102,8 +103,11 @@ Walk through the guide sections **one at a time**. For each section:
 
 After completing all sections, mentally check against `checklists/planning-ready.md`:
 
-Read: `./gsd-cc/checklists/planning-ready.md`
-(or `~/.claude/checklists/planning-ready.md`)
+Read the first checklist path that exists:
+
+- `./.claude/checklists/planning-ready.md`
+- `~/.claude/checklists/planning-ready.md`
+- `./gsd-cc/checklists/planning-ready.md` (source repo fallback)
 
 Verify:
 - Is there enough information to create a roadmap?
@@ -118,7 +122,13 @@ Create the `.gsd/` directory and write these files:
 
 #### `.gsd/PLANNING.md`
 
-Use the template from `./gsd-cc/templates/PLANNING.md` (or `~/.claude/templates/PLANNING.md`). Fill in all sections from the conversation:
+Use the first template path that exists:
+
+- `./.claude/templates/PLANNING.md`
+- `~/.claude/templates/PLANNING.md`
+- `./gsd-cc/templates/PLANNING.md` (source repo fallback)
+
+Fill in all sections from the conversation:
 - Vision (from their initial description + refinements)
 - Users (from user/auth discussions)
 - Requirements v1, v2, Out of Scope (from exploration)
