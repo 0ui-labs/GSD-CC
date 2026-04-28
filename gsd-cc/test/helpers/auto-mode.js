@@ -134,7 +134,7 @@ function runAutoLoop(projectDir, env) {
       cwd: projectDir,
       env,
       encoding: 'utf8',
-      timeout: 10000
+      timeout: 30000
     }
   );
 }
