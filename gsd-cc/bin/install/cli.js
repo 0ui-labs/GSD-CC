@@ -3,6 +3,7 @@ const readline = require('readline');
 const pkg = require('../../package.json');
 const { parseArgs } = require('./args');
 const { COLORS } = require('./constants');
+const { launchDashboard } = require('./dashboard');
 const { getClaudeBase } = require('./paths');
 const { writeLanguageConfig } = require('./language-config');
 const {
@@ -27,6 +28,10 @@ ${cyan}   ██████╗ ███████╗██████╗   
 
 function printHelp() {
   console.log(`  ${yellow}Usage:${reset} npx gsd-cc [options]
+         npx gsd-cc dashboard [options]
+
+  ${yellow}Commands:${reset}
+    ${cyan}dashboard${reset}       Start the local dashboard launcher
 
   ${yellow}Options:${reset}
     ${cyan}-g, --global${reset}      Install globally to ~/.claude/skills/ ${dim}(default)${reset}
@@ -35,6 +40,11 @@ function printHelp() {
     ${cyan}-y, --yes${reset}         Run without prompts
     ${cyan}--language <name>${reset} Set GSD-CC language non-interactively
     ${cyan}-h, --help${reset}        Show this help message
+
+  ${yellow}Dashboard Options:${reset}
+    ${cyan}--host <host>${reset}     Host to bind when the dashboard server is added
+    ${cyan}--port <number>${reset}   Port to bind when the dashboard server is added
+    ${cyan}--no-open${reset}         Do not open a browser automatically
 
   ${yellow}Examples:${reset}
     ${dim}# Install globally (default)${reset}
@@ -48,6 +58,9 @@ function printHelp() {
 
     ${dim}# Remove GSD-CC${reset}
     npx gsd-cc --uninstall
+
+    ${dim}# Start the dashboard launcher${reset}
+    npx gsd-cc dashboard --no-open
 `);
 }
 
@@ -132,7 +145,9 @@ function main(rawArgs) {
   }
 
   try {
-    if (hasUninstall) {
+    if (options.command === 'dashboard') {
+      launchDashboard(options);
+    } else if (hasUninstall) {
       uninstall(options);
     } else if (hasGlobal) {
       installAndConfigure(true, options, promptLanguage);
