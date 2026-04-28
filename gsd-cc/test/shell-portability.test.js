@@ -155,8 +155,12 @@ function findBridgeFile(tmpDir) {
 
 function shellRuntimeFiles() {
   const hooksDir = path.join(packageRoot, 'hooks');
+  const autoLibDir = path.join(packageRoot, 'skills', 'auto', 'lib');
   return [
     path.join(packageRoot, 'skills', 'auto', 'auto-loop.sh'),
+    ...fs.readdirSync(autoLibDir)
+      .filter((entry) => entry.endsWith('.sh'))
+      .map((entry) => path.join(autoLibDir, entry)),
     ...fs.readdirSync(hooksDir)
       .filter((entry) => entry.endsWith('.sh'))
       .map((entry) => path.join(hooksDir, entry))
