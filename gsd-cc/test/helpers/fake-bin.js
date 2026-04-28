@@ -161,6 +161,21 @@ if (slurpInput) {
 const expression = positional[0] || '';
 
 if (nullInput) {
+  if (expression.includes('total_slices') && expression.includes('done_slices')) {
+    if (!/^[0-9]+$/.test(vars.total || '') || !/^[0-9]+$/.test(vars.done || '')) {
+      console.error('jq: invalid numeric input');
+      process.exit(5);
+    }
+
+    console.log(JSON.stringify({
+      phase: vars.phase || '',
+      position: vars.position || '',
+      total_slices: Number(vars.total),
+      done_slices: Number(vars.done)
+    }));
+    process.exit(0);
+  }
+
   if (expression.includes('BOUNDARY VIOLATION')) {
     console.log(JSON.stringify({
       hookSpecificOutput: {

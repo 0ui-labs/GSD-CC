@@ -19,6 +19,25 @@ tmp_dir() {
   printf '%s\n' "$dir"
 }
 
+normalize_count() {
+  local value="$1"
+  value=$(printf '%s\n' "$value" | awk 'NF { print $1; exit }')
+
+  case "$value" in
+    ''|*[!0-9]*) printf '0\n' ;;
+    *) printf '%s\n' "$value" ;;
+  esac
+}
+
+count_matches() {
+  local pattern="$1"
+  local file="$2"
+  local count
+
+  count=$(grep -c "$pattern" "$file" 2>/dev/null)
+  normalize_count "$count"
+}
+
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 
 # Only render if this is a GSD-CC project
@@ -55,18 +74,25 @@ if [ "$TASK" != "—" ] && [ -n "$TASK" ]; then
 fi
 
 # Count progress
-TOTAL_SLICES=$(grep -c '| S[0-9]' "$STATE_FILE" 2>/dev/null || echo "0")
-DONE_SLICES=$(grep '| done' "$STATE_FILE" 2>/dev/null | wc -l | xargs)
+TOTAL_SLICES=$(count_matches '| S[0-9]' "$STATE_FILE")
+DONE_SLICES=$(count_matches '| done' "$STATE_FILE")
 
 # Write bridge file for other hooks
-BRIDGE_FILE="$(tmp_dir)/gsd-cc-bridge-$(echo "$CWD" | cksum | cut -d' ' -f1).json"
-jq -n \
+BRIDGE_DIR="$(tmp_dir)"
+BRIDGE_FILE="$BRIDGE_DIR/gsd-cc-bridge-$(echo "$CWD" | cksum | cut -d' ' -f1).json"
+BRIDGE_TMP="$BRIDGE_FILE.$$.tmp"
+
+if jq -n \
   --arg phase "$PHASE" \
   --arg position "$POSITION" \
   --arg total "$TOTAL_SLICES" \
   --arg done "$DONE_SLICES" \
   '{phase: $phase, position: $position, total_slices: ($total|tonumber), done_slices: ($done|tonumber)}' \
-  > "$BRIDGE_FILE" 2>/dev/null
+  > "$BRIDGE_TMP" 2>/dev/null && [ -s "$BRIDGE_TMP" ]; then
+  mv "$BRIDGE_TMP" "$BRIDGE_FILE" 2>/dev/null || rm -f "$BRIDGE_TMP"
+else
+  rm -f "$BRIDGE_TMP"
+fi
 
 # No additionalContext output — this hook is silent.
 # It only maintains the bridge file for cross-hook communication.

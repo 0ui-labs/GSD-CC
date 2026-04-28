@@ -69,6 +69,45 @@ for arg in "$@"; do
 done
 
 exec ${JSON.stringify(realSed)} "$@"
+	`);
+}
+
+function writeJqThatFailsBridgeWrites(binDir) {
+  return writeExecutable(binDir, 'jq', `#!/usr/bin/env node
+const fs = require('fs');
+
+const args = process.argv.slice(2);
+if (args.includes('-n')) {
+  process.exit(42);
+}
+
+const positional = [];
+for (let index = 0; index < args.length; index += 1) {
+  const arg = args[index];
+  if (arg === '-r' || arg === '-e' || arg === '-c' || arg === '-s') {
+    continue;
+  }
+  if (arg === '--arg') {
+    index += 2;
+    continue;
+  }
+  positional.push(arg);
+}
+
+const expression = positional[0] || '';
+const raw = fs.readFileSync(0, 'utf8');
+const data = raw.trim() ? JSON.parse(raw) : {};
+
+if (expression === '.cwd') {
+  console.log(data.cwd || '');
+  process.exit(0);
+}
+
+if (expression.includes('// empty')) {
+  process.exit(0);
+}
+
+console.log('null');
 `);
 }
 
@@ -91,6 +130,27 @@ function runHook(hookName, input, env) {
     env,
     encoding: 'utf8'
   });
+}
+
+function runStatuslineTenTimes(projectDir, env) {
+  for (let index = 0; index < 10; index += 1) {
+    const result = runHook('gsd-statusline.sh', { cwd: projectDir }, env);
+    assert.strictEqual(
+      result.status,
+      0,
+      `statusline hook failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+    );
+    assert.strictEqual(result.stdout, '');
+    assert.strictEqual(result.stderr, '');
+  }
+}
+
+function findBridgeFile(tmpDir) {
+  const bridgeEntry = fs.readdirSync(tmpDir).find((entry) => {
+    return entry.startsWith('gsd-cc-bridge-') && entry.endsWith('.json');
+  });
+  assert.ok(bridgeEntry, 'statusline bridge file should exist');
+  return path.join(tmpDir, bridgeEntry);
 }
 
 function shellRuntimeFiles() {
@@ -128,14 +188,7 @@ function testHooksUseConfiguredTmpdir(binDir) {
   const tmpDir = makeTempDir('gsd-cc-portable-tmp-');
   const env = makeEnv(binDir, { TMPDIR: tmpDir });
 
-  for (let index = 0; index < 10; index += 1) {
-    const result = runHook('gsd-statusline.sh', { cwd: projectDir }, env);
-    assert.strictEqual(
-      result.status,
-      0,
-      `statusline hook failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
-    );
-  }
+  runStatuslineTenTimes(projectDir, env);
 
   const transcript = path.join(projectDir, 'transcript.jsonl');
   fs.writeFileSync(transcript, `${'{}\n'.repeat(1001)}`);
@@ -155,6 +208,37 @@ function testHooksUseConfiguredTmpdir(binDir) {
   assert.ok(tmpEntries.some((entry) => entry.startsWith('gsd-cc-statusline-')));
   assert.ok(tmpEntries.some((entry) => entry.startsWith('gsd-cc-bridge-')));
   assert.ok(tmpEntries.some((entry) => entry.startsWith('gsd-cc-ctx-monitor-')));
+
+  const bridge = JSON.parse(fs.readFileSync(findBridgeFile(tmpDir), 'utf8'));
+  assert.strictEqual(bridge.total_slices, 0);
+  assert.strictEqual(bridge.done_slices, 0);
+}
+
+function testStatuslineKeepsBridgeOnWriteFailure(binDir) {
+  const projectDir = createAutoModeProject();
+  const tmpDir = makeTempDir('gsd-cc-portable-tmp-');
+  const env = makeEnv(binDir, { TMPDIR: tmpDir });
+
+  runStatuslineTenTimes(projectDir, env);
+
+  const bridgePath = findBridgeFile(tmpDir);
+  const bridgeEntry = path.basename(bridgePath);
+  const previousBridge = {
+    phase: 'previous',
+    position: 'previous',
+    total_slices: 99,
+    done_slices: 98
+  };
+  fs.writeFileSync(bridgePath, JSON.stringify(previousBridge));
+
+  writeJqThatFailsBridgeWrites(binDir);
+  runStatuslineTenTimes(projectDir, env);
+
+  const bridge = JSON.parse(fs.readFileSync(bridgePath, 'utf8'));
+  assert.deepStrictEqual(bridge, previousBridge);
+  assert.ok(!fs.readdirSync(tmpDir).some((entry) => {
+    return entry.startsWith(`${bridgeEntry}.`) && entry.endsWith('.tmp');
+  }));
 }
 
 function testShellSourcesAvoidNonPortableInlineCommands() {
@@ -173,4 +257,5 @@ const binDir = setupBin();
 
 testAutoLoopDoesNotRequireBsdOrGnuDate(binDir);
 testHooksUseConfiguredTmpdir(binDir);
+testStatuslineKeepsBridgeOnWriteFailure(binDir);
 testShellSourcesAvoidNonPortableInlineCommands();
