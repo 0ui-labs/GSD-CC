@@ -11,6 +11,7 @@
     "bin/",
     "checklists/",
     "hooks/",
+    "scripts/",
     "skills/",
     "templates/",
     "README.md"

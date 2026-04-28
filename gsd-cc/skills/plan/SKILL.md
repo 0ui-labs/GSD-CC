@@ -228,7 +228,28 @@ Verify ALL items from the checklist. Do not cherry-pick — every item must pass
 
 If any check fails, fix it before proceeding. Do not skip the quality gate.
 
-## Step 6: Create Git Branch
+## Step 6: Machine-Validate Plan
+
+Run the standalone validator before marking the slice plan complete. Resolve
+the script path from the first location that exists:
+
+- `./.claude/scripts/validate-plan.js`
+- `~/.claude/scripts/validate-plan.js`
+- `./gsd-cc/scripts/validate-plan.js` (source repo fallback)
+
+Then run:
+
+```bash
+node {script path} .gsd/S{nn}-PLAN.md
+```
+
+If the validator reports errors, fix the slice plan and task XML files, then
+rerun it. Do not set `phase: plan-complete` until validation passes.
+
+If Node is unavailable, stop and tell the user that plan validation requires
+Node before execution can start.
+
+## Step 7: Create Git Branch
 
 Resolve `base_branch` from `.gsd/STATE.md`. If it is missing, run the router's
 base branch detection before continuing and write the result to
@@ -250,7 +271,7 @@ If the slice branch already exists (resuming), switch to it instead of
 recreating it. Verify it is based on `{base_branch}` before continuing; if it
 is not, warn the user and stop so the branch ancestry can be inspected.
 
-## Step 7: Update STATE.md
+## Step 8: Update STATE.md
 
 ```
 current_slice: S{nn}
@@ -258,7 +279,7 @@ current_task: T01
 phase: plan-complete
 ```
 
-## Step 8: Confirm and End Session
+## Step 9: Confirm and End Session
 
 ```
 ✓ Planning complete for S{nn}: {slice name}

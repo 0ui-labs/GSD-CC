@@ -47,6 +47,7 @@ function assertInstalledAssets(claudeBase) {
   assertPathExists(path.join(claudeBase, 'templates', 'STATE.md'));
   assertPathExists(path.join(claudeBase, 'templates', 'STATE_MACHINE.json'));
   assertPathExists(path.join(claudeBase, 'checklists', 'planning-ready.md'));
+  assertPathExists(path.join(claudeBase, 'scripts', 'validate-plan.js'));
   assertPathExists(path.join(claudeBase, 'gsd-cc', 'install-manifest.json'));
 }
 
@@ -57,6 +58,7 @@ function assertManifest(claudeBase, installMode) {
   assert.strictEqual(manifest.installMode, installMode);
   assert.ok(manifest.files.includes(path.join('skills', 'gsd-cc', 'SKILL.md')));
   assert.ok(manifest.files.includes(path.join('hooks', 'gsd-cc', 'gsd-boundary-guard.sh')));
+  assert.ok(manifest.files.includes(path.join('scripts', 'validate-plan.js')));
   assert.ok(manifest.files.includes(path.join('templates', 'STATE.md')));
   assert.ok(manifest.files.includes(path.join('templates', 'STATE_MACHINE.json')));
   assert.ok(manifest.directories.includes('gsd-cc'));

@@ -28,6 +28,7 @@ const INSTALL_LAYOUT = [
   { sourceDir: 'skills', targetDir: 'skills' },
   { sourceDir: 'hooks', targetDir: CURRENT_HOOK_DIR },
   { sourceDir: 'checklists', targetDir: 'checklists' },
+  { sourceDir: 'scripts', targetDir: 'scripts' },
   { sourceDir: 'templates', targetDir: 'templates' },
 ];
 
