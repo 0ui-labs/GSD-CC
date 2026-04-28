@@ -2,8 +2,9 @@
 name: gsd-cc-status
 description: >
   Show project progress, AC status, token usage, and auto-mode state.
+  Can also explain the current project state in plain language.
   Use when user says /gsd-cc-status, /gsd-cc status, or asks about project
-  progress, costs, or current state.
+  progress, costs, explanations, or current state.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
@@ -14,6 +15,19 @@ You show a clear, concise overview of where the project stands. No actions — j
 ## Language
 
 Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, progress reports — must use that language. If not found, default to English.
+
+## Mode Detection
+
+Before building the output, decide which mode the user requested:
+
+- **Explain mode** if the request includes `explain`, `state explain`,
+  `erklären`, `erklaeren`, `was bedeutet der Status`, or asks what the
+  current state means.
+- **Status mode** for `/gsd-cc-status`, `/gsd-cc status`, progress, costs,
+  token usage, or general current-state requests.
+
+Both modes are read-only. Do not update `.gsd/`, do not generate a dashboard,
+and do not execute workflow actions.
 
 ## Step 1: Read State
 
@@ -137,6 +151,67 @@ Based on the current state, suggest ONE next action (same logic as `/gsd-cc` rou
 ```
 Next: {suggested action}
 ```
+
+## Explain Mode Output
+
+If Explain mode was requested, reuse the same state-reading steps above, but
+replace the compact status table with a plain-language explanation. Keep it
+short and practical:
+
+```text
+GSD-CC Status Explain
+─────────────────────
+
+We are in M{nnn} / S{nn} / T{nn}.
+
+{One short paragraph explaining what this phase means and what is already done.}
+
+{One short paragraph explaining what is open, blocked, interrupted, or risky.}
+
+Next: {exactly one recommended next action, with why it is the safest or most
+useful next step.}
+```
+
+Explain mode must answer:
+
+- current milestone, slice, task, and phase
+- what is already complete
+- what is currently open, blocked, interrupted, or waiting for UNIFY
+- why the recommended next step follows from the state
+- exactly one recommended next action
+
+Use these interpretation rules:
+
+- If `.gsd/` or `.gsd/STATE.md` is missing, explain that no GSD-CC project
+  state exists yet and recommend starting with `/gsd-cc`.
+- If the phase is `seed`, `seed-complete`, `stack`, `roadmap`, or another
+  planning phase, explain which planning artifact exists and which planning
+  artifact is still needed.
+- If the current slice has a `S{nn}-PLAN.md` and no task summaries, explain
+  that planning is complete but execution has not started.
+- If some `S{nn}-T*-SUMMARY.md` files exist and not all tasks are complete,
+  explain which task is next and that previous task summaries are the record
+  of completed work.
+- If the phase is `apply-blocked`, `apply-failed`, `unify-blocked`, or
+  `unify-failed`, call out the blockage first. Use `blocked_reason` from
+  `STATE.md` if present, then the current task summary or UNIFY file for
+  supporting detail.
+- If all task summaries exist and no `S{nn}-UNIFY.md` exists, explain that
+  work is implemented but not reconciled, so UNIFY is mandatory before the
+  next slice.
+- If the current slice has `S{nn}-UNIFY.md`, explain that the slice has been
+  reconciled and recommend the next pending slice, or milestone wrap-up if no
+  slices remain.
+- If `.gsd/auto.lock` exists and its PID is running, explain that auto-mode is
+  active and recommend waiting or checking `/gsd-cc-status`.
+- If `.gsd/auto.lock` exists but its PID is stale, explain that auto-mode was
+  interrupted and recommend running `/gsd-cc` to recover from the stale lock.
+- If `.gsd/auto-recovery.json` exists, mention the last stop reason and
+  `.gsd/AUTO-RECOVERY.md` when it helps explain why the project stopped.
+
+Do not include the token usage table, milestone table, charts, HTML, or
+dashboard language in Explain mode unless the user specifically asked about
+costs or progress numbers.
 
 ## Output Format
 
