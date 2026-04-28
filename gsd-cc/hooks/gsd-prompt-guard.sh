@@ -13,6 +13,17 @@ iso_now() {
   fi
 }
 
+log_guard_event() {
+  local file="$1"
+  local reason="$2"
+  local log_dir="${HOME}/.gsd"
+  local log_file="$log_dir/guard.log"
+
+  if mkdir -p "$log_dir" 2>/dev/null; then
+    echo "$(iso_now) BLOCKED file=$file reason=$reason" >> "$log_file" 2>/dev/null || true
+  fi
+}
+
 if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
@@ -91,7 +102,7 @@ if echo "$CONTENT" | grep -iqE '<script|javascript:|on(load|error|click)='; then
 fi
 
 if [ "$SUSPICIOUS" = true ]; then
-  echo "$(iso_now) BLOCKED file=$FILE_PATH reason=$REASON" >> "${HOME}/.gsd/guard.log"
+  log_guard_event "$FILE_PATH" "$REASON"
   jq -n --arg reason "$REASON" --arg file "$FILE_PATH" '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",

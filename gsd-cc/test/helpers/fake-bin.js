@@ -187,6 +187,17 @@ if (nullInput) {
     process.exit(0);
   }
 
+  if (expression.includes('PROMPT INJECTION BLOCKED')) {
+    console.log(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: \`PROMPT INJECTION BLOCKED: \${vars.reason} in \${vars.file}.\`
+      }
+    }));
+    process.exit(0);
+  }
+
   console.log('{}');
   process.exit(0);
 }
