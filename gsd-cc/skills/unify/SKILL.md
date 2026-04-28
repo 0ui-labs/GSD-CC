@@ -58,6 +58,7 @@ Read ALL of these:
 | `.gsd/S{nn}-T{nn}-PLAN.xml` | Per-task plans (all tasks in slice) |
 | `.gsd/S{nn}-T{nn}-SUMMARY.md` | What actually happened (all tasks in slice) |
 | `.gsd/DECISIONS.md` | Existing decisions |
+| `.gsd/APPROVALS.jsonl` | Auto-mode approval grants (if it exists) |
 | `.gsd/VISION.md` | User's original intentions (if it exists) |
 
 Use `Glob` to find all matching files for the current slice.
@@ -205,6 +206,28 @@ project risks:
 ```
 
 If no new risks were introduced or revealed, write `None.`.
+
+### Risk and Approval
+
+For each task plan, read `<risk level="...">`. If the level is `high`, check
+whether `.gsd/APPROVALS.jsonl` contains a matching grant for the same slice and
+task. Include:
+
+```markdown
+## Risk and Approval
+
+| Task | Risk | Approval | Reason |
+|------|------|----------|--------|
+| T02 | high | approved | {approval reason or risk rationale} |
+```
+
+If no high-risk tasks were present, write:
+
+```markdown
+## Risk and Approval
+
+No high-risk tasks in this slice.
+```
 
 ### Tests and Evidence
 

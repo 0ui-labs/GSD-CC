@@ -79,8 +79,12 @@ Parse the task plan XML. Display to the user:
 S{nn} / T{nn} — {task name}
 
 Files: {file list}
+Risk:  {low|medium|high} — {risk reason}
 ACs:   {count} acceptance criteria
 ```
+
+Manual execution does not require an approval grant because the user is
+present, but still show the risk level before editing files.
 
 Then read the boundaries aloud:
 

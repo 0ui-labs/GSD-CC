@@ -179,6 +179,12 @@ while true; do
         echo "</decisions>" >> "$PROMPT_FILE"
       fi
 
+      if [[ -f "$GSD_DIR/APPROVALS.jsonl" ]]; then
+        echo "<approvals>" >> "$PROMPT_FILE"
+        cat "$GSD_DIR/APPROVALS.jsonl" >> "$PROMPT_FILE"
+        echo "</approvals>" >> "$PROMPT_FILE"
+      fi
+
       cat "$PROMPTS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
 
       RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"

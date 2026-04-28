@@ -90,6 +90,39 @@ position context whenever branch actions are next.
 
 Follow this decision tree **top to bottom**. Take the FIRST match:
 
+### Approval Required
+```
+IF .gsd/APPROVAL-REQUEST.json exists:
+  → Read the request.
+  → Show:
+      S{nn}/T{nn} needs approval before auto-mode can continue.
+      Risk: {risk_level} — {risk_reason}
+      Reasons:
+      - {reason}
+  → Use AskUserQuestion:
+    Question: "How do you want to proceed?"
+    Header: "Approval"
+    Options:
+      - label: "Approve once"
+        description: "Allow this exact task plan fingerprint to run in auto-mode."
+      - label: "Run manually"
+        description: "Execute the task with you present instead of granting auto-mode approval."
+      - label: "Replan task"
+        description: "Return to planning so the task can be split or made safer."
+
+  → "Approve once":
+    Append one JSON line to .gsd/APPROVALS.jsonl:
+      {"slice":"{slice}","task":"{task}","fingerprint":"{fingerprint}","status":"approved","approved_at":"{now ISO}"}
+    Delete .gsd/APPROVAL-REQUEST.json.
+    Delegate to /gsd-cc-auto so auto-mode can resume.
+  → "Run manually":
+    Delete .gsd/APPROVAL-REQUEST.json.
+    Delegate to /gsd-cc-apply for the current task.
+  → "Replan task":
+    Delete .gsd/APPROVAL-REQUEST.json.
+    Delegate to /gsd-cc-plan for this task/slice.
+```
+
 ### Crash Recovery
 ```
 IF .gsd/auto.lock exists:

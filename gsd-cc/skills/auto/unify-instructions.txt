@@ -6,6 +6,7 @@ The context files are inlined above in XML tags:
 - <task-plans> — all XML task plans for this slice (`.gsd/S{nn}-T{nn}-PLAN.xml`)
 - <summaries> — all task summaries for this slice
 - <decisions> — DECISIONS.md
+- <approvals> — APPROVALS.jsonl when approval grants exist
 
 ## Your Task
 
@@ -65,6 +66,12 @@ verification, or sequencing differences. If there were no deviations, write
 
 List only risks created or revealed during this slice. Do not list generic
 project risks. If no new risks were introduced or revealed, write `None.`.
+
+### Risk and Approval
+
+For each task plan, read `<risk level="...">`. List high-risk tasks and whether
+an approval grant exists in <approvals>. If no high-risk tasks exist, write
+`No high-risk tasks in this slice.`.
 
 ### Tests and Evidence
 
@@ -169,6 +176,10 @@ status: {complete|partial|failed}
 ## Risks Introduced
 
 {None. | table or list of new risks created or revealed}
+
+## Risk and Approval
+
+{No high-risk tasks in this slice. | table of high-risk tasks and approval status}
 
 ## Tests and Evidence
 

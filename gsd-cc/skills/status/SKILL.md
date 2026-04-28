@@ -40,6 +40,7 @@ and do not execute workflow actions.
 4. Check if `token-usage.py` script is available (see Step 5)
 5. Check if `.gsd/auto.lock` exists
 6. Check if `.gsd/auto-recovery.json` exists
+7. Check if `.gsd/APPROVAL-REQUEST.json` exists
 
 ## Step 2: Build Milestone Overview
 
@@ -144,7 +145,24 @@ Last auto-mode stop:
 
 If it does not exist, omit this section.
 
-## Step 8: Suggest Next Action
+## Step 8: Approval Status
+
+If `.gsd/APPROVAL-REQUEST.json` exists, read it and show a compact section:
+
+```
+Approval: pending
+  Task:   {slice}/{task}
+  Risk:   {risk_level}
+  Reason: {first approval reason}
+```
+
+If it does not exist, show:
+
+```
+Approval: none pending
+```
+
+## Step 9: Suggest Next Action
 
 Based on the current state, suggest ONE next action (same logic as `/gsd-cc` router, but presented as a suggestion, not a command):
 
@@ -208,6 +226,8 @@ Use these interpretation rules:
   interrupted and recommend running `/gsd-cc` to recover from the stale lock.
 - If `.gsd/auto-recovery.json` exists, mention the last stop reason and
   `.gsd/AUTO-RECOVERY.md` when it helps explain why the project stopped.
+- If `.gsd/APPROVAL-REQUEST.json` exists, explain that auto-mode is waiting
+  for explicit approval before the current task can run.
 
 Do not include the token usage table, milestone table, charts, HTML, or
 dashboard language in Explain mode unless the user specifically asked about
@@ -251,6 +271,8 @@ Last auto-mode stop:
   Stopped: 2026-04-28T12:00:00+02:00
   Report:  .gsd/AUTO-RECOVERY.md
   Next:    Inspect .gsd/AUTO-RECOVERY.md, then run /gsd-cc.
+
+Approval: none pending
 
 Next: Continue with S02/T02.
 ```

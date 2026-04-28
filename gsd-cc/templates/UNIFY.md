@@ -62,6 +62,14 @@ status: {{complete|partial|failed}}
 |------|--------|--------|------------|
 | {{RISK}} | {{SOURCE}} | {{IMPACT}} | {{MITIGATION_OR_NONE}} |
 
+## Risk and Approval
+
+<!-- List high-risk planned tasks and whether auto-mode approval was granted.
+     Use "No high-risk tasks in this slice." when none exist. -->
+| Task | Risk | Approval | Reason |
+|------|------|----------|--------|
+| {{TASK}} | high | approved / not required / missing | {{RISK_OR_APPROVAL_REASON}} |
+
 ## Tests and Evidence
 
 | Check | Command or Method | Result | Covers |

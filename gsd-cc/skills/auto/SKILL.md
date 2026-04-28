@@ -88,6 +88,21 @@ auto_apply_allowed_bash: pnpm lint *, npm run typecheck *, playwright test *
 Do not include `Bash(...)` wrappers in the config value. Broad patterns such as
 `python3 *` are allowed only when the project chooses them explicitly here.
 
+### Approval rules
+
+Auto-mode stops before apply dispatch when the current task matches approval
+policy. Built-in approval rules cover high-risk tasks plus sensitive paths and
+terms. Projects can add rules in `.gsd/CONFIG.md`:
+
+```yaml
+approval_required_paths: package.json, .github/workflows/*, migrations/*
+approval_required_terms: auth, billing, payment, secret, token, deployment
+approval_required_risk: high
+```
+
+`approval_required_risk` defaults to `high`; use `none` to disable risk-level
+approval while keeping path and term rules active.
+
 ### No stale lock file
 ```
 Check .gsd/auto.lock
