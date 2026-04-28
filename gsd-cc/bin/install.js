@@ -843,7 +843,75 @@ function collectLegacyPaths(claudeBase, assets) {
   };
 }
 
-function validateManifest(manifest, manifestPath) {
+function manifestError(manifestPath, message) {
+  return new Error(`Install manifest at ${formatPath(manifestPath)} ${message}`);
+}
+
+function normalizeManifestPathForComparison(relativePath) {
+  return relativePath.replace(/\\/g, '/');
+}
+
+function hasParentTraversal(relativePath) {
+  return relativePath
+    .split(/[\\/]+/)
+    .filter(Boolean)
+    .includes('..');
+}
+
+function isDescendantPath(basePath, targetPath) {
+  const relativePath = path.relative(path.resolve(basePath), path.resolve(targetPath));
+  return Boolean(relativePath) &&
+    !relativePath.startsWith('..') &&
+    !path.isAbsolute(relativePath);
+}
+
+function validateManagedRelativePath(claudeBase, relativePath, manifestPath, label) {
+  if (typeof relativePath !== 'string' || !relativePath.trim()) {
+    throw manifestError(manifestPath, `contains an invalid ${label}. Expected a non-empty relative path.`);
+  }
+
+  if (
+    relativePath.includes('\0') ||
+    relativePath.startsWith('~') ||
+    path.isAbsolute(relativePath) ||
+    path.win32.isAbsolute(relativePath) ||
+    /^[A-Za-z]:/.test(relativePath) ||
+    hasParentTraversal(relativePath)
+  ) {
+    throw manifestError(
+      manifestPath,
+      `contains an unsafe ${label}: ${JSON.stringify(relativePath)}.`
+    );
+  }
+
+  const absolutePath = path.resolve(claudeBase, relativePath);
+  if (!isDescendantPath(claudeBase, absolutePath)) {
+    throw manifestError(
+      manifestPath,
+      `contains an unsafe ${label}: ${JSON.stringify(relativePath)}.`
+    );
+  }
+}
+
+function validateManagedConfigPath(relativePath, manifestPath, isGlobal) {
+  if (typeof relativePath !== 'string' || !relativePath.trim()) {
+    throw manifestError(manifestPath, 'contains an invalid managed config block path.');
+  }
+
+  const expectedPath = normalizeManifestPathForComparison(
+    getClaudeConfigRelativePath(isGlobal)
+  );
+  const actualPath = normalizeManifestPathForComparison(relativePath);
+
+  if (actualPath !== expectedPath) {
+    throw manifestError(
+      manifestPath,
+      `contains an unsafe managed config block path: ${JSON.stringify(relativePath)}.`
+    );
+  }
+}
+
+function validateManifest(manifest, manifestPath, claudeBase, isGlobal) {
   if (!manifest || typeof manifest !== 'object') {
     throw new Error(`Install manifest at ${formatPath(manifestPath)} is invalid.`);
   }
@@ -851,6 +919,14 @@ function validateManifest(manifest, manifestPath) {
   if (manifest.source !== MANAGED_BY) {
     throw new Error(
       `Install manifest at ${formatPath(manifestPath)} is not owned by GSD-CC.`
+    );
+  }
+
+  const expectedInstallMode = isGlobal ? 'global' : 'local';
+  if (manifest.installMode !== expectedInstallMode) {
+    throw manifestError(
+      manifestPath,
+      `has installMode "${manifest.installMode}" but expected "${expectedInstallMode}".`
     );
   }
 
@@ -862,20 +938,76 @@ function validateManifest(manifest, manifestPath) {
       );
     }
   }
+
+  for (const relativePath of manifest.files) {
+    validateManagedRelativePath(claudeBase, relativePath, manifestPath, 'file path');
+  }
+
+  for (const relativePath of manifest.directories) {
+    validateManagedRelativePath(claudeBase, relativePath, manifestPath, 'directory path');
+  }
+
+  for (const [index, hook] of manifest.managedHooks.entries()) {
+    if (!hook || typeof hook !== 'object' || Array.isArray(hook)) {
+      throw manifestError(manifestPath, `contains an invalid managed hook at index ${index}.`);
+    }
+
+    if (typeof hook.event !== 'string' || !hook.event.trim()) {
+      throw manifestError(manifestPath, `contains an invalid hook event at index ${index}.`);
+    }
+
+    if (
+      hook.matcher !== undefined &&
+      hook.matcher !== null &&
+      typeof hook.matcher !== 'string'
+    ) {
+      throw manifestError(manifestPath, `contains an invalid hook matcher at index ${index}.`);
+    }
+
+    if (!Array.isArray(hook.commands)) {
+      throw manifestError(manifestPath, `contains an invalid hook command list at index ${index}.`);
+    }
+
+    for (const command of hook.commands) {
+      validateManagedRelativePath(claudeBase, command, manifestPath, 'hook command path');
+    }
+  }
+
+  for (const [index, block] of manifest.managedConfigBlocks.entries()) {
+    if (!block || typeof block !== 'object' || Array.isArray(block)) {
+      throw manifestError(manifestPath, `contains an invalid config block at index ${index}.`);
+    }
+
+    if (
+      typeof block.kind !== 'string' ||
+      typeof block.startMarker !== 'string' ||
+      typeof block.endMarker !== 'string'
+    ) {
+      throw manifestError(manifestPath, `contains an invalid config block shape at index ${index}.`);
+    }
+
+    validateManagedConfigPath(block.file, manifestPath, isGlobal);
+  }
 }
 
-function loadManifest(claudeBase) {
+function loadManifest(claudeBase, isGlobal) {
   const manifestPath = getManifestPath(claudeBase);
   if (!fs.existsSync(manifestPath)) {
     return null;
   }
 
   const manifest = loadJsonFile(manifestPath, 'Install manifest');
-  validateManifest(manifest, manifestPath);
+  validateManifest(manifest, manifestPath, claudeBase, isGlobal);
   return manifest;
 }
 
-function resolveManifestPath(claudeBase, relativePath) {
+function resolveManagedPath(claudeBase, relativePath) {
+  validateManagedRelativePath(claudeBase, relativePath, getManifestPath(claudeBase), 'managed path');
+  return path.resolve(claudeBase, relativePath);
+}
+
+function resolveManagedConfigPath(claudeBase, relativePath, isGlobal) {
+  validateManagedConfigPath(relativePath, getManifestPath(claudeBase), isGlobal);
   return path.resolve(claudeBase, relativePath);
 }
 
@@ -885,7 +1017,7 @@ function manifestHookSpecsToRuntime(claudeBase, managedHooks) {
     matcher: hook.matcher,
     hooks: hook.commands.map((command) => ({
       type: 'command',
-      command: resolveManifestPath(claudeBase, command)
+      command: resolveManagedPath(claudeBase, command)
     }))
   }));
 }
@@ -894,7 +1026,7 @@ function removeTrackedFiles(claudeBase, relativePaths, warnings) {
   let removed = 0;
 
   for (const relativePath of relativePaths) {
-    const absolutePath = resolveManifestPath(claudeBase, relativePath);
+    const absolutePath = resolveManagedPath(claudeBase, relativePath);
     if (!fs.existsSync(absolutePath)) {
       continue;
     }
@@ -918,7 +1050,7 @@ function removeTrackedDirectories(claudeBase, relativePaths, warnings) {
   let removed = 0;
 
   for (const relativePath of sortPathsDeepFirst(relativePaths)) {
-    const absolutePath = resolveManifestPath(claudeBase, relativePath);
+    const absolutePath = resolveManagedPath(claudeBase, relativePath);
     if (!fs.existsSync(absolutePath)) {
       continue;
     }
@@ -1046,11 +1178,11 @@ function copyAsset(asset) {
   fs.chmodSync(asset.targetPath, getInstallMode(asset));
 }
 
-function cleanupTrackedConfigBlocks(claudeBase, manifest, warnings) {
+function cleanupTrackedConfigBlocks(claudeBase, manifest, isGlobal, warnings) {
   let clean = true;
 
   for (const block of manifest.managedConfigBlocks) {
-    const filePath = resolveManifestPath(claudeBase, block.file);
+    const filePath = resolveManagedConfigPath(claudeBase, block.file, isGlobal);
     try {
       removeLanguageConfigBlock(filePath);
     } catch (error) {
@@ -1083,7 +1215,7 @@ function uninstallFromManifest(claudeBase, manifest, isGlobal) {
     }
   }
 
-  const configClean = cleanupTrackedConfigBlocks(claudeBase, manifest, warnings);
+  const configClean = cleanupTrackedConfigBlocks(claudeBase, manifest, isGlobal, warnings);
   const removedFiles = removeTrackedFiles(claudeBase, manifest.files, warnings);
   const removedDirectories = removeTrackedDirectories(claudeBase, manifest.directories, warnings);
 
@@ -1163,7 +1295,7 @@ function install(isGlobal) {
   const label = formatPath(claudeBase);
   const settingsPath = getSettingsPath(isGlobal);
   const assets = collectAssets(srcBase, claudeBase);
-  const currentManifest = loadManifest(claudeBase);
+  const currentManifest = loadManifest(claudeBase, isGlobal);
   const legacyPaths = collectLegacyPaths(claudeBase, assets);
   const dependencyProbe = probeDependencies();
   const managedHookSpecs = dependencyProbe.readiness.hooks.ready
@@ -1277,6 +1409,7 @@ function uninstall() {
 
   let removed = false;
   let warned = false;
+  let blocked = false;
 
   for (const isGlobal of targets) {
     const claudeBase = getClaudeBase(isGlobal);
@@ -1285,10 +1418,16 @@ function uninstall() {
     let manifest = null;
 
     try {
-      manifest = loadManifest(claudeBase);
+      manifest = loadManifest(claudeBase, isGlobal);
     } catch (error) {
       console.log(`  ${yellow}!${reset} ${error.message}`);
+      console.log(
+        `  ${yellow}!${reset} Manifest cleanup blocked for ${label}; ` +
+        'GSD-CC left this install untouched.'
+      );
       warned = true;
+      blocked = true;
+      continue;
     }
 
     if (manifest) {
@@ -1320,6 +1459,12 @@ function uninstall() {
   }
 
   if (!removed) {
+    if (blocked) {
+      console.log(
+        `  ${yellow}No files removed. Inspect the invalid or unsafe manifest before retrying.${reset}`
+      );
+      return;
+    }
     console.log(`  ${yellow}No GSD-CC installation found.${reset}`);
     return;
   }
