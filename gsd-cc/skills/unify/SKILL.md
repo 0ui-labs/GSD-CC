@@ -68,7 +68,26 @@ Also read `base_branch` from `.gsd/STATE.md`. If it is missing, run the
 router's base branch detection before continuing and write the resolved value
 to `.gsd/STATE.md`.
 
-## Step 2: Compare Plan vs. Actual
+## Step 2: Build Summary
+
+Start the UNIFY report with a compact summary that a returning user can scan
+quickly:
+
+```markdown
+## Summary
+
+- Status: {complete|partial|failed}
+- Slice: S{nn} — {slice name}
+- Outcome: {one-sentence result}
+- Acceptance Criteria: {passed}/{total} passed, {partial} partial, {failed} failed
+- Boundary Violations: {none|count}
+- Recommendation: {one-sentence next-slice recommendation}
+```
+
+The summary must reflect the detailed sections below. Do not invent success
+if later sections contain failed ACs, boundary violations, or blockers.
+
+## Step 3: Compare Plan vs. Actual
 
 For each task in the slice plan, compare:
 
@@ -81,20 +100,23 @@ Build the Plan vs. Actual table:
 ```markdown
 ## Plan vs. Actual
 
-| Task | Planned | Actual | Status |
-|------|---------|--------|--------|
-| T01  | {from plan} | {from summary} | ✅ as planned |
-| T02  | {from plan} | {from summary} | ✅ expanded |
-| T03  | {from plan} | {from summary} | ⚠️ partial |
+| Task | Planned | Actual | Status | Notes |
+|------|---------|--------|--------|-------|
+| T01  | {from plan} | {from summary} | as planned | {brief explanation} |
+| T02  | {from plan} | {from summary} | expanded | {what expanded} |
+| T03  | {from plan} | {from summary} | partial | {what is missing} |
 ```
 
 Status meanings:
-- **✅ as planned** — done exactly as specified
-- **✅ expanded** — done with additional work (not a problem, just document it)
-- **⚠️ partial** — some parts not completed (document what's missing)
-- **❌ skipped** — not done at all (document why)
+- **as planned** — done exactly as specified
+- **expanded** — done with additional work
+- **partial** — some planned work was not completed
+- **skipped** — not done at all
 
-## Step 3: Evaluate Acceptance Criteria
+Expanded work is not a failure by itself. Treat it as a problem only when it
+creates risk, violates boundaries, or conflicts with approval expectations.
+
+## Step 4: Evaluate Acceptance Criteria
 
 For each AC across all tasks:
 
@@ -107,12 +129,96 @@ For each AC across all tasks:
 
 | AC   | Task | Status | Evidence |
 |------|------|--------|----------|
-| AC-1 | T01  | ✅ Pass | {from summary} |
-| AC-2 | T01  | ✅ Pass | {from summary} |
-| AC-3 | T02  | ⚠️ Partial | {what's missing} |
+| AC-1 | T01  | Pass | {from summary} |
+| AC-2 | T01  | Pass | {from summary} |
+| AC-3 | T02  | Partial | {what's missing} |
 ```
 
-## Step 4: Document Decisions
+## Step 5: Classify Work, Risks, and Evidence
+
+Write the following stronger trust-report sections. Each section is required.
+Use `None.` when the section has no entries.
+
+### Implemented Work
+
+Summarize what actually shipped, grouped by product or technical area:
+
+```markdown
+## Implemented Work
+
+| Area | What shipped | Evidence |
+|------|--------------|----------|
+| {area} | {implemented work} | {summary or test evidence} |
+```
+
+### Not Implemented
+
+List planned work that did not ship. If all planned work shipped, write:
+
+```markdown
+## Not Implemented
+
+None.
+```
+
+### Extra Work Added
+
+List useful unplanned work. Do not treat extra work as failure unless it
+violates boundaries or approval expectations:
+
+```markdown
+## Extra Work Added
+
+| Area | Extra work | Why | Impact |
+|------|------------|-----|--------|
+| {area} | {extra work} | {reason} | {impact} |
+```
+
+If there was no extra work, write `None.` instead of the table.
+
+### Deviations
+
+List meaningful differences from the plan, including scope, implementation,
+verification, or sequencing differences:
+
+```markdown
+## Deviations
+
+| Deviation | Reason | Impact | Follow-up |
+|-----------|--------|--------|-----------|
+| {deviation} | {reason} | {impact} | {follow-up or None} |
+```
+
+If there were no deviations, write `None.`.
+
+### Risks Introduced
+
+List only risks created or revealed during this slice. Do not list generic
+project risks:
+
+```markdown
+## Risks Introduced
+
+| Risk | Source | Impact | Mitigation |
+|------|--------|--------|------------|
+| {risk} | {source} | {impact} | {mitigation or None} |
+```
+
+If no new risks were introduced or revealed, write `None.`.
+
+### Tests and Evidence
+
+Summarize verification separately from the AC table:
+
+```markdown
+## Tests and Evidence
+
+| Check | Command or Method | Result | Covers |
+|-------|-------------------|--------|--------|
+| {check} | {command or manual method} | Pass/Partial/Fail | {AC IDs or area} |
+```
+
+## Step 6: Document Decisions
 
 Collect all decisions from task summaries that were NOT in the original plan:
 
@@ -127,7 +233,7 @@ If no ad-hoc decisions were made: "No additional decisions made during execution
 
 **Also append these decisions to `.gsd/DECISIONS.md`** under the slice heading (if the file doesn't exist, create it with a `# Decisions` header first).
 
-## Step 5: Check Boundary Violations
+## Step 7: Check Boundary Violations
 
 For each task, compare:
 - The `<boundaries>` from its plan (files marked DO NOT CHANGE)
@@ -146,7 +252,7 @@ If no violations: "None."
 
 **This is a critical check.** Boundary violations indicate either a bad plan or undisciplined execution. Both need to be visible.
 
-## Step 6: Collect Deferred Issues
+## Step 8: Collect Deferred Issues
 
 From all task summaries, collect issues that were pushed to later:
 
@@ -157,9 +263,9 @@ From all task summaries, collect issues that were pushed to later:
 - [ ] {Issue 2} → {target slice or "later"}
 ```
 
-If nothing was deferred: leave the section empty with a note "Nothing deferred."
+If nothing was deferred, write `None.` in the final UNIFY report.
 
-## Step 7: Roadmap Reassessment
+## Step 9: Roadmap Reassessment
 
 Based on everything learned in this slice, assess the remaining roadmap:
 
@@ -187,8 +293,9 @@ Roadmap needs update:
 ```
 
 If the roadmap needs an update, describe what should change but do NOT modify the roadmap file. That happens in the next planning phase.
+In full-auto flows, REASSESS is the only step that may modify roadmap files.
 
-## Step 8: Vision Alignment Check
+## Step 10: Vision Alignment Check
 
 If `.gsd/VISION.md` exists, compare what was built in this slice against the user's original intentions:
 
@@ -214,7 +321,32 @@ This section is critical for auto-mode transparency. The user should be able to 
 
 If no VISION.md exists, skip this step.
 
-## Step 9: Write UNIFY.md
+## Step 11: Recommend the Next Slice
+
+End the report with one concrete recommendation. Use exactly one of these
+shapes:
+
+```markdown
+## Recommendation for Next Slice
+
+Continue as planned with {slice}.
+```
+
+```markdown
+## Recommendation for Next Slice
+
+Continue, but address: {specific concern}.
+```
+
+```markdown
+## Recommendation for Next Slice
+
+Pause before next slice: {specific blocker/risk}.
+```
+
+This recommendation is advisory. Do not modify roadmap files during UNIFY.
+
+## Step 12: Write UNIFY.md
 
 Write `.gsd/S{nn}-UNIFY.md` using the first template path that exists:
 
@@ -222,7 +354,23 @@ Write `.gsd/S{nn}-UNIFY.md` using the first template path that exists:
 - `~/.claude/templates/UNIFY.md`
 - `./gsd-cc/templates/UNIFY.md` (source repo fallback)
 
-Include all sections from Steps 2-8.
+Include all sections from Steps 2-11 in this order:
+
+1. Summary
+2. Plan vs. Actual
+3. Acceptance Criteria
+4. Implemented Work
+5. Not Implemented
+6. Extra Work Added
+7. Deviations
+8. Risks Introduced
+9. Tests and Evidence
+10. Decisions Made
+11. Boundary Violations
+12. Deferred
+13. Reassessment
+14. Vision Alignment
+15. Recommendation for Next Slice
 
 Set frontmatter:
 ```yaml
@@ -238,7 +386,7 @@ Status:
 - `partial` — some ACs partial/failed, but slice is usable
 - `failed` — critical issues, slice may need rework
 
-## Step 10: Quality Gate
+## Step 13: Quality Gate
 
 Check against `checklists/unify-complete.md`:
 
@@ -250,14 +398,14 @@ Read the first checklist path that exists:
 
 Verify ALL items pass. If any fails, fix the UNIFY document before proceeding.
 
-## Step 11: Gate on Status
+## Step 14: Gate on Status
 
 Before merging, check the UNIFY status:
 
 - `complete` or `partial` → proceed to squash-merge.
 - `failed` → **Do NOT merge.** Set `phase: unify-failed` in STATE.md. Present the failed ACs and boundary violations to the user and ask: rework the slice or skip it? Do not continue until the user decides.
 
-## Step 12: Git Squash-Merge
+## Step 15: Git Squash-Merge
 
 Preflight before merging:
 
@@ -289,7 +437,7 @@ If there are merge conflicts:
 2. After resolution, stage and commit as above.
 3. If the user decides NOT to merge, set `phase: unify-blocked` in STATE.md and note the reason. The next `/gsd-cc` invocation will retry the merge.
 
-## Step 13: Update STATE.md
+## Step 16: Update STATE.md
 
 ```
 phase: unified
@@ -298,7 +446,7 @@ unify_required: false
 
 Update the Progress table: set the current slice to `done` with AC counts.
 
-## Step 14: Confirm and End Session
+## Step 17: Confirm and End Session
 
 ```
 ✓ UNIFY complete for S{nn}.
@@ -309,6 +457,7 @@ Update the Progress table: set the current slice to `done` with AC counts.
   Decisions: {count} logged
   Deferred: {count} items
   Reassessment: {verdict}
+  Recommendation: {next-slice recommendation}
 
   Merged: gsd/M{n}/S{nn} → {base_branch}
   Commit: feat(M{n}/S{nn}): {slice name}
