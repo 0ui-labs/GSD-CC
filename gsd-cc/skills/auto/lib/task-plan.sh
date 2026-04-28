@@ -38,13 +38,13 @@ extract_xml_block() {
 
   awk -v tag="$tag" '
     BEGIN {
-      open = "<" tag ">"
+      open = "<" tag "([[:space:]][^>]*)?>"
       close_tag = "</" tag ">"
       in_block = 0
     }
     {
       line = $0
-      if (!in_block && index(line, open)) {
+      if (!in_block && line ~ open) {
         in_block = 1
         sub(".*" open, "", line)
       }
@@ -58,6 +58,16 @@ extract_xml_block() {
       }
     }
   ' "$plan_path"
+}
+
+extract_xml_attr() {
+  local plan_path="$1"
+  local tag="$2"
+  local attr="$3"
+  local tag_line
+
+  tag_line=$(awk -v tag="$tag" '$0 ~ "<" tag "([[:space:]>])" { print; exit }' "$plan_path")
+  printf '%s\n' "$tag_line" | sed -nE "s/.*[[:space:]]${attr}=['\"]([^'\"]+)['\"].*/\1/p" | head -1
 }
 
 xml_block_has_meaningful_text() {
@@ -188,7 +198,7 @@ validate_task_plan_critical_fields_resolved() {
   local tag
   local content
 
-  for tag in name action verify done; do
+  for tag in name risk action verify done; do
     content=$(extract_xml_block "$plan_path" "$tag")
     if printf '%s\n' "$content" | grep -iqE '(^|[^[:alnum:]_])(TBD|TODO|later)([^[:alnum:]_]|$)'; then
       invalid_task_plan "$plan_path" "$tag contains TODO, TBD, or later"
@@ -319,6 +329,19 @@ validate_task_plan_verify_command_allowed() {
   invalid_task_plan "$plan_path" "verify command is not allowed for auto-mode: $command"
 }
 
+validate_task_plan_risk() {
+  local plan_path="$1"
+  local risk_level
+
+  risk_level=$(extract_xml_attr "$plan_path" "risk" "level")
+  case "$risk_level" in
+    low|medium|high) ;;
+    *)
+      invalid_task_plan "$plan_path" "risk level must be low, medium, or high: ${risk_level:-missing}"
+      ;;
+  esac
+}
+
 validate_single_task_plan_for_auto_mode() {
   local plan_path="$1"
   shift
@@ -344,13 +367,14 @@ validate_single_task_plan_for_auto_mode() {
     invalid_task_plan "$plan_path" "task type must be auto, got ${task_type:-missing}"
   fi
 
-  for required_tag in name files acceptance_criteria action boundaries verify done; do
+  for required_tag in name files risk acceptance_criteria action boundaries verify done; do
     if ! xml_block_has_meaningful_text "$plan_path" "$required_tag"; then
       invalid_task_plan "$plan_path" "$required_tag must exist and be non-empty"
     fi
   done
 
   validate_task_plan_critical_fields_resolved "$plan_path"
+  validate_task_plan_risk "$plan_path"
   validate_task_plan_file_entries "$plan_path"
 
   ac_count=$(count_task_plan_ac_blocks "$plan_path")

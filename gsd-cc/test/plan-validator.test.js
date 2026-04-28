@@ -31,10 +31,10 @@ function slicePlan(projectDir, options = {}) {
     '',
     '## Tasks',
     '',
-    '| Task | Name | Files | ACs |',
-    '|------|------|-------|-----|',
-    '| T01 | First task | 1 | 1 |',
-    '| T02 | Second task | 1 | 1 |',
+    '| Task | Name | Risk | Files | ACs |',
+    '|------|------|------|-------|-----|',
+    '| T01 | First task | low | 1 | 1 |',
+    '| T02 | Second task | low | 1 | 1 |',
     '',
     '## Dependencies',
     dependencies,
@@ -50,6 +50,8 @@ function taskPlan(projectDir, task, options = {}) {
   const verify = options.verify || `npm test (${acId})`;
   const name = options.name || `${task} fixture task`;
   const done = options.done || `${task} is complete.`;
+  const riskLevel = options.riskLevel || 'low';
+  const riskText = options.riskText || 'Isolated fixture change with focused verification.';
 
   writeFile(path.join(projectDir, '.gsd', `S01-${task}-PLAN.xml`), [
     `<task id="S01-${task}" type="auto">`,
@@ -57,6 +59,9 @@ function taskPlan(projectDir, task, options = {}) {
     '  <files>',
     ...files.map((filePath) => `    ${filePath}`),
     '  </files>',
+    `  <risk level="${riskLevel}">`,
+    `    ${riskText}`,
+    '  </risk>',
     '  <acceptance_criteria>',
     `    <ac id="${acId}">`,
     '      Given the fixture baseline exists',
@@ -84,14 +89,18 @@ function validProject(options = {}) {
     files: options.t01Files || ['src/shared.txt'],
     action: options.t01Action,
     name: options.t01Name,
-    done: options.t01Done
+    done: options.t01Done,
+    riskLevel: options.t01RiskLevel,
+    riskText: options.t01RiskText
   });
   taskPlan(projectDir, 'T02', {
     files: options.t02Files || ['src/second.txt'],
     action: options.t02Action,
     verify: options.t02Verify,
     name: options.t02Name,
-    done: options.t02Done
+    done: options.t02Done,
+    riskLevel: options.t02RiskLevel,
+    riskText: options.t02RiskText
   });
   return projectDir;
 }
@@ -161,12 +170,40 @@ function testPlaceholderTodoLaterFieldsFail() {
   const projectDir = validProject({
     t01Files: ['{{FILE}}'],
     t01Action: '1. TODO update fixture',
-    t02Done: 'Finish this later.'
+    t02Done: 'Finish this later.',
+    t02RiskText: 'Review this risk later.'
   });
   const result = runValidator(projectDir, ['.gsd/S01-PLAN.md']);
   assertFail(result, /task\.files\.placeholder/);
   assertFail(result, /task\.unresolved\.action/);
   assertFail(result, /task\.unresolved\.done/);
+  assertFail(result, /task\.unresolved\.risk/);
+}
+
+function testMissingRiskFails() {
+  const projectDir = validProject();
+  const planPath = path.join(projectDir, '.gsd', 'S01-T01-PLAN.xml');
+  const content = fs.readFileSync(planPath, 'utf8')
+    .replace(/  <risk[\s\S]*?  <\/risk>\n/, '');
+  fs.writeFileSync(planPath, content);
+  const result = runValidator(projectDir, ['.gsd/S01-PLAN.md']);
+  assertFail(result, /task\.risk\.missing/);
+}
+
+function testInvalidRiskLevelFails() {
+  const projectDir = validProject({
+    t01RiskLevel: 'critical'
+  });
+  const result = runValidator(projectDir, ['.gsd/S01-PLAN.md']);
+  assertFail(result, /task\.risk\.level_invalid/);
+}
+
+function testEmptyRiskFails() {
+  const projectDir = validProject({
+    t01RiskText: '   '
+  });
+  const result = runValidator(projectDir, ['.gsd/S01-PLAN.md']);
+  assertFail(result, /task\.risk\.missing/);
 }
 
 function testInvalidFileEntriesFail() {
@@ -229,6 +266,9 @@ testLegacyMarkdownTaskPlanFails();
 testMissingTaskXmlFails();
 testTooManyTasksFail();
 testPlaceholderTodoLaterFieldsFail();
+testMissingRiskFails();
+testInvalidRiskLevelFails();
+testEmptyRiskFails();
 testInvalidFileEntriesFail();
 testTooBroadTaskFails();
 testDuplicateOwnershipFailsWithoutDependencies();

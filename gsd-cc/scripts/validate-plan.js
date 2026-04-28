@@ -5,6 +5,7 @@ const path = require('path');
 
 const MAX_TASKS_PER_SLICE = 7;
 const MAX_FILES_PER_TASK = 15;
+const RISK_LEVELS = new Set(['low', 'medium', 'high']);
 
 function toPosix(value) {
   return value.split(path.sep).join('/');
@@ -72,8 +73,17 @@ function textHasMeaning(value) {
 }
 
 function extractXmlBlock(content, tag) {
-  const match = String(content || '').match(new RegExp(`<${tag}>\\s*([\\s\\S]*?)\\s*</${tag}>`, 'i'));
+  const match = String(content || '').match(new RegExp(`<${tag}\\b[^>]*>\\s*([\\s\\S]*?)\\s*</${tag}>`, 'i'));
   return match ? match[1] : '';
+}
+
+function extractTagAttr(content, tag, attr) {
+  const tagMatch = String(content || '').match(new RegExp(`<${tag}\\b[^>]*>`, 'i'));
+  if (!tagMatch) {
+    return '';
+  }
+  const attrMatch = tagMatch[0].match(new RegExp(`\\s${attr}=["']([^"']+)["']`, 'i'));
+  return attrMatch ? attrMatch[1] : '';
 }
 
 function extractTaskAttr(content, attr) {
@@ -272,14 +282,19 @@ function validateTaskPlan(context, planPath, options = {}) {
     addError(context, planPath, 'task.type_invalid', `task type must be auto, got ${taskType || 'missing'}`);
   }
 
-  for (const tag of ['name', 'files', 'acceptance_criteria', 'action', 'boundaries', 'verify', 'done']) {
+  for (const tag of ['name', 'files', 'risk', 'acceptance_criteria', 'action', 'boundaries', 'verify', 'done']) {
     const block = tag === 'name' ? taskName : extractXmlBlock(content, tag);
     if (!textHasMeaning(block)) {
       addError(context, planPath, `task.${tag}.missing`, `${tag} must exist and be non-empty`);
     }
   }
 
-  for (const tag of ['name', 'files', 'action', 'verify', 'done']) {
+  const riskLevel = extractTagAttr(content, 'risk', 'level');
+  if (!RISK_LEVELS.has(riskLevel)) {
+    addError(context, planPath, 'task.risk.level_invalid', `risk level must be low, medium, or high: ${riskLevel || 'missing'}`);
+  }
+
+  for (const tag of ['name', 'files', 'risk', 'action', 'verify', 'done']) {
     validateCriticalText(context, planPath, content, tag);
   }
 

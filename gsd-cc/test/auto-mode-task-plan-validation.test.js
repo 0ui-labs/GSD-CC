@@ -55,6 +55,9 @@ function writeValidTaskPlan(slice, task, acId) {
     '  <files>',
     '    src/generated.txt',
     '  </files>',
+    '  <risk level="low">',
+    '    Isolated generated fixture change.',
+    '  </risk>',
     '  <acceptance_criteria>',
     '    <ac id="' + acId + '">',
     '      Given a generated plan exists',
@@ -112,6 +115,8 @@ function writeTaskPlan(projectDir, options = {}) {
   const action = options.action || '1. Update src/fixture.txt';
   const name = options.name || 'Fixture task';
   const done = options.done || 'The fixture task is complete.';
+  const riskLevel = options.riskLevel || 'low';
+  const riskText = options.riskText || 'Isolated fixture change with focused verification.';
 
   const lines = [
     `<task id="${id}" type="${type}">`,
@@ -127,6 +132,9 @@ function writeTaskPlan(projectDir, options = {}) {
   }
 
   lines.push(
+    `  <risk level="${riskLevel}">`,
+    `    ${riskText}`,
+    '  </risk>',
     '  <acceptance_criteria>',
     `    <ac id="${acId}">`,
     '      Given the fixture baseline exists',
@@ -287,6 +295,18 @@ function testUnresolvedActionStopsBeforeDispatch(binDir) {
   assertInvalidPlan(result, projectDir, /action contains TODO, TBD, or later/);
 }
 
+function testInvalidRiskStopsBeforeDispatch(binDir) {
+  const invalidLevel = runValidationProject(binDir, {
+    plan: { riskLevel: 'critical' }
+  });
+  assertInvalidPlan(invalidLevel.result, invalidLevel.projectDir, /risk level must be low, medium, or high/);
+
+  const unresolved = runValidationProject(binDir, {
+    plan: { riskText: 'Review this risk later.' }
+  });
+  assertInvalidPlan(unresolved.result, unresolved.projectDir, /risk contains TODO, TBD, or later/);
+}
+
 function testTooBroadTaskStopsBeforeDispatch(binDir) {
   const files = Array.from({ length: 16 }, (_, index) => `src/file-${index}.txt`);
   const { projectDir, result } = runValidationProject(binDir, {
@@ -352,6 +372,7 @@ testVerifyUnknownAcStopsBeforeDispatch(binDir);
 testUnknownVerifyCommandStopsWithoutConfig(binDir);
 testUnknownVerifyCommandRunsWithConfig(binDir);
 testUnresolvedActionStopsBeforeDispatch(binDir);
+testInvalidRiskStopsBeforeDispatch(binDir);
 testTooBroadTaskStopsBeforeDispatch(binDir);
 testDuplicateOwnershipStopsWithoutSequencing(binDir);
 testMilestoneModeValidatesAfterPlanDispatch(binDir);

@@ -11,9 +11,10 @@
   Rules:
   - Every task MUST have at least one <ac> in acceptance_criteria
   - Every <ac> MUST use Given/When/Then format
+  - Every task MUST have a <risk level="low|medium|high"> section
   - Every task MUST have a <boundaries> section (can state "none")
   - <verify> MUST reference at least one AC by id
-  - No "TBD", "TODO", or "later" in <action> or <files>
+  - No "TBD", "TODO", or "later" in <action>, <files>, or <risk>
   - If a task doesn't fit in one context window, split it into two tasks
 -->
 
@@ -25,6 +26,10 @@
     {{FILE_1}}
     {{FILE_2}}
   </files>
+
+  <risk level="medium">
+    {{RISK_REASON}}
+  </risk>
 
   <acceptance_criteria>
     <ac id="AC-1">

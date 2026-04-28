@@ -89,6 +89,21 @@ Prefer bare repo-relative paths, one per line. Auto-mode derives fallback Git
 ownership from this section, so it must stay machine-readable. If you need a
 short note, keep the path first on the line and the note trailing it.
 
+#### `<risk>`
+**MANDATORY.** Assign one of `low`, `medium`, or `high` and explain why.
+
+```xml
+<risk level="medium">
+  Touches shared request validation but has focused tests and no migrations.
+</risk>
+```
+
+Use:
+- `low` for isolated file changes with narrow behavior and easy verification.
+- `medium` for multiple files, shared interfaces, or non-trivial tests.
+- `high` for auth, payments, database migrations, deployment, destructive
+  scripts, security-sensitive behavior, or broad refactors.
+
 #### `<acceptance_criteria>`
 **MANDATORY.** At least one AC per task. Every AC uses BDD format:
 
@@ -151,10 +166,10 @@ Overview of the entire slice:
 
 ## Tasks
 
-| Task | Name | Files | ACs |
-|------|------|-------|-----|
-| T01  | {name} | {count} files | {count} ACs |
-| T02  | {name} | {count} files | {count} ACs |
+| Task | Name | Risk | Files | ACs |
+|------|------|------|-------|-----|
+| T01  | {name} | medium | {count} files | {count} ACs |
+| T02  | {name} | low | {count} files | {count} ACs |
 ...
 
 ## All Acceptance Criteria
@@ -189,6 +204,10 @@ overview file `.gsd/S{nn}-PLAN.md`.
   <files>
     {file list}
   </files>
+
+  <risk level="{low|medium|high}">
+    {why this task has this risk level}
+  </risk>
 
   <acceptance_criteria>
     <ac id="AC-{n}">
