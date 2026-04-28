@@ -20,7 +20,19 @@ and default to English.
 
 ## Step 1: Show Current Settings
 
-Read the CLAUDE.md file (project-level first, then global `~/.claude/CLAUDE.md`). Look for the `# GSD-CC Config` section.
+Read the CLAUDE.md file (project-level first, then global `~/.claude/CLAUDE.md`).
+Look first for the managed marker block:
+
+```markdown
+<!-- gsd-cc:config:start -->
+# GSD-CC Config
+GSD-CC language: {language}
+GSD-CC commit language: {commit_language}
+<!-- gsd-cc:config:end -->
+```
+
+If no marker block exists, read the legacy unmarked `# GSD-CC Config` section.
+Missing language values default to English.
 
 Show:
 ```
@@ -41,9 +53,13 @@ If the user wants to change the language:
 
 1. Ask: "Which language? (e.g. English, Deutsch, Français, Español, ...)"
 2. Update CLAUDE.md:
-   - If a `# GSD-CC Config` section exists, replace the `GSD-CC language:` line
-     and preserve any existing `GSD-CC commit language:` line
-   - If not, append the section at the end:
+   - Always write the managed marker block shown above.
+   - Replace `GSD-CC language:` with the requested language.
+   - Preserve any existing `GSD-CC commit language:` value, or use English if
+     it is missing.
+   - If only a legacy unmarked config section exists, replace it with the
+     managed marker block.
+   - If no config section exists, append the managed marker block at the end:
      ```
      <!-- gsd-cc:config:start -->
      # GSD-CC Config
@@ -59,10 +75,14 @@ If the user wants to change the commit language:
 
 1. Ask: "Which commit language? (default: English)"
 2. Update CLAUDE.md:
-   - If a `# GSD-CC Config` section exists, replace or add
-     `GSD-CC commit language: {language}` and preserve `GSD-CC language:`
-   - If not, append the managed section shown above with
-     `GSD-CC language: English` and the requested commit language
+   - Always write the managed marker block shown above.
+   - Replace or add `GSD-CC commit language: {language}`.
+   - Preserve any existing `GSD-CC language:` value, or use English if it is
+     missing.
+   - If only a legacy unmarked config section exists, replace it with the
+     managed marker block.
+   - If no config section exists, append the managed marker block with
+     `GSD-CC language: English` and the requested commit language.
 3. Confirm: "Commit language changed to {language}. UI language unchanged."
 
 ## Where to Write

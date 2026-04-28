@@ -136,7 +136,7 @@ npx gsd-cc --uninstall --local    # Remove only the local install
 - Use `--yes` for automation. If no scope is provided in prompt-free mode,
   the installer chooses the global install.
 - Uninstall removes only manifest-tracked assets, GSD-CC-owned hook entries,
-  and the managed language block in `CLAUDE.md`.
+  and the managed GSD-CC config block in `CLAUDE.md`.
 - If a target file already exists and GSD-CC cannot prove ownership, install
   stops instead of overwriting it.
 - Hook scripts live under `~/.claude/hooks/gsd-cc/` for global installs and

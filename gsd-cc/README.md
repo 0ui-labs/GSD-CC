@@ -42,11 +42,10 @@ Installed layout:
 - Prompt-free installs: `--yes`
 - Explicit UI language: `--language <name>`
 
-Reinstall and update runs preserve the existing `GSD-CC language` setting by
-default. In non-interactive mode, missing language defaults to English and
-missing scope defaults to a global install. Commit messages use a separate
-`GSD-CC commit language` setting, defaulting to English; change it with
-`/gsd-cc-config`.
+Reinstall and update runs preserve existing `GSD-CC language` and
+`GSD-CC commit language` settings by default. In non-interactive mode, missing
+UI language defaults to English and missing scope defaults to a global install.
+Commit language defaults to English and can be changed with `/gsd-cc-config`.
 
 ## Usage
 
