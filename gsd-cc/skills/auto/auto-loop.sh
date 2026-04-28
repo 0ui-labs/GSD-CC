@@ -11,6 +11,8 @@ AUTO_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$AUTO_SCRIPT_DIR/lib/runtime.sh"
 # shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/recovery.sh"
+# shellcheck source=/dev/null
 source "$AUTO_SCRIPT_DIR/lib/state.sh"
 # shellcheck source=/dev/null
 source "$AUTO_SCRIPT_DIR/lib/task-plan.sh"
@@ -44,7 +46,12 @@ done
 
 require_auto_dependencies
 setup_logging
+auto_recovery_clear
+AUTO_RUN_STARTED_AT="$(iso_now)"
+auto_recovery_capture_start
 trap cleanup EXIT
+trap 'auto_recovery_write "interrupted" "Auto-mode was interrupted by a signal." "Inspect .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume safely."; exit 130' INT
+trap 'auto_recovery_write "interrupted" "Auto-mode was terminated by a signal." "Inspect .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume safely."; exit 143' TERM
 
 # ── Main loop ──────────────────────────────────────────────────────────────────
 

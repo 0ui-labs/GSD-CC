@@ -62,9 +62,15 @@ upsert_state_field() {
 
 fail_validation() {
   local message="$1" hint="${2:-}"
+  local recovery_message="$message"
   log "❌ $message"
   if [[ -n "$hint" ]]; then
     log "   $hint"
+    recovery_message="$message $hint"
+  fi
+  if declare -F auto_recovery_write >/dev/null 2>&1; then
+    auto_recovery_write "validation_failed" "$recovery_message" \
+      "Fix the validation issue above, then run /gsd-cc."
   fi
   exit 1
 }
