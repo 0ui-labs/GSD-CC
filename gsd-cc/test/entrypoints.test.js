@@ -51,5 +51,20 @@ function testAutoLoopAndLibrariesParseAsBash() {
   }
 }
 
+function testConfigSkillDocumentsManagedBlock() {
+  const configSkill = fs.readFileSync(
+    path.join(packageRoot, 'skills', 'config', 'SKILL.md'),
+    'utf8'
+  );
+
+  assert.match(configSkill, /<!-- gsd-cc:config:start -->/);
+  assert.match(configSkill, /<!-- gsd-cc:config:end -->/);
+  assert.match(configSkill, /GSD-CC commit language:/);
+  assert.match(configSkill, /Preserve any existing `GSD-CC commit language:` value/);
+  assert.match(configSkill, /Preserve any existing `GSD-CC language:` value/);
+  assert.match(configSkill, /legacy unmarked `# GSD-CC Config` section/);
+}
+
 testInstallerEntrypointLoadsCliModule();
 testAutoLoopAndLibrariesParseAsBash();
+testConfigSkillDocumentsManagedBlock();
