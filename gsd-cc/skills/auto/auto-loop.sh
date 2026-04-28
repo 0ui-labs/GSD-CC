@@ -21,6 +21,8 @@ source "$AUTO_SCRIPT_DIR/lib/git.sh"
 # shellcheck source=/dev/null
 source "$AUTO_SCRIPT_DIR/lib/allowlist.sh"
 # shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/approval.sh"
+# shellcheck source=/dev/null
 source "$AUTO_SCRIPT_DIR/lib/dispatch.sh"
 
 setup_timeout
@@ -373,6 +375,9 @@ while true; do
   if [[ "$DISPATCH_PHASE" == "plan" ]]; then
     ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git branch *),Bash(git add *),Bash(git commit *)"
   else
+    if ! ensure_apply_approval "$SLICE" "$TASK" "$TASK_PLAN"; then
+      break
+    fi
     build_apply_allowed_tools "$TASK_PLAN"
     ALLOWED_TOOLS="$APPLY_ALLOWED_TOOLS"
     log_apply_allowlist
