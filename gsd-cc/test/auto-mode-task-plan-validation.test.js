@@ -109,10 +109,13 @@ function writeTaskPlan(projectDir, options = {}) {
   const files = options.files === undefined ? ['src/fixture.txt'] : options.files;
   const includeFiles = options.includeFiles !== false;
   const includeThen = options.includeThen !== false;
+  const action = options.action || '1. Update src/fixture.txt';
+  const name = options.name || 'Fixture task';
+  const done = options.done || 'The fixture task is complete.';
 
   const lines = [
     `<task id="${id}" type="${type}">`,
-    '  <name>Fixture task</name>'
+    `  <name>${name}</name>`
   ];
 
   if (includeFiles) {
@@ -136,13 +139,13 @@ function writeTaskPlan(projectDir, options = {}) {
     '    </ac>',
     '  </acceptance_criteria>',
     '  <action>',
-    '    1. Update src/fixture.txt',
+    `    ${action}`,
     '  </action>',
     '  <boundaries>',
     '    No boundary restrictions for this task.',
     '  </boundaries>',
     `  <verify>${verify}</verify>`,
-    '  <done>The fixture task is complete.</done>',
+    `  <done>${done}</done>`,
     '</task>',
     ''
   );
@@ -212,6 +215,11 @@ function testInvalidFilePathsStopBeforeDispatch(binDir) {
     plan: { files: ['/tmp/fixture.txt'] }
   });
   assertInvalidPlan(absolute.result, absolute.projectDir, /repo-relative path/);
+
+  const wildcard = runValidationProject(binDir, {
+    plan: { files: ['src/*.js'] }
+  });
+  assertInvalidPlan(wildcard.result, wildcard.projectDir, /repo-relative path/);
 }
 
 function testManualTaskStopsBeforeDispatch(binDir) {
@@ -271,6 +279,48 @@ function testUnknownVerifyCommandRunsWithConfig(binDir) {
   assert.ok(fs.existsSync(path.join(projectDir, '.gsd', 'apply-dispatched.marker')));
 }
 
+function testUnresolvedActionStopsBeforeDispatch(binDir) {
+  const { projectDir, result } = runValidationProject(binDir, {
+    plan: { action: '1. TODO update fixture' }
+  });
+
+  assertInvalidPlan(result, projectDir, /action contains TODO, TBD, or later/);
+}
+
+function testTooBroadTaskStopsBeforeDispatch(binDir) {
+  const files = Array.from({ length: 16 }, (_, index) => `src/file-${index}.txt`);
+  const { projectDir, result } = runValidationProject(binDir, {
+    plan: { files }
+  });
+
+  assertInvalidPlan(result, projectDir, /task owns 16 files/);
+}
+
+function testDuplicateOwnershipStopsWithoutSequencing(binDir) {
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'plan-complete',
+      auto_mode_scope: 'slice'
+    }
+  });
+  writeFile(path.join(projectDir, '.gsd', 'S01-PLAN.md'), [
+    '# S01',
+    '',
+    '## Dependencies',
+    ''
+  ].join('\n'));
+  writeTaskPlan(projectDir, { task: 'T01', acId: 'AC-1', files: ['src/shared.txt'] });
+  writeTaskPlan(projectDir, { task: 'T02', acId: 'AC-2', files: ['src/shared.txt'] });
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.ifError(result.error);
+  assert.notStrictEqual(result.status, 0, 'duplicate ownership should stop auto-mode');
+  assert.match(result.stdout, /Invalid slice plan:/);
+  assert.match(result.stdout, /owned by multiple tasks/);
+  assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'apply-dispatched.marker')));
+}
+
 function testMilestoneModeValidatesAfterPlanDispatch(binDir) {
   const projectDir = createAutoModeProject({
     unified: true,
@@ -301,4 +351,7 @@ testAcWithoutBddStopsBeforeDispatch(binDir);
 testVerifyUnknownAcStopsBeforeDispatch(binDir);
 testUnknownVerifyCommandStopsWithoutConfig(binDir);
 testUnknownVerifyCommandRunsWithConfig(binDir);
+testUnresolvedActionStopsBeforeDispatch(binDir);
+testTooBroadTaskStopsBeforeDispatch(binDir);
+testDuplicateOwnershipStopsWithoutSequencing(binDir);
 testMilestoneModeValidatesAfterPlanDispatch(binDir);

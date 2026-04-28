@@ -1,12 +1,21 @@
 # GSD-CC auto-mode task-plan parsing helpers.
 
 TASK_PLAN_REPAIR_HINT="Run /gsd-cc-plan to regenerate task plans before restarting auto-mode, or allow the verify command in .gsd/CONFIG.md with auto_apply_allowed_bash."
+TASK_PLAN_MAX_TASKS_PER_SLICE=7
+TASK_PLAN_MAX_FILES_PER_TASK=15
 
 invalid_task_plan() {
   local plan_path="$1"
   local reason="$2"
 
   fail_validation "Invalid task plan: $plan_path" "$reason. $TASK_PLAN_REPAIR_HINT"
+}
+
+invalid_slice_plan() {
+  local plan_path="$1"
+  local reason="$2"
+
+  fail_validation "Invalid slice plan: $plan_path" "$reason. Run /gsd-cc-plan to regenerate the slice plan before restarting auto-mode."
 }
 
 extract_task_plan_attr() {
@@ -91,6 +100,10 @@ normalize_repo_path() {
     return 1
   fi
 
+  case "$path" in
+    *'*'*|*'?'*|*'['*|*']'*) return 1 ;;
+  esac
+
   printf '%s\n' "$path"
 }
 
@@ -143,6 +156,7 @@ validate_task_plan_file_entries() {
   local plan_path="$1"
   local files_output
   local file_path
+  local file_count=0
 
   files_output=$(parse_task_plan_files "$plan_path") || {
     invalid_task_plan "$plan_path" "files must list at least one concrete repo-relative path"
@@ -160,7 +174,26 @@ validate_task_plan_file_entries() {
     if printf '%s\n' "$file_path" | grep -iqE '(^|[^[:alnum:]_])(TBD|TODO|later)([^[:alnum:]_]|$)'; then
       invalid_task_plan "$plan_path" "files contains unresolved placeholder: $file_path"
     fi
+
+    file_count=$((file_count + 1))
   done <<< "$files_output"
+
+  if [[ "$file_count" -gt "$TASK_PLAN_MAX_FILES_PER_TASK" ]]; then
+    invalid_task_plan "$plan_path" "task owns $file_count files; split tasks above $TASK_PLAN_MAX_FILES_PER_TASK files"
+  fi
+}
+
+validate_task_plan_critical_fields_resolved() {
+  local plan_path="$1"
+  local tag
+  local content
+
+  for tag in name action verify done; do
+    content=$(extract_xml_block "$plan_path" "$tag")
+    if printf '%s\n' "$content" | grep -iqE '(^|[^[:alnum:]_])(TBD|TODO|later)([^[:alnum:]_]|$)'; then
+      invalid_task_plan "$plan_path" "$tag contains TODO, TBD, or later"
+    fi
+  done
 }
 
 count_task_plan_ac_blocks() {
@@ -317,6 +350,7 @@ validate_single_task_plan_for_auto_mode() {
     fi
   done
 
+  validate_task_plan_critical_fields_resolved "$plan_path"
   validate_task_plan_file_entries "$plan_path"
 
   ac_count=$(count_task_plan_ac_blocks "$plan_path")
@@ -355,12 +389,98 @@ validate_single_task_plan_for_auto_mode() {
   validate_task_plan_verify_command_allowed "$plan_path"
 }
 
+extract_slice_dependencies() {
+  local slice="$1"
+  local plan_path
+
+  plan_path=$(slice_plan_path "$slice")
+  [[ -f "$plan_path" ]] || return 0
+
+  awk '
+    /^##[[:space:]]+Dependencies[[:space:]]*$/ {
+      in_dependencies = 1
+      next
+    }
+    /^##[[:space:]]+/ && in_dependencies {
+      exit
+    }
+    in_dependencies {
+      print
+    }
+  ' "$plan_path"
+}
+
+task_id_from_plan_path() {
+  local plan_path="$1"
+  task_plan_expected_id "$plan_path" | sed -E 's/^S[0-9]+-//'
+}
+
+dependencies_sequence_tasks() {
+  local dependencies_text="$1"
+  local left_task="$2"
+  local right_task="$3"
+
+  [[ -n "$dependencies_text" ]] || return 1
+
+  if ! printf '%s\n' "$dependencies_text" | grep -Eq "(^|[^[:alnum:]_])${left_task}([^[:alnum:]_]|$)"; then
+    return 1
+  fi
+
+  if ! printf '%s\n' "$dependencies_text" | grep -Eq "(^|[^[:alnum:]_])${right_task}([^[:alnum:]_]|$)"; then
+    return 1
+  fi
+
+  printf '%s\n' "$dependencies_text" | grep -Eiq -- '->|=>|before|after|depends( on)?|then'
+}
+
+validate_duplicate_task_file_ownership() {
+  local slice="$1"
+  shift
+
+  local ownership_entries=("$@")
+  local dependencies_text
+  local left_entry
+  local right_entry
+  local left_file
+  local left_task
+  local right_file
+  local right_task
+  local i
+  local j
+
+  dependencies_text=$(extract_slice_dependencies "$slice")
+
+  for ((i = 0; i < ${#ownership_entries[@]}; i++)); do
+    left_entry="${ownership_entries[$i]}"
+    left_file="${left_entry%%|*}"
+    left_task="${left_entry#*|}"
+
+    for ((j = i + 1; j < ${#ownership_entries[@]}; j++)); do
+      right_entry="${ownership_entries[$j]}"
+      right_file="${right_entry%%|*}"
+      right_task="${right_entry#*|}"
+
+      if [[ "$left_file" != "$right_file" || "$left_task" == "$right_task" ]]; then
+        continue
+      fi
+
+      if ! dependencies_sequence_tasks "$dependencies_text" "$left_task" "$right_task"; then
+        invalid_slice_plan "$(slice_plan_path "$slice")" "$left_file is owned by multiple tasks ($left_task, $right_task) without explicit sequencing in ## Dependencies"
+      fi
+    done
+  done
+}
+
 validate_task_plans_for_auto_mode() {
   local slice="$1"
   local plan_files=()
   local plan_path
   local ac_id
   local slice_ac_ids=()
+  local task_files_output
+  local file_path
+  local task_id
+  local ownership_entries=()
 
   while IFS= read -r plan_path; do
     [[ -z "$plan_path" ]] && continue
@@ -370,6 +490,10 @@ validate_task_plans_for_auto_mode() {
   if [[ ${#plan_files[@]} -eq 0 ]]; then
     fail_validation "Missing task plans for auto-mode: $GSD_DIR/${slice}-T*-PLAN.xml" \
       "Run /gsd-cc-plan to create XML task plans before restarting auto-mode."
+  fi
+
+  if [[ ${#plan_files[@]} -gt "$TASK_PLAN_MAX_TASKS_PER_SLICE" ]]; then
+    invalid_slice_plan "$(slice_plan_path "$slice")" "slice has ${#plan_files[@]} tasks; split slices above $TASK_PLAN_MAX_TASKS_PER_SLICE tasks"
   fi
 
   for plan_path in "${plan_files[@]}"; do
@@ -383,7 +507,18 @@ validate_task_plans_for_auto_mode() {
       [[ -z "$ac_id" ]] && continue
       slice_ac_ids+=("$ac_id")
     done < <(extract_task_plan_ac_ids "$plan_path")
+
+    task_id=$(task_id_from_plan_path "$plan_path")
+    task_files_output=$(parse_task_plan_files "$plan_path") || {
+      invalid_task_plan "$plan_path" "files must list at least one concrete repo-relative path"
+    }
+    while IFS= read -r file_path; do
+      [[ -z "$file_path" ]] && continue
+      ownership_entries+=("$file_path|$task_id")
+    done <<< "$task_files_output"
   done
+
+  validate_duplicate_task_file_ownership "$slice" "${ownership_entries[@]}"
 }
 
 extract_summary_status() {
