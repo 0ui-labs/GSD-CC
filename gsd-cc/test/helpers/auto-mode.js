@@ -75,13 +75,32 @@ function writeRoadmap(projectDir) {
 }
 
 function writeApplyCompleteArtifacts(projectDir, slice = 'S01', task = 'T01') {
+  const taskNumber = Number(task.replace(/^T/, '')) || 1;
+  const acId = `AC-${taskNumber}`;
+
   writeFile(path.join(projectDir, '.gsd', `${slice}-PLAN.md`), `# ${slice}\n`);
   writeFile(path.join(projectDir, '.gsd', `${slice}-${task}-PLAN.xml`), [
-    '<task>',
+    `<task id="${slice}-${task}" type="auto">`,
     '  <name>Fixture task</name>',
     '  <files>',
     '    src/fixture.txt',
     '  </files>',
+    '  <acceptance_criteria>',
+    `    <ac id="${acId}">`,
+    '      Given the fixture baseline exists',
+    '      When the task runs',
+    '      Then the fixture is updated',
+    '    </ac>',
+    '  </acceptance_criteria>',
+    '  <action>',
+    '    1. Update src/fixture.txt',
+    `    2. Verify ${acId}`,
+    '  </action>',
+    '  <boundaries>',
+    '    No boundary restrictions for this task.',
+    '  </boundaries>',
+    `  <verify>npm test (${acId})</verify>`,
+    '  <done>The fixture task is complete.</done>',
     '</task>',
     ''
   ].join('\n'));

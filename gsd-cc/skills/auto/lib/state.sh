@@ -180,6 +180,20 @@ assert_no_legacy_task_plan_for_phase() {
   esac
 }
 
+validate_auto_task_plans_for_phase() {
+  local phase="$1"
+  local slice
+
+  case "$phase" in
+    plan-complete|applying|apply-complete)
+      slice=$(read_optional_state_field "current_slice")
+      if ! state_field_is_empty "$slice"; then
+        validate_task_plans_for_auto_mode "$slice"
+      fi
+      ;;
+  esac
+}
+
 expand_artifact_template() {
   local template="$1"
   local expanded="$template"
@@ -233,6 +247,7 @@ validate_phase_artifacts() {
   done < <(jq -r --arg phase "$phase" '.phases[$phase].requiredArtifacts[]?' "$STATE_MACHINE_FILE")
 
   assert_no_legacy_task_plan_for_phase "$phase"
+  validate_auto_task_plans_for_phase "$phase"
 }
 
 validate_phase_transition() {

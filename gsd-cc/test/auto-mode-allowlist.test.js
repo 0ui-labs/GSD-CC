@@ -85,7 +85,21 @@ function writeTaskPlan(projectDir, verifyCommand) {
     '  <files>',
     '    src/fixture.txt',
     '  </files>',
+    '  <acceptance_criteria>',
+    '    <ac id="AC-1">',
+    '      Given the fixture baseline exists',
+    '      When the task runs',
+    '      Then the fixture is updated',
+    '    </ac>',
+    '  </acceptance_criteria>',
+    '  <action>',
+    '    1. Update src/fixture.txt',
+    '  </action>',
+    '  <boundaries>',
+    '    No boundary restrictions for this task.',
+    '  </boundaries>',
     `  <verify>${verifyCommand}</verify>`,
+    '  <done>The fixture task is complete.</done>',
     '</task>',
     ''
   ].join('\n'));
@@ -137,7 +151,7 @@ function testApplyAllowlistUsesVerifyAndConfig(binDir) {
   assert.doesNotMatch(allowedTools, /Bash\(python3 \*\)/);
 }
 
-function testUnknownVerifyDoesNotAddBroadBash(binDir) {
+function testConfigAllowedVerifyDoesNotAddBroadBash(binDir) {
   const projectDir = createAutoModeProject({
     state: {
       phase: 'plan-complete',
@@ -145,11 +159,16 @@ function testUnknownVerifyDoesNotAddBroadBash(binDir) {
     }
   });
   writeTaskPlan(projectDir, 'bash scripts/test.sh (AC-1)');
+  writeFile(
+    path.join(projectDir, '.gsd', 'CONFIG.md'),
+    'auto_apply_allowed_bash: bash scripts/test.sh\n'
+  );
 
   const result = runAutoLoop(projectDir, makeEnv(binDir));
 
   assertAutoLoopSucceeded(result);
   const allowedTools = readAllowedTools(projectDir, 'apply');
+  assert.match(allowedTools, /Bash\(bash scripts\/test\.sh\)/);
   assert.doesNotMatch(allowedTools, /Bash\(bash \*\)/);
   assert.doesNotMatch(allowedTools, /Bash\(npm \*\)/);
   assert.doesNotMatch(allowedTools, /Bash\(npx \*\)/);
@@ -178,5 +197,5 @@ function testPlanAllowlistIsUnchanged(binDir) {
 const binDir = setupBin();
 
 testApplyAllowlistUsesVerifyAndConfig(binDir);
-testUnknownVerifyDoesNotAddBroadBash(binDir);
+testConfigAllowedVerifyDoesNotAddBroadBash(binDir);
 testPlanAllowlistIsUnchanged(binDir);
