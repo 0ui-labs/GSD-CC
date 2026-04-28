@@ -18,9 +18,11 @@ const CURRENT_HOOK_DIR = path.join('hooks', 'gsd-cc');
 const LEGACY_HOOK_DIR = 'hooks';
 const CLAUDE_CONFIG_BLOCK_START = '<!-- gsd-cc:config:start -->';
 const CLAUDE_CONFIG_BLOCK_END = '<!-- gsd-cc:config:end -->';
-const LEGACY_CLAUDE_CONFIG_REGEX = /\n?# GSD-CC Config\nGSD-CC language: .+\n?/;
+const LEGACY_CLAUDE_CONFIG_REGEX = /\n?# GSD-CC Config\nGSD-CC language: .+\n(?:GSD-CC commit language: .+\n?)?/;
 const LEGACY_LANGUAGE_CONFIG_REGEX = /(?:^|\n)# GSD-CC Config\nGSD-CC language:\s*([^\n]+)(?:\n|$)/;
 const LANGUAGE_LINE_REGEX = /^GSD-CC language:\s*(.+?)\s*$/m;
+const COMMIT_LANGUAGE_LINE_REGEX = /^GSD-CC commit language:\s*(.+?)\s*$/m;
+const DEFAULT_COMMIT_LANGUAGE = 'English';
 
 const INSTALL_LAYOUT = [
   { sourceDir: 'skills', targetDir: 'skills' },
@@ -66,6 +68,8 @@ module.exports = {
   LEGACY_CLAUDE_CONFIG_REGEX,
   LEGACY_LANGUAGE_CONFIG_REGEX,
   LANGUAGE_LINE_REGEX,
+  COMMIT_LANGUAGE_LINE_REGEX,
+  DEFAULT_COMMIT_LANGUAGE,
   INSTALL_LAYOUT,
   HOOK_SPECS
 };

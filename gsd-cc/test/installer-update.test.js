@@ -43,14 +43,19 @@ function writeFile(filePath, content) {
   fs.writeFileSync(filePath, content);
 }
 
-function managedLanguageBlock(language) {
-  return [
+function managedLanguageBlock(language, commitLanguage) {
+  const lines = [
     '<!-- gsd-cc:config:start -->',
     '# GSD-CC Config',
     `GSD-CC language: ${language}`,
-    '<!-- gsd-cc:config:end -->',
-    ''
-  ].join('\n');
+  ];
+
+  if (commitLanguage) {
+    lines.push(`GSD-CC commit language: ${commitLanguage}`);
+  }
+
+  lines.push('<!-- gsd-cc:config:end -->', '');
+  return lines.join('\n');
 }
 
 function readFile(filePath) {
@@ -71,6 +76,13 @@ function assertLanguage(filePath, language) {
   );
 }
 
+function assertCommitLanguage(filePath, language) {
+  assert.ok(
+    readFile(filePath).includes(`GSD-CC commit language: ${language}`),
+    `${filePath} should configure commit language ${language}`
+  );
+}
+
 function testExistingGlobalLanguageIsPreserved(fixtureRoot, binDir) {
   const homeDir = makeIsolatedHome('gsd-cc-update-global-home-');
   const env = makeEnv(homeDir, binDir);
@@ -84,6 +96,7 @@ function testExistingGlobalLanguageIsPreserved(fixtureRoot, binDir) {
 
   assertNoLanguagePrompt(result);
   assertLanguage(claudeMd, 'Deutsch');
+  assertCommitLanguage(claudeMd, 'English');
   assert.ok(result.stdout.includes('Language preserved: Deutsch'));
 }
 
@@ -101,6 +114,7 @@ function testExistingLocalLanguageIsPreserved(fixtureRoot, binDir) {
 
   assertNoLanguagePrompt(result);
   assertLanguage(claudeMd, 'Deutsch');
+  assertCommitLanguage(claudeMd, 'English');
   assertPathMissing(path.join(homeDir, '.claude', 'CLAUDE.md'));
   assert.ok(result.stdout.includes('Language preserved: Deutsch'));
 }
@@ -109,7 +123,7 @@ function testLanguageFlagOverridesExistingLanguage(fixtureRoot, binDir) {
   const homeDir = makeIsolatedHome('gsd-cc-update-override-home-');
   const env = makeEnv(homeDir, binDir);
   const claudeMd = path.join(homeDir, '.claude', 'CLAUDE.md');
-  writeFile(claudeMd, managedLanguageBlock('Deutsch'));
+  writeFile(claudeMd, managedLanguageBlock('Deutsch', 'Deutsch'));
 
   const result = runInstaller(
     fixtureRoot,
@@ -119,6 +133,7 @@ function testLanguageFlagOverridesExistingLanguage(fixtureRoot, binDir) {
 
   assertNoLanguagePrompt(result);
   assertLanguage(claudeMd, 'English');
+  assertCommitLanguage(claudeMd, 'Deutsch');
   assert.ok(result.stdout.includes('Language set to English'));
   assert.ok(!result.stdout.includes('Language preserved:'));
 }
@@ -137,6 +152,7 @@ function testLanguageEqualsSyntaxWorks(fixtureRoot, binDir) {
 
   assertNoLanguagePrompt(result);
   assertLanguage(claudeMd, 'Deutsch');
+  assertCommitLanguage(claudeMd, 'English');
 }
 
 function testFreshYesInstallDefaultsToEnglish(fixtureRoot, binDir) {
@@ -151,6 +167,7 @@ function testFreshYesInstallDefaultsToEnglish(fixtureRoot, binDir) {
 
   assertNoLanguagePrompt(result);
   assertLanguage(claudeMd, 'English');
+  assertCommitLanguage(claudeMd, 'English');
   assert.ok(result.stdout.includes('Language set to English'));
 }
 
@@ -167,6 +184,7 @@ function testNonTtyInstallDoesNotPrompt(fixtureRoot, binDir) {
 
   assertNoLanguagePrompt(result);
   assertLanguage(claudeMd, 'English');
+  assertCommitLanguage(claudeMd, 'English');
 }
 
 function testYesWithoutScopeDefaultsToGlobal(fixtureRoot, binDir) {
@@ -181,6 +199,7 @@ function testYesWithoutScopeDefaultsToGlobal(fixtureRoot, binDir) {
 
   assertNoLanguagePrompt(result);
   assertLanguage(path.join(homeDir, '.claude', 'CLAUDE.md'), 'English');
+  assertCommitLanguage(path.join(homeDir, '.claude', 'CLAUDE.md'), 'English');
   assertPathMissing(path.join(projectDir, 'CLAUDE.md'));
   assert.ok(result.stdout.includes('defaulting to global install'));
 }

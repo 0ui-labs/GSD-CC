@@ -376,6 +376,7 @@ function configureLanguage(isGlobal, installOptions, onDone, promptLanguage) {
   }
 
   if (existingLanguage) {
+    writeLanguageConfig(isGlobal, existingLanguage);
     printLanguagePreserved(existingLanguage);
     onDone();
     return;

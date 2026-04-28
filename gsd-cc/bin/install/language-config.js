@@ -3,6 +3,8 @@ const fs = require('fs');
 const {
   CLAUDE_CONFIG_BLOCK_START,
   CLAUDE_CONFIG_BLOCK_END,
+  COMMIT_LANGUAGE_LINE_REGEX,
+  DEFAULT_COMMIT_LANGUAGE,
   LEGACY_CLAUDE_CONFIG_REGEX,
   LEGACY_LANGUAGE_CONFIG_REGEX,
   LANGUAGE_LINE_REGEX
@@ -14,11 +16,37 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function replaceLanguageBlock(content, language) {
+function extractLineValue(content, regex) {
+  const match = content.match(regex);
+  return match ? match[1].trim() || null : null;
+}
+
+function extractMarkedConfigBlock(content) {
+  const markerRegex = new RegExp(
+    `${escapeRegExp(CLAUDE_CONFIG_BLOCK_START)}[\\s\\S]*?${escapeRegExp(CLAUDE_CONFIG_BLOCK_END)}`
+  );
+  const markerMatch = content.match(markerRegex);
+  return markerMatch ? markerMatch[0] : null;
+}
+
+function extractCommitLanguageFromConfig(content) {
+  const markerBlock = extractMarkedConfigBlock(content);
+  if (markerBlock) {
+    return extractLineValue(markerBlock, COMMIT_LANGUAGE_LINE_REGEX);
+  }
+
+  return extractLineValue(content, COMMIT_LANGUAGE_LINE_REGEX);
+}
+
+function replaceLanguageBlock(content, language, commitLanguage) {
+  const resolvedCommitLanguage = commitLanguage ||
+    extractCommitLanguageFromConfig(content) ||
+    DEFAULT_COMMIT_LANGUAGE;
   const block = [
     CLAUDE_CONFIG_BLOCK_START,
     '# GSD-CC Config',
     `GSD-CC language: ${language}`,
+    `GSD-CC commit language: ${resolvedCommitLanguage}`,
     CLAUDE_CONFIG_BLOCK_END
   ].join('\n');
   const markerRegex = new RegExp(
@@ -42,14 +70,10 @@ function replaceLanguageBlock(content, language) {
 }
 
 function extractLanguageFromConfig(content) {
-  const markerRegex = new RegExp(
-    `${escapeRegExp(CLAUDE_CONFIG_BLOCK_START)}[\\s\\S]*?${escapeRegExp(CLAUDE_CONFIG_BLOCK_END)}`
-  );
-  const markerMatch = content.match(markerRegex);
+  const markerBlock = extractMarkedConfigBlock(content);
 
-  if (markerMatch) {
-    const languageMatch = markerMatch[0].match(LANGUAGE_LINE_REGEX);
-    return languageMatch ? languageMatch[1].trim() || null : null;
+  if (markerBlock) {
+    return extractLineValue(markerBlock, LANGUAGE_LINE_REGEX);
   }
 
   const legacyMatch = content.match(LEGACY_LANGUAGE_CONFIG_REGEX);
@@ -64,6 +88,16 @@ function readLanguageConfig(isGlobal) {
 
   const content = fs.readFileSync(claudeMdPath, 'utf8');
   return extractLanguageFromConfig(content);
+}
+
+function readCommitLanguageConfig(isGlobal) {
+  const claudeMdPath = getClaudeMdPath(isGlobal);
+  if (!fs.existsSync(claudeMdPath)) {
+    return DEFAULT_COMMIT_LANGUAGE;
+  }
+
+  const content = fs.readFileSync(claudeMdPath, 'utf8');
+  return extractCommitLanguageFromConfig(content) || DEFAULT_COMMIT_LANGUAGE;
 }
 
 function cleanLanguageBlockRemoval(content) {
@@ -108,8 +142,12 @@ function writeLanguageConfig(isGlobal, language) {
 }
 
 module.exports = {
+  DEFAULT_COMMIT_LANGUAGE,
+  extractCommitLanguageFromConfig,
   extractLanguageFromConfig,
+  readCommitLanguageConfig,
   readLanguageConfig,
+  replaceLanguageBlock,
   removeLanguageConfigBlock,
   writeLanguageConfig
 };
