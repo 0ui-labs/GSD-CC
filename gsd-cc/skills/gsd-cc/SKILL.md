@@ -36,9 +36,10 @@ Check what exists on disk:
 4. Does .gsd/PLANNING.md exist?
 5. Does .gsd/M001-ROADMAP.md exist? (check for any M*-ROADMAP.md)
 6. Does .gsd/auto.lock exist? (crash/interrupt)
-7. Which S*-PLAN.md files exist?
-8. Which S*-UNIFY.md files exist?
-9. Which S*-T*-SUMMARY.md files exist?
+7. Does .gsd/auto-recovery.json exist? (last problem stop)
+8. Which S*-PLAN.md files exist?
+9. Which S*-UNIFY.md files exist?
+10. Which S*-T*-SUMMARY.md files exist?
 ```
 
 Use `Glob` to check for file patterns. Use `Read` for STATE.md.
@@ -97,6 +98,19 @@ IF .gsd/auto.lock exists:
     - If SUMMARY exists: "S{nn}/T{nn} finished but auto-mode was interrupted. Clean up and continue?"
     - If no SUMMARY: "S{nn}/T{nn} was interrupted mid-execution. Resume or restart this task?"
   → Wait for user confirmation, then delete auto.lock and proceed.
+```
+
+### Last Auto-Mode Problem Stop
+```
+IF .gsd/auto-recovery.json exists AND no live .gsd/auto.lock exists:
+  → Read .gsd/auto-recovery.json.
+  → Summarize:
+      - reason
+      - unit
+      - stopped_at
+      - safe_next_action
+  → Point to .gsd/AUTO-RECOVERY.md for full details.
+  → Recommend the safe_next_action before continuing normal routing.
 ```
 
 ### No Project

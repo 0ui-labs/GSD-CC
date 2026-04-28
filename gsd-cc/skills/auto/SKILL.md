@@ -172,6 +172,16 @@ Auto-mode stops when:
 - **Timeout** — a single task exceeded its time limit
 - **Error** — claude -p failed
 
+Problem stops write recovery artifacts:
+- `.gsd/AUTO-RECOVERY.md` — human-readable report with the running unit,
+  stop reason, Git changes, commits since auto-mode started, log path, and
+  safest next action
+- `.gsd/auto-recovery.json` — machine-readable summary used by
+  `/gsd-cc` and `/gsd-cc-status`
+
+Successful slice or milestone completion does not create a recovery report.
+Starting auto-mode clears stale recovery artifacts from previous problem stops.
+
 After it stops, read `.gsd/STATE.md` and report:
 
 ```

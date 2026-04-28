@@ -25,6 +25,7 @@ Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All out
    - `S*-T*-SUMMARY.md` files (completed tasks)
 4. Check if `token-usage.py` script is available (see Step 5)
 5. Check if `.gsd/auto.lock` exists
+6. Check if `.gsd/auto-recovery.json` exists
 
 ## Step 2: Build Milestone Overview
 
@@ -114,7 +115,22 @@ If stale: "Auto-mode: STALE (process not running, lock file remains)"
 
 If no lock file: "Auto-mode: inactive"
 
-## Step 7: Suggest Next Action
+## Step 7: Last Auto-Mode Stop
+
+If `.gsd/auto-recovery.json` exists, read it and show a compact section:
+
+```
+Last auto-mode stop:
+  Reason:  {reason}
+  Unit:    {unit}
+  Stopped: {stopped_at}
+  Report:  .gsd/AUTO-RECOVERY.md
+  Next:    {safe_next_action}
+```
+
+If it does not exist, omit this section.
+
+## Step 8: Suggest Next Action
 
 Based on the current state, suggest ONE next action (same logic as `/gsd-cc` router, but presented as a suggestion, not a command):
 
@@ -153,6 +169,13 @@ Token Usage (all sessions)
   Auto-mode by phase: plan 22% · apply 68% · unify 10%
 
 Auto-mode: inactive
+
+Last auto-mode stop:
+  Reason:  dispatch_failed
+  Unit:    S02/T03
+  Stopped: 2026-04-28T12:00:00+02:00
+  Report:  .gsd/AUTO-RECOVERY.md
+  Next:    Inspect .gsd/AUTO-RECOVERY.md, then run /gsd-cc.
 
 Next: Continue with S02/T02.
 ```
