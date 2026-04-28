@@ -30,7 +30,7 @@ last_updated: {{ISO_DATE}}
 
 ## Boundaries Active
 
-<!-- Copied from current slice plan, enforced by /gsd-cc-apply -->
+<!-- Copied from current slice plan; files, dirs, and globs are enforced -->
 
 ## Decisions This Slice
 

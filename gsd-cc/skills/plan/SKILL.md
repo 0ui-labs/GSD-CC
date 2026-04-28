@@ -109,12 +109,15 @@ Good ACs are:
 Step-by-step instructions. Numbered list. Concrete enough that Claude Code can execute them without guessing. Reference the ACs: "Write tests covering AC-1 and AC-2."
 
 #### `<boundaries>`
-**MANDATORY.** List files that this task MUST NOT change:
+**MANDATORY.** List files, directories, or globs that this task MUST NOT change.
+Directory entries protect all children recursively:
 
 ```xml
 <boundaries>
   DO NOT CHANGE:
   - src/types.ts (read-only, owned by T01)
+  - src/generated/ (generated output owned by build step)
+  - src/**/*.generated.ts (generated files)
   - package.json (no new deps without approval)
   - .gsd/ (do not modify state files during execution)
 </boundaries>

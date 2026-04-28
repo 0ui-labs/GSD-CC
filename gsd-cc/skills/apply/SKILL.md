@@ -91,11 +91,11 @@ This makes boundaries and parallelizability visible to you and to the user befor
 
 Before writing any code, internalize the boundary rules:
 
-**For each file listed in `<boundaries>` as DO NOT CHANGE:**
+**For each file, directory, or glob listed in `<boundaries>` as DO NOT CHANGE:**
 - Do NOT open it in Edit
 - Do NOT write to it
 - You MAY Read it for reference
-- If you find yourself needing to change a boundary file, STOP and tell the user: "T{nn} needs to modify {file} which is in the boundaries. This is a plan issue — should I adjust?"
+- If you find yourself needing to change a boundary path, STOP and tell the user: "T{nn} needs to modify {path} which is in the boundaries. This is a plan issue — should I adjust?"
 
 This is non-negotiable. Boundary violations are tracked in UNIFY.
 

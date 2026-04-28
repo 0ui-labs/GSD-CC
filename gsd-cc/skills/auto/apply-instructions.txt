@@ -20,11 +20,11 @@ The context files are inlined above in XML tags:
 
 Before writing ANY code, read the <boundaries> section.
 
-For each file listed as DO NOT CHANGE:
+For each file, directory, or glob listed as DO NOT CHANGE:
 - Do NOT Edit it.
 - Do NOT Write to it.
 - You MAY Read it for reference.
-- If you must modify a boundary file to complete the task, STOP. Write in the summary that a boundary violation was necessary and why.
+- If you must modify a boundary path to complete the task, STOP. Write in the summary that a boundary violation was necessary and why.
 
 ## Execution
 
