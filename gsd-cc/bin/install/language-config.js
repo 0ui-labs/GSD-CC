@@ -141,6 +141,23 @@ function writeLanguageConfig(isGlobal, language) {
   }
 }
 
+function writeCommitLanguageConfig(isGlobal, commitLanguage) {
+  const claudeMdPath = getClaudeMdPath(isGlobal);
+  const existingContent = fs.existsSync(claudeMdPath)
+    ? fs.readFileSync(claudeMdPath, 'utf8')
+    : '';
+  const language = extractLanguageFromConfig(existingContent) || 'English';
+  const nextContent = replaceLanguageBlock(
+    existingContent,
+    language,
+    commitLanguage || DEFAULT_COMMIT_LANGUAGE
+  );
+
+  if (nextContent !== existingContent) {
+    writeFileAtomic(claudeMdPath, nextContent);
+  }
+}
+
 module.exports = {
   DEFAULT_COMMIT_LANGUAGE,
   extractCommitLanguageFromConfig,
@@ -149,5 +166,6 @@ module.exports = {
   readLanguageConfig,
   replaceLanguageBlock,
   removeLanguageConfigBlock,
+  writeCommitLanguageConfig,
   writeLanguageConfig
 };
