@@ -67,6 +67,20 @@ command -v claude || which claude
 If not found: "Auto-mode unavailable: claude CLI not found. Install Claude Code and ensure `claude` is in your PATH."
 Note: The auto-loop.sh script resolves the full path to claude automatically, so PATH issues in subprocesses are handled.
 
+### Apply Bash allowlist
+
+During apply, auto-mode only grants Bash commands derived from the current
+task's `<verify>` command plus explicit project overrides. To allow additional
+project-specific verification commands, add comma-separated command patterns to
+`.gsd/CONFIG.md`:
+
+```yaml
+auto_apply_allowed_bash: pnpm lint *, npm run typecheck *, playwright test *
+```
+
+Do not include `Bash(...)` wrappers in the config value. Broad patterns such as
+`python3 *` are allowed only when the project chooses them explicitly here.
+
 ### No stale lock file
 ```
 Check .gsd/auto.lock
