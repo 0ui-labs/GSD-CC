@@ -297,7 +297,6 @@ run_apply_fallback_commit() {
   local summary_path
   local task_files_output
   local summary_status
-  local task_name
   local commit_subject
   local commit_body
   local allowlist=()
@@ -368,13 +367,6 @@ run_apply_fallback_commit() {
     return 1
   fi
 
-  task_name=$(extract_task_name "$task_plan")
-  if [[ -z "$task_name" ]]; then
-    log "❌ Fallback commit aborted: could not parse <name> in $task_plan."
-    log "   Auto-mode stops instead of inventing a vague commit message."
-    return 1
-  fi
-
   if [[ ${#CLASSIFIED_ALLOWED_TRACKED[@]} -gt 0 ]]; then
     for path in "${CLASSIFIED_ALLOWED_TRACKED[@]}"; do
       stage_paths+=("$path")
@@ -397,7 +389,7 @@ run_apply_fallback_commit() {
     return 1
   fi
 
-  commit_subject="feat(${slice}/${task}): ${task_name}"
+  commit_subject="feat(${slice}/${task}): apply task"
   commit_body=$'Auto-mode applied fallback Git handling after the task\ncompleted without creating its own commit.\n\nOnly task-scoped files from the plan, summary, and\nSTATE metadata were staged.'
 
   if ! git commit -m "$commit_subject" -m "$commit_body"; then

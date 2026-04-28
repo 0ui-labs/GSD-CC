@@ -94,20 +94,6 @@ normalize_repo_path() {
   printf '%s\n' "$path"
 }
 
-extract_task_name() {
-  awk '
-    /<name>/ {
-      sub(/^.*<name>/, "")
-      sub(/<\/name>.*$/, "")
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-      if ($0 != "") {
-        print
-        exit
-      }
-    }
-  ' "$1"
-}
-
 parse_task_plan_files() {
   local plan_path="$1"
   local raw_line
