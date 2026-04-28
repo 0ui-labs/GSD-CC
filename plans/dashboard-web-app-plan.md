@@ -496,6 +496,10 @@ The first screen should be the cockpit itself.
 
 ## Implementation Plan
 
+For implementation, use the smaller thread-sized breakdown in
+`plans/dashboard-web-app-workbreakdown.md`. The slices below describe the
+product architecture; the breakdown file is the execution checklist.
+
 ### Slice 1: Dashboard Server Skeleton
 
 Goal: start a local server and render a minimal live shell.
