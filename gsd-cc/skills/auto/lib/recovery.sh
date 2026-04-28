@@ -72,12 +72,30 @@ auto_recovery_collect_status() {
 }
 
 auto_recovery_collect_uncommitted_files() {
-  auto_recovery_collect_status | awk '
-    {
+  if ! auto_recovery_git_available; then
+    return 0
+  fi
+
+  {
+    auto_recovery_collect_status | awk '
+      substr($0, 1, 2) != "??" {
+        path = substr($0, 4)
+        sub(/^.* -> /, "", path)
+        if (path != "") {
+          print path
+        }
+      }
+    '
+    git ls-files --others --exclude-standard 2>/dev/null || true
+  } | awk '
+    !seen[$0] {
+      seen[$0] = 1
       path = substr($0, 4)
-      sub(/^.* -> /, "", path)
-      if (path != "") {
+      if (substr($0, 1, 3) == "?? ") {
+        sub(/^.* -> /, "", path)
         print path
+      } else if ($0 != "") {
+        print $0
       }
     }
   '
