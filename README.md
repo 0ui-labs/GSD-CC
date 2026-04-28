@@ -130,7 +130,9 @@ npx gsd-cc --uninstall --local    # Remove only the local install
 - `npx gsd-cc --uninstall` checks both install roots. Add `--global` or
   `--local` to limit cleanup to one scope.
 - Reinstall and update runs preserve the existing `GSD-CC language` setting.
-  Use `--language <name>` to set it explicitly.
+  Use `--language <name>` to set the UI language explicitly.
+- Commit messages use a separate `GSD-CC commit language` setting, defaulting
+  to English. Change it with `/gsd-cc-config`; `--language` does not change it.
 - Use `--yes` for automation. If no scope is provided in prompt-free mode,
   the installer chooses the global install.
 - Uninstall removes only manifest-tracked assets, GSD-CC-owned hook entries,

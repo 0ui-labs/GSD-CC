@@ -22,7 +22,18 @@ Determine the language from these sources, in order of priority:
 
 If none of these are found, default to English and warn the user: "No language configured. Defaulting to English. Set it in STATE.md or CONFIG.md to avoid this warning."
 
-All output — messages, summaries, commit messages — must use the resolved language.
+All output — messages and summaries — must use the resolved UI language.
+
+## Commit Language
+
+Determine the commit language from these sources, in order of priority:
+
+1. `commit_language` field in `.gsd/STATE.md`
+2. `commit_language` field in `.gsd/CONFIG.md`
+3. "GSD-CC commit language: {lang}" in CLAUDE.md
+
+If none of these are found, default commit messages to English. Do not infer
+commit language from the UI language.
 
 ## State Contract
 
@@ -207,6 +218,9 @@ git add {specific files changed by this task}
 git commit -m "feat(S{nn}/T{nn}): {task name}"
 ```
 
+Write the commit subject and body in the resolved commit language. The examples
+above use English because that is the default commit language.
+
 **Commit only the files this task changed.** Do not `git add -A` — that could include unrelated changes.
 
 In auto-mode, a missing task commit is treated as a recovery path only. The
@@ -228,7 +242,8 @@ Failed/partial ACs:
 Options:
   1. Keep changes uncommitted (you can review and fix manually)
   2. Discard all changes from this task (revert modified files AND remove newly created files)
-  3. Commit anyway as work-in-progress: "wip(S{nn}/T{nn}): {task name}"
+  3. Commit anyway as work-in-progress using the resolved commit language:
+     "wip(S{nn}/T{nn}): {task name}"
 
 Which option?
 ```

@@ -40,11 +40,13 @@ Installed layout:
 - Custom types: `~/.claude/skills/seed/types/<your-type>/` or `./.claude/skills/seed/types/<your-type>/`
 - Scope-specific uninstall: `--global` or `--local`
 - Prompt-free installs: `--yes`
-- Explicit language: `--language <name>`
+- Explicit UI language: `--language <name>`
 
 Reinstall and update runs preserve the existing `GSD-CC language` setting by
 default. In non-interactive mode, missing language defaults to English and
-missing scope defaults to a global install.
+missing scope defaults to a global install. Commit messages use a separate
+`GSD-CC commit language` setting, defaulting to English; change it with
+`/gsd-cc-config`.
 
 ## Usage
 

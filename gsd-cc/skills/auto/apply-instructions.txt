@@ -75,11 +75,19 @@ If an AC fails:
 
 ## Git
 
+Resolve commit language from `commit_language` in `.gsd/STATE.md`,
+`commit_language` in `.gsd/CONFIG.md`, or `GSD-CC commit language:` in
+CLAUDE.md. If none is configured, use English. Do not infer commit language
+from the UI language used in summaries.
+
 Stage and commit only the files this task changed:
 ```bash
 git add {specific files}
 git commit -m "feat(S{nn}/T{nn}): {task name}"
 ```
+
+Write the commit subject and body in the resolved commit language. The example
+above is English because English is the default commit language.
 
 Do NOT use `git add -A`.
 

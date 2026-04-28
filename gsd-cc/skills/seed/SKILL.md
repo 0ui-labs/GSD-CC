@@ -191,6 +191,7 @@ Initialize from the STATE.md template with:
 - `rigor: {rigor}`
 - `project_type: {type}`
 - `language: {language}`
+- `commit_language: English`
 - `auto_mode: false`
 - `last_updated: {now ISO}`
 

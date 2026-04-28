@@ -100,6 +100,11 @@ Status in frontmatter:
 
 ## Git
 
+Resolve commit language from `commit_language` in `.gsd/STATE.md`,
+`commit_language` in `.gsd/CONFIG.md`, or `GSD-CC commit language:` in
+CLAUDE.md. If none is configured, use English. Do not infer commit language
+from the UI language used in UNIFY reports.
+
 Use `base_branch` from <state>. Preflight before merging:
 
 1. Verify `base_branch` is present.
@@ -115,6 +120,9 @@ git switch {base_branch}
 git merge --squash gsd/M{n}/S{nn}
 git commit -m "feat(M{n}/S{nn}): {slice name}"
 ```
+
+Write the squash commit subject and body in the resolved commit language. The
+example above is English because English is the default commit language.
 
 Do NOT delete the slice branch.
 

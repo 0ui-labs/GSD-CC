@@ -47,8 +47,9 @@ Based on where it's installed, run:
 - **Local only:** `npx -y gsd-cc@latest --local --yes`
 - **Both:** `npx -y gsd-cc@latest --global --yes && npx -y gsd-cc@latest --local --yes`
 
-The installer preserves the existing GSD-CC language by default. To change
-language after updating, tell the user to run `/gsd-cc-config`.
+The installer preserves the existing GSD-CC UI language and commit language by
+default. To change either setting after updating, tell the user to run
+`/gsd-cc-config`.
 
 ## Step 4: Confirm
 

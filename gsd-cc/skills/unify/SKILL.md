@@ -15,7 +15,18 @@ UNIFY is not optional. It runs after every slice. The `/gsd-cc` router blocks al
 
 ## Language
 
-Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, UNIFY reports, deviation analysis — must use that language. If not found, default to English.
+Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). All output — messages, UNIFY reports, deviation analysis — must use that UI language. If not found, default to English.
+
+## Commit Language
+
+Determine the commit language from these sources, in order of priority:
+
+1. `commit_language` field in `.gsd/STATE.md`
+2. `commit_language` field in `.gsd/CONFIG.md`
+3. "GSD-CC commit language: {lang}" in CLAUDE.md
+
+If none of these are found, default commit messages to English. Do not infer
+commit language from the UI language.
 
 ## State Contract
 
@@ -263,6 +274,9 @@ git switch {base_branch}
 git merge --squash gsd/M{n}/S{nn}
 git commit -m "feat(M{n}/S{nn}): {slice name}"
 ```
+
+Write the squash commit subject and body in the resolved commit language. The
+example above is English because English is the default commit language.
 
 This produces one clean commit on `{base_branch}` per slice. The per-task
 history is preserved on the slice branch.

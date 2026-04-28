@@ -10,6 +10,7 @@ unify_required: false
 rigor: standard
 project_type: application
 language: English
+commit_language: English
 auto_mode: false
 auto_mode_scope: slice
 last_updated: {{ISO_DATE}}
