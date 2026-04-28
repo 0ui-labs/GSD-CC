@@ -48,7 +48,7 @@ const INSTALL_LAYOUT = [
 const HOOK_SPECS = [
   {
     event: 'PreToolUse',
-    matcher: 'Edit|Write',
+    matcher: 'Edit|Write|MultiEdit',
     hooks: [
       { file: 'gsd-boundary-guard.sh', timeout: 5000 },
       { file: 'gsd-prompt-guard.sh', timeout: 5000 }

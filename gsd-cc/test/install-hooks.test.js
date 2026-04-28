@@ -4,7 +4,8 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const {
-  assertInstalledHookCommands
+  assertInstalledHookCommands,
+  readJson
 } = require('./helpers/assertions');
 const {
   ensureFakeBin,
@@ -40,6 +41,15 @@ function runInstaller(fixtureRoot, installArg, options) {
 
 function assertInstalledHooks(settingsPath, env) {
   const commands = assertInstalledHookCommands(settingsPath);
+  const settings = readJson(settingsPath);
+  const preToolUseEntry = settings.hooks.PreToolUse.find((entry) => {
+    return (entry.hooks || []).some((hook) => {
+      return path.basename(hook.command) === 'gsd-boundary-guard.sh';
+    });
+  });
+
+  assert.ok(preToolUseEntry, 'boundary guard should be a PreToolUse hook');
+  assert.strictEqual(preToolUseEntry.matcher, 'Edit|Write|MultiEdit');
 
   const boundaryHook = commands.find((command) => {
     return path.basename(command) === 'gsd-boundary-guard.sh';

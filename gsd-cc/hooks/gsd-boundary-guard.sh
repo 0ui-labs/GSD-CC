@@ -1,6 +1,6 @@
 #!/bin/bash
 # GSD-CC Boundary Guard — PreToolUse hook
-# Blocks Write/Edit operations on files listed in .gsd/STATE.md boundaries.
+# Blocks Write/Edit/MultiEdit operations on files listed in .gsd/STATE.md boundaries.
 # This is a HARD enforcement — Claude cannot bypass this regardless of prompting.
 
 INPUT=$(cat)
@@ -12,8 +12,8 @@ fi
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name')
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 
-# Only check Edit and Write operations
-if [ "$TOOL_NAME" != "Edit" ] && [ "$TOOL_NAME" != "Write" ]; then
+# Only check file mutation operations
+if [ "$TOOL_NAME" != "Edit" ] && [ "$TOOL_NAME" != "Write" ] && [ "$TOOL_NAME" != "MultiEdit" ]; then
   exit 0
 fi
 
@@ -37,21 +37,69 @@ if [ -z "$BOUNDARIES" ]; then
   exit 0
 fi
 
-# Normalize the target file path (make relative to CWD if absolute)
-RELATIVE_PATH="$FILE_PATH"
-if [[ "$FILE_PATH" == "$CWD"* ]]; then
-  RELATIVE_PATH="${FILE_PATH#$CWD/}"
-fi
+trim_value() {
+  sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
 
-# Check each boundary file
+normalize_path() {
+  local path="$1"
+
+  path=$(printf '%s\n' "$path" | trim_value)
+  path="${path//$'\r'/}"
+  path="${path//\/\//\/}"
+
+  if [[ "$path" == "$CWD/"* ]]; then
+    path="${path#$CWD/}"
+  fi
+
+  while [[ "$path" == ./* ]]; do
+    path="${path#./}"
+  done
+
+  while [[ "$path" == */ && "$path" != "/" ]]; do
+    path="${path%/}"
+  done
+
+  printf '%s\n' "$path"
+}
+
+has_glob_meta() {
+  case "$1" in
+    *'*'*|*'?'*|*'['*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+matches_boundary() {
+  local path="$1"
+  local boundary="$2"
+
+  if [ "$path" = "$boundary" ]; then
+    return 0
+  fi
+
+  if has_glob_meta "$boundary" && [[ "$path" == $boundary ]]; then
+    return 0
+  fi
+
+  if ! has_glob_meta "$boundary" && [[ "$path" == "$boundary"/* ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+RELATIVE_PATH=$(normalize_path "$FILE_PATH")
+
+# Check each boundary file or directory
 while IFS= read -r BOUNDARY_FILE; do
-  BOUNDARY_FILE=$(echo "$BOUNDARY_FILE" | xargs) # trim whitespace
+  BOUNDARY_FILE=$(normalize_path "$BOUNDARY_FILE")
   if [ -z "$BOUNDARY_FILE" ]; then
     continue
   fi
 
-  # Check exact match or path containment
-  if [ "$RELATIVE_PATH" = "$BOUNDARY_FILE" ] || [ "$FILE_PATH" = "$BOUNDARY_FILE" ]; then
+  # Check exact file, recursive directory, or explicit glob match.
+  if matches_boundary "$RELATIVE_PATH" "$BOUNDARY_FILE"; then
     jq -n --arg file "$BOUNDARY_FILE" '{
       "hookSpecificOutput": {
         "hookEventName": "PreToolUse",

@@ -148,11 +148,6 @@ function printValue(value) {
   }
 }
 
-if (nullInput) {
-  console.log('{}');
-  process.exit(0);
-}
-
 if (compactOutput) {
   console.log('{}');
   process.exit(0);
@@ -164,6 +159,23 @@ if (slurpInput) {
 }
 
 const expression = positional[0] || '';
+
+if (nullInput) {
+  if (expression.includes('BOUNDARY VIOLATION')) {
+    console.log(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: \`BOUNDARY VIOLATION: \${vars.file} is in the DO NOT CHANGE list for this task.\`
+      }
+    }));
+    process.exit(0);
+  }
+
+  console.log('{}');
+  process.exit(0);
+}
+
 const raw = readInput(positional[1]);
 const data = raw.trim() ? JSON.parse(raw) : {};
 
