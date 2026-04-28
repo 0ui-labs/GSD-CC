@@ -270,6 +270,11 @@ prepare_planning_branch() {
   fi
 
   if ! assert_clean_for_branch_switch "$GSD_DIR/STATE.md"; then
+    if declare -F auto_recovery_write >/dev/null 2>&1; then
+      auto_recovery_write "git_safety_stop" \
+        "Auto-mode could not prepare the planning branch because unrelated worktree changes are present." \
+        "Commit, stash, or clean the listed paths, then run /gsd-cc."
+    fi
     exit 1
   fi
 

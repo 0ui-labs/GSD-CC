@@ -53,6 +53,14 @@ trap cleanup EXIT
 trap 'auto_recovery_write "interrupted" "Auto-mode was interrupted by a signal." "Inspect .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume safely."; exit 130' INT
 trap 'auto_recovery_write "interrupted" "Auto-mode was terminated by a signal." "Inspect .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume safely."; exit 143' TERM
 
+record_auto_problem_stop() {
+  local reason="$1"
+  local message="$2"
+  local safe_next_action="${3:-Inspect .gsd/AUTO-RECOVERY.md, resolve the listed issue, then run /gsd-cc.}"
+
+  auto_recovery_write "$reason" "$message" "$safe_next_action"
+}
+
 # ── Main loop ──────────────────────────────────────────────────────────────────
 
 if ! STATE_MACHINE_FILE=$(state_machine_path); then
@@ -101,6 +109,7 @@ while true; do
   TASK=$(read_optional_state_field "current_task")
   RIGOR=$(read_optional_state_field "rigor")
   MILESTONE=$(read_optional_state_field "milestone")
+  DISPATCH_PHASE=""
 
   if [[ "$AUTO_SCOPE" == "slice" && "$SLICE" != "$START_SLICE" ]]; then
     log "Auto (this slice) complete for $START_SLICE."
@@ -118,6 +127,7 @@ while true; do
     UNIFY_FILE="$GSD_DIR/${SLICE}-UNIFY.md"
     if [[ ! -f "$UNIFY_FILE" ]]; then
       log "⚠ Running mandatory UNIFY for $SLICE..."
+      DISPATCH_PHASE="unify"
 
       # Build UNIFY prompt
       PROMPT_FILE="$(runtime_tmp_file "gsd-prompt-$$.txt")"
@@ -174,6 +184,9 @@ while true; do
         "Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git merge *),Bash(git commit *)" \
         15 600 || {
         log "❌ UNIFY dispatch failed. Check $LOG_FILE for details."
+        record_auto_problem_stop "dispatch_failed" \
+          "UNIFY dispatch failed for $SLICE." \
+          "Inspect $LOG_FILE and .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume."
         break
       }
 
@@ -214,6 +227,7 @@ while true; do
       cat "$PROMPTS_DIR/reassess-instructions.txt" >> "$PROMPT_FILE"
 
       RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"
+      DISPATCH_PHASE="reassess"
       dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" \
         "Read,Write,Edit,Glob,Grep" \
         10 300 || {
@@ -271,6 +285,9 @@ while true; do
     if [[ "$TOTAL" -gt "$BUDGET" ]]; then
       echo ""
       log "💰 Budget reached (${TOTAL} tokens). Stopping auto-mode."
+      record_auto_problem_stop "budget_reached" \
+        "Token budget reached at ${TOTAL} tokens." \
+        "Review token usage, raise or clear the budget if appropriate, then run /gsd-cc."
       break
     fi
   fi
@@ -330,6 +347,9 @@ while true; do
 
     *)
       log "⚠ Unknown phase: $PHASE. Stopping."
+      record_auto_problem_stop "validation_failed" \
+        "Auto-mode stopped on unknown phase: $PHASE." \
+        "Run /gsd-cc to inspect and repair the current state."
       break
       ;;
   esac
@@ -362,8 +382,14 @@ while true; do
     EXIT_CODE=$?
     if [[ $EXIT_CODE -eq 124 ]]; then
       log "⏰ Timeout after ${TIMEOUT}s on ${SLICE}/${TASK}. Stopping."
+      record_auto_problem_stop "timeout" \
+        "Dispatch timed out after ${TIMEOUT}s on ${SLICE}/${TASK}." \
+        "Inspect the partial work and consider splitting the task before running /gsd-cc."
     else
       log "❌ Dispatch failed (exit $EXIT_CODE) on ${SLICE}/${TASK}. Check $LOG_FILE for stderr."
+      record_auto_problem_stop "dispatch_failed" \
+        "Dispatch failed with exit $EXIT_CODE on ${SLICE}/${TASK}." \
+        "Inspect $LOG_FILE and .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume."
     fi
     log_cost "${SLICE}/${TASK}" "$DISPATCH_PHASE" "$RESULT_FILE"
     break
@@ -386,6 +412,9 @@ while true; do
       RETRY_COUNT=$((RETRY_COUNT + 1))
       if [[ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]]; then
         log "🔄 ${SLICE}/${TASK} stuck after $MAX_RETRIES attempts. Stopping."
+        record_auto_problem_stop "stuck_missing_summary" \
+          "Expected summary $EXPECTED_SUMMARY was not created after $MAX_RETRIES attempts." \
+          "Inspect the task output and worktree, then run /gsd-cc to retry or repair."
         break
       fi
       log "⚠ Expected $EXPECTED_SUMMARY not found. Retry $RETRY_COUNT/$MAX_RETRIES..."
@@ -400,6 +429,9 @@ while true; do
       RETRY_COUNT=$((RETRY_COUNT + 1))
       if [[ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]]; then
         log "🔄 Planning ${SLICE} stuck after $MAX_RETRIES attempts. Stopping."
+        record_auto_problem_stop "stuck_missing_plan" \
+          "Expected plan $EXPECTED_PLAN was not created after $MAX_RETRIES attempts." \
+          "Inspect the planning output and worktree, then run /gsd-cc to retry or repair."
         break
       fi
       log "⚠ Expected $EXPECTED_PLAN not found. Retry $RETRY_COUNT/$MAX_RETRIES..."
@@ -413,6 +445,9 @@ while true; do
   if [[ "$DISPATCH_PHASE" == "apply" ]]; then
     if ! run_apply_fallback_commit "$SLICE" "$TASK"; then
       log "🛑 Stopping auto-mode so the git worktree can be inspected safely."
+      record_auto_problem_stop "git_safety_stop" \
+        "Auto-mode stopped because fallback Git handling could not safely commit task-scoped changes." \
+        "Inspect the uncommitted files, resolve unrelated changes, then run /gsd-cc."
       break
     fi
   fi
