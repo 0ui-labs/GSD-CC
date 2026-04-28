@@ -21,12 +21,14 @@ const fs = require('fs');
 
 const args = process.argv.slice(2);
 const vars = {};
+const jsonVars = {};
 const positional = [];
 let rawOutput = false;
 let exitStatus = false;
 let compactOutput = false;
 let nullInput = false;
 let slurpInput = false;
+let rawInput = false;
 
 for (let index = 0; index < args.length; index += 1) {
   const arg = args[index];
@@ -46,6 +48,11 @@ for (let index = 0; index < args.length; index += 1) {
     continue;
   }
 
+  if (arg === '-R') {
+    rawInput = true;
+    continue;
+  }
+
   if (arg === '-n') {
     nullInput = true;
     continue;
@@ -58,6 +65,16 @@ for (let index = 0; index < args.length; index += 1) {
 
   if (arg === '--arg') {
     vars[args[index + 1]] = args[index + 2];
+    index += 2;
+    continue;
+  }
+
+  if (arg === '--argjson') {
+    try {
+      jsonVars[args[index + 1]] = JSON.parse(args[index + 2]);
+    } catch (error) {
+      jsonVars[args[index + 1]] = null;
+    }
     index += 2;
     continue;
   }
@@ -153,12 +170,13 @@ if (compactOutput) {
   process.exit(0);
 }
 
-if (slurpInput) {
-  console.log('0');
+const expression = positional[0] || '';
+
+if (rawInput && slurpInput) {
+  const raw = readInput(positional[1]);
+  console.log(JSON.stringify(raw.split('\\n').filter((line) => line.length > 0)));
   process.exit(0);
 }
-
-const expression = positional[0] || '';
 
 if (nullInput) {
   if (expression.includes('total_slices') && expression.includes('done_slices')) {
@@ -198,7 +216,50 @@ if (nullInput) {
     process.exit(0);
   }
 
+  if (expression.includes('commits_since_start')) {
+    console.log(JSON.stringify({
+      status: vars.status || '',
+      reason: vars.reason || '',
+      message: vars.message || '',
+      scope: vars.scope || '',
+      unit: vars.unit || '',
+      phase: vars.phase || '',
+      dispatch_phase: vars.dispatch_phase || '',
+      started_at: vars.started_at || '',
+      stopped_at: vars.stopped_at || '',
+      start_branch: vars.start_branch || '',
+      current_branch: vars.current_branch || '',
+      start_head: vars.start_head || '',
+      current_head: vars.current_head || '',
+      commits_since_start: jsonVars.commits_since_start || [],
+      uncommitted_files: jsonVars.uncommitted_files || [],
+      log_file: vars.log_file || '',
+      safe_next_action: vars.safe_next_action || ''
+    }));
+    process.exit(0);
+  }
+
   console.log('{}');
+  process.exit(0);
+}
+
+if (slurpInput) {
+  const raw = readInput(positional[1]);
+  const total = raw
+    .split('\\n')
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch (error) {
+        return {};
+      }
+    })
+    .reduce((sum, entry) => {
+      const usage = entry.usage || {};
+      return sum + (usage.input_tokens || 0) + (usage.output_tokens || 0);
+    }, 0);
+  console.log(String(total));
   process.exit(0);
 }
 
