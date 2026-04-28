@@ -48,6 +48,13 @@ If execution is about to start, also verify the current slice has
 "Legacy task plans detected. Run /gsd-cc-plan to regenerate XML task plans
 before starting auto-mode."
 
+The auto-loop machine-validates all XML task plans in the current slice before
+apply starts. It stops before dispatch if a plan is not auto-compatible:
+filename/id mismatch, `type` other than `auto`, missing required sections,
+invalid `<files>` paths, duplicate or malformed ACs, verify references to
+unknown ACs, or a `<verify>` command that is neither recognized nor explicitly
+allowed via `auto_apply_allowed_bash`.
+
 ### jq is installed
 ```bash
 command -v jq
