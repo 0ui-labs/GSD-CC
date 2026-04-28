@@ -33,6 +33,7 @@ PHASE COMMANDS (power users)
 
 INFO & MANAGEMENT
   /gsd-cc-status          Show project progress and AC tracking
+  /gsd-cc-status explain  Explain project state in plain language
   /gsd-cc-update          Update GSD-CC to the latest version
   /gsd-cc-help            This help screen
   /gsd-cc-tutorial        Guided walkthrough with a sample project
