@@ -3,6 +3,9 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const {
+  buildDashboardModel
+} = require('./dashboard/read-model');
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4766;
@@ -73,6 +76,16 @@ function writeJson(res, req, statusCode, payload) {
   }, body);
 }
 
+function writeNoCacheJson(res, req, statusCode, payload) {
+  const body = `${JSON.stringify(payload)}\n`;
+  writeResponse(res, req, statusCode, {
+    'Cache-Control': 'no-store, max-age=0',
+    'Content-Type': 'application/json; charset=utf-8',
+    Expires: '0',
+    Pragma: 'no-cache'
+  }, body);
+}
+
 function writeNotFound(res, req) {
   writeResponse(res, req, 404, {
     'Content-Type': 'text/plain; charset=utf-8'
@@ -127,11 +140,26 @@ function serveStaticAsset(req, res, route, dashboardDir) {
   });
 }
 
+function writeDashboardModel(req, res, modelBuilder, projectRoot) {
+  try {
+    writeNoCacheJson(res, req, 200, modelBuilder(projectRoot));
+  } catch (_error) {
+    writeNoCacheJson(res, req, 500, {
+      ok: false,
+      error: {
+        code: 'dashboard_model_failed',
+        message: 'Dashboard state is temporarily unavailable.'
+      }
+    });
+  }
+}
+
 function createDashboardServer(options = {}) {
   const host = normalizeHost(options.host);
   const port = normalizePort(options.port);
   const projectRoot = normalizeProjectRoot(options.projectRoot);
   const dashboardDir = path.resolve(options.dashboardDir || DASHBOARD_DIR);
+  const modelBuilder = options.modelBuilder || buildDashboardModel;
 
   const server = http.createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -152,6 +180,11 @@ function createDashboardServer(options = {}) {
         host,
         port: getBoundPort(server, port)
       });
+      return;
+    }
+
+    if (requestPath === '/api/state') {
+      writeDashboardModel(req, res, modelBuilder, projectRoot);
       return;
     }
 

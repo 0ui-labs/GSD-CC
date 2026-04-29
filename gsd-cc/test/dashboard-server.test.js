@@ -1,4 +1,5 @@
 const assert = require('assert');
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
@@ -41,6 +42,12 @@ function request(serverInfo, pathname, options = {}) {
 
 function contentType(response) {
   return response.headers['content-type'] || '';
+}
+
+function assertNoCache(response) {
+  assert.strictEqual(response.headers['cache-control'], 'no-store, max-age=0');
+  assert.strictEqual(response.headers.pragma, 'no-cache');
+  assert.strictEqual(response.headers.expires, '0');
 }
 
 async function withServer(options, testFn) {
@@ -129,6 +136,59 @@ async function testStaticAssetsUseExpectedContentTypes() {
   });
 }
 
+async function testStateReturnsDashboardModelAsJson() {
+  const projectRoot = makeTempDir('gsd-cc-dashboard-state-api-');
+
+  fs.mkdirSync(path.join(projectRoot, '.gsd'));
+  fs.writeFileSync(path.join(projectRoot, '.gsd', 'STATE.md'), [
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: applying',
+    'language: English',
+    ''
+  ].join('\n'));
+
+  await withServer({ projectRoot, port: 0 }, async (serverInfo) => {
+    const response = await request(serverInfo, '/api/state');
+
+    assert.strictEqual(response.statusCode, 200);
+    assert.match(contentType(response), /^application\/json\b/);
+    assertNoCache(response);
+
+    const model = JSON.parse(response.body);
+    assert.strictEqual(model.project.root, path.resolve(projectRoot));
+    assert.strictEqual(model.current.milestone, 'M001');
+    assert.strictEqual(model.current.slice, 'S01');
+    assert.strictEqual(model.current.task, 'T02');
+    assert.strictEqual(model.current.phase, 'applying');
+  });
+}
+
+async function testStateReturnsSafeJsonError() {
+  await withServer({
+    port: 0,
+    modelBuilder() {
+      throw new Error('secret fixture path');
+    }
+  }, async (serverInfo) => {
+    const response = await request(serverInfo, '/api/state');
+
+    assert.strictEqual(response.statusCode, 500);
+    assert.match(contentType(response), /^application\/json\b/);
+    assertNoCache(response);
+    assert.doesNotMatch(response.body, /secret fixture path/);
+
+    assert.deepStrictEqual(JSON.parse(response.body), {
+      ok: false,
+      error: {
+        code: 'dashboard_model_failed',
+        message: 'Dashboard state is temporarily unavailable.'
+      }
+    });
+  });
+}
+
 async function testUnknownPathsReturnSafeNotFound() {
   await withServer({ port: 0 }, async (serverInfo) => {
     const response = await request(serverInfo, '/../package.json');
@@ -196,6 +256,8 @@ async function testExplicitPortCollisionDoesNotFallback() {
 async function run() {
   await testHealthUsesLoopbackByDefault();
   await testStaticAssetsUseExpectedContentTypes();
+  await testStateReturnsDashboardModelAsJson();
+  await testStateReturnsSafeJsonError();
   await testUnknownPathsReturnSafeNotFound();
   await testUnsupportedMethodsReturnSafeResponse();
   await testDefaultPortFallsBackWhenBusy();
