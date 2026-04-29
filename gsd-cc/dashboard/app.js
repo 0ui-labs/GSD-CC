@@ -20,6 +20,7 @@
       detail: 'Polling state'
     }
   };
+  const ATTENTION_SEVERITY_ORDER = ['critical', 'warning', 'info'];
   const root = document.querySelector('[data-dashboard-root]');
 
   if (!root) {
@@ -86,6 +87,103 @@
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  function formatModelTime(value) {
+    const date = value ? new Date(value) : null;
+
+    if (!date || Number.isNaN(date.getTime())) {
+      return displayValue(value, '');
+    }
+
+    return date.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function normalizeSeverity(value) {
+    const severity = toClassName(value);
+
+    return ATTENTION_SEVERITY_ORDER.includes(severity) ? severity : 'info';
+  }
+
+  function sortAttentionItems(attention) {
+    const items = Array.isArray(attention) ? attention : [];
+
+    return items
+      .map((item, index) => ({
+        item: item || {},
+        index
+      }))
+      .sort((left, right) => {
+        const leftRank = ATTENTION_SEVERITY_ORDER.indexOf(
+          normalizeSeverity(left.item.severity)
+        );
+        const rightRank = ATTENTION_SEVERITY_ORDER.indexOf(
+          normalizeSeverity(right.item.severity)
+        );
+
+        if (leftRank !== rightRank) {
+          return leftRank - rightRank;
+        }
+
+        return left.index - right.index;
+      })
+      .map((entry) => entry.item);
+  }
+
+  function artifactHref(source) {
+    const path = displayValue(source, '');
+
+    if (!path || !path.startsWith('.gsd/')) {
+      return '';
+    }
+
+    return `/api/artifact?path=${encodeURIComponent(path)}`;
+  }
+
+  function renderArtifactLink(source, label) {
+    const path = displayValue(source, '');
+
+    if (!path) {
+      return '';
+    }
+
+    const text = label || path;
+    const href = artifactHref(path);
+
+    if (!href) {
+      return [
+        '<span class="dashboard-artifact-link dashboard-artifact-link--plain">',
+        escapeHtml(text),
+        '</span>'
+      ].join('');
+    }
+
+    return [
+      `<a class="dashboard-artifact-link" href="${escapeHtml(href)}" target="_blank" rel="noopener">`,
+      escapeHtml(text),
+      '</a>'
+    ].join('');
+  }
+
+  function uniqueValues(values) {
+    const seen = new Set();
+    const unique = [];
+
+    for (const value of values) {
+      const normalized = displayValue(value, '');
+
+      if (normalized && !seen.has(normalized)) {
+        seen.add(normalized);
+        unique.push(normalized);
+      }
+    }
+
+    return unique;
   }
 
   function setConnection(connection) {
@@ -221,8 +319,13 @@
 
   function renderSidebar(model, current) {
     const activity = Array.isArray(model.activity) ? model.activity : [];
-    const attention = Array.isArray(model.attention) ? model.attention : [];
+    const attention = sortAttentionItems(model.attention);
     const navItems = [
+      {
+        id: 'attention',
+        label: 'Attention',
+        meta: attention.length > 0 ? `${attention.length} items` : 'clear'
+      },
       {
         id: 'current-run',
         label: 'Run',
@@ -241,7 +344,7 @@
       {
         id: 'context',
         label: 'Context',
-        meta: attention.length > 0 ? `${attention.length} items` : 'clear'
+        meta: displayValue(model.project && model.project.project_type, 'project')
       }
     ];
 
@@ -280,25 +383,215 @@
     ].join('');
   }
 
-  function renderAttention(attention) {
-    if (!attention || attention.length === 0) {
+  function renderDetail(label, value) {
+    const text = displayValue(value, '');
+
+    if (!text) {
+      return '';
+    }
+
+    return [
+      '<div class="dashboard-attention-detail">',
+      `  <dt>${escapeHtml(label)}</dt>`,
+      `  <dd>${escapeHtml(text)}</dd>`,
+      '</div>'
+    ].join('');
+  }
+
+  function renderDetailList(label, values) {
+    const items = uniqueValues(Array.isArray(values) ? values : []);
+
+    if (items.length === 0) {
+      return '';
+    }
+
+    return [
+      '<div class="dashboard-attention-detail dashboard-attention-detail--list">',
+      `  <dt>${escapeHtml(label)}</dt>`,
+      '  <dd>',
+      '    <ul>',
+      ...items.slice(0, 4).map((item) => `      <li>${escapeHtml(item)}</li>`),
+      items.length > 4
+        ? `      <li>${items.length - 4} more</li>`
+        : '',
+      '    </ul>',
+      '  </dd>',
+      '</div>'
+    ].join('');
+  }
+
+  function renderArtifactDetail(label, sources) {
+    const links = uniqueValues(Array.isArray(sources) ? sources : [sources])
+      .map((source) => renderArtifactLink(source))
+      .filter(Boolean);
+
+    if (links.length === 0) {
+      return '';
+    }
+
+    return [
+      '<div class="dashboard-attention-detail dashboard-attention-detail--artifacts">',
+      `  <dt>${escapeHtml(label)}</dt>`,
+      `  <dd>${links.join('')}</dd>`,
+      '</div>'
+    ].join('');
+  }
+
+  function renderApprovalDetails(approval) {
+    if (!approval) {
+      return '';
+    }
+
+    return [
+      renderDetail('Unit', approval.unit),
+      renderDetail('Risk', approval.risk_level),
+      renderDetail('Reason', approval.risk_reason),
+      renderDetail('Created', formatModelTime(approval.created_at)),
+      renderDetailList('Approval reasons', approval.reasons),
+      renderArtifactDetail('Artifacts', [
+        approval.source,
+        approval.plan
+      ])
+    ].join('');
+  }
+
+  function renderRecoveryDetails(recovery) {
+    if (!recovery) {
+      return '';
+    }
+
+    return [
+      renderDetail('Unit', recovery.unit),
+      renderDetail('Reason', recovery.reason),
+      renderDetail('Phase', recovery.phase),
+      renderDetail('Dispatch', recovery.dispatch_phase),
+      renderDetail('Stopped', formatModelTime(recovery.stopped_at)),
+      renderDetail('Message', recovery.message),
+      renderDetailList('Uncommitted files', recovery.uncommitted_files),
+      renderArtifactDetail('Artifacts', [
+        recovery.source,
+        recovery.report,
+        recovery.log_file
+      ])
+    ].join('');
+  }
+
+  function renderLockDetails(automation) {
+    return [
+      renderDetail('Unit', automation.unit),
+      renderDetail('PID', automation.pid),
+      renderDetail('Started', formatModelTime(automation.started_at))
+    ].join('');
+  }
+
+  function renderPhaseDetails(current) {
+    return [
+      renderDetail('Phase', current.phase),
+      renderDetail('Milestone', current.milestone),
+      renderDetail('Slice', current.slice),
+      renderDetail('Task', current.task)
+    ].join('');
+  }
+
+  function renderUnifyDetails(current, item) {
+    return [
+      renderDetail('Slice', current.slice),
+      renderDetail('Expected report', item.source)
+    ].join('');
+  }
+
+  function renderAttentionDetails(item, model) {
+    const evidence = model.evidence || {};
+    const current = model.current || {};
+    const automation = model.automation || {};
+    const id = displayValue(item.id, '');
+    let details = '';
+
+    if (id === 'approval-required') {
+      details = renderApprovalDetails(evidence.approval_request);
+    } else if (id === 'auto-recovery') {
+      details = renderRecoveryDetails(evidence.latest_recovery);
+    } else if (id === 'auto-lock-stale') {
+      details = [
+        renderLockDetails(automation),
+        renderArtifactDetail('Artifacts', item.source)
+      ].join('');
+    } else if (id.startsWith('phase-')) {
+      details = [
+        renderPhaseDetails(current),
+        renderArtifactDetail('Artifacts', item.source)
+      ].join('');
+    } else if (id === 'unify-required') {
+      details = renderUnifyDetails(current, item);
+    } else {
+      details = renderArtifactDetail('Artifacts', item.source);
+    }
+
+    if (!details) {
+      return '';
+    }
+
+    return `<dl class="dashboard-attention-details">${details}</dl>`;
+  }
+
+  function renderAttentionItem(item, model) {
+    const severity = normalizeSeverity(item.severity);
+    const action = displayValue(item.recommended_action, '');
+
+    return [
+      `<li class="dashboard-attention-item dashboard-attention-item--${severity}">`,
+      '  <div class="dashboard-attention-item-header">',
+      `    <span class="dashboard-attention-severity">${escapeHtml(severity)}</span>`,
+      `    <strong>${escapeHtml(displayValue(item.title, 'Attention'))}</strong>`,
+      '  </div>',
+      `  <p>${escapeHtml(displayValue(item.message, 'Review project state.'))}</p>`,
+      action
+        ? `  <p class="dashboard-attention-action">${escapeHtml(action)}</p>`
+        : '',
+      renderAttentionDetails(item, model),
+      '</li>'
+    ].join('');
+  }
+
+  function renderAttentionSummary(attention) {
+    const counts = attention.reduce((summary, item) => {
+      const severity = normalizeSeverity(item.severity);
+      summary[severity] += 1;
+      return summary;
+    }, {
+      critical: 0,
+      warning: 0,
+      info: 0
+    });
+
+    return [
+      '<div class="dashboard-attention-summary" aria-label="Attention summary">',
+      ...ATTENTION_SEVERITY_ORDER
+        .filter((severity) => counts[severity] > 0)
+        .map((severity) => [
+          `<span class="dashboard-attention-count dashboard-attention-count--${severity}">`,
+          `  <strong>${counts[severity]}</strong>`,
+          `  <span>${escapeHtml(severity)}</span>`,
+          '</span>'
+        ].join('')),
+      '</div>'
+    ].join('');
+  }
+
+  function renderAttentionPanel(model) {
+    const attention = sortAttentionItems(model.attention);
+
+    if (attention.length === 0) {
       return renderEmptyState(
         'No attention items',
-        'Blocking issues and decisions will appear in this rail.'
+        'Blockers, approvals, and recovery actions will appear here.'
       );
     }
 
     return [
+      renderAttentionSummary(attention),
       '<ul class="dashboard-attention-list">',
-      ...attention.map((item) => [
-        `<li class="dashboard-attention dashboard-attention--${toClassName(item.severity)}">`,
-        `  <strong>${escapeHtml(displayValue(item.title, 'Attention'))}</strong>`,
-        `  <p>${escapeHtml(displayValue(item.message, 'Review project state.'))}</p>`,
-        item.recommended_action
-          ? `  <small>${escapeHtml(item.recommended_action)}</small>`
-          : '',
-        '</li>'
-      ].join('')),
+      ...attention.map((item) => renderAttentionItem(item, model)),
       '</ul>'
     ].join('');
   }
@@ -433,6 +726,10 @@
   function renderMain(model, current) {
     return [
       '<main class="dashboard-main" aria-live="polite">',
+      '  <section class="dashboard-region dashboard-attention-panel" id="attention">',
+      renderRegionHeader('Attention', 'Blockers and required user action.'),
+      renderAttentionPanel(model),
+      '  </section>',
       '  <section class="dashboard-region" id="current-run">',
       renderRegionHeader('Current run', 'The active package and next action.'),
       renderRunSummary(current),
@@ -456,10 +753,6 @@
       '  <section class="dashboard-context-section">',
       renderRegionHeader('Automation', ''),
       renderAutomation(automation),
-      '  </section>',
-      '  <section class="dashboard-context-section">',
-      renderRegionHeader('Attention', ''),
-      renderAttention(model.attention),
       '  </section>',
       '  <section class="dashboard-context-section">',
       renderRegionHeader('Project', ''),
