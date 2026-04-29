@@ -202,6 +202,16 @@
     ].join('');
   }
 
+  function currentTaskPlanPath(currentTask) {
+    const id = knownDisplayValue(currentTask && currentTask.id);
+
+    if (!/^S[0-9]+-T[0-9]+$/i.test(id)) {
+      return '';
+    }
+
+    return `.gsd/${id}-PLAN.xml`;
+  }
+
   function uniqueValues(values) {
     const seen = new Set();
     const unique = [];
@@ -811,7 +821,81 @@
     ].join('');
   }
 
-  function renderCurrentTask(currentTask) {
+  function renderWhyTaskLines(items, emptyText, options = {}) {
+    const values = uniqueValues(Array.isArray(items) ? items : []);
+
+    if (values.length === 0) {
+      return `<p class="dashboard-why-task-empty">${escapeHtml(emptyText)}</p>`;
+    }
+
+    return [
+      '<ul class="dashboard-why-task-list">',
+      ...values.map((item) => [
+        '  <li>',
+        options.code
+          ? `    <code>${escapeHtml(item)}</code>`
+          : `    <span>${escapeHtml(item)}</span>`,
+        '  </li>'
+      ].join('')),
+      '</ul>'
+    ].join('');
+  }
+
+  function renderWhyTaskBlock(title, body) {
+    return [
+      '<section class="dashboard-why-task-block">',
+      `  <h4>${escapeHtml(title)}</h4>`,
+      body,
+      '</section>'
+    ].join('');
+  }
+
+  function renderWhyTaskRisk(risk) {
+    const safeRisk = risk || {};
+    const level = displayValue(safeRisk.level, 'unknown');
+    const reason = displayValue(safeRisk.reason, '');
+
+    return [
+      '<div class="dashboard-why-task-risk">',
+      `  <span class="dashboard-why-task-risk-badge dashboard-why-task-risk-badge--${toClassName(level)}">`,
+      '    <span>Risk level</span>',
+      `    <strong>${escapeHtml(level)}</strong>`,
+      '  </span>',
+      reason
+        ? `  <p>${escapeHtml(reason)}</p>`
+        : '  <p class="dashboard-why-task-empty">No risk reason recorded.</p>',
+      '</div>'
+    ].join('');
+  }
+
+  function renderWhyTaskCriteria(criteria) {
+    const items = Array.isArray(criteria) ? criteria : [];
+
+    if (items.length === 0) {
+      return '<p class="dashboard-why-task-empty">No acceptance criteria recorded.</p>';
+    }
+
+    return [
+      '<ul class="dashboard-why-task-criteria">',
+      ...items.map((criterion) => {
+        const status = displayValue(criterion && criterion.status, '');
+
+        return [
+          `  <li class="dashboard-why-task-criterion dashboard-why-task-criterion--${toClassName(status || 'pending')}">`,
+          `    <strong>${escapeHtml(displayValue(criterion && criterion.id, 'AC'))}</strong>`,
+          `    <p>${escapeHtml(displayValue(
+            criterion && criterion.text,
+            'Acceptance criterion'
+          ))}</p>`,
+          status ? `    <small>${escapeHtml(status)}</small>` : '',
+          '  </li>'
+        ].join('');
+      }),
+      '</ul>'
+    ].join('');
+  }
+
+  function renderWhyThisTaskPanel(currentTask) {
     if (!currentTask || currentTask.id === 'unknown') {
       return renderEmptyState(
         'No current task plan loaded',
@@ -819,31 +903,43 @@
       );
     }
 
-    const criteria = currentTask.acceptance_criteria || [];
-    const visibleCriteria = criteria.slice(0, 3);
+    const taskPlanLink = renderArtifactLink(currentTaskPlanPath(currentTask), 'Task plan');
 
     return [
-      '<div class="dashboard-task">',
-      `  <p>${escapeHtml(displayValue(currentTask.id, 'unknown'))}</p>`,
-      `  <h3>${escapeHtml(displayValue(currentTask.name, 'Untitled task'))}</h3>`,
-      `  <span>Risk: ${escapeHtml(displayValue(
-        currentTask.risk && currentTask.risk.level,
-        'unknown'
-      ))}</span>`,
-      criteria.length > 0 ? [
-        '  <ul class="dashboard-criteria">',
-        ...visibleCriteria.map((criterion) => [
-          `    <li class="dashboard-criterion dashboard-criterion--${toClassName(criterion.status)}">`,
-          `      <span>${escapeHtml(displayValue(criterion.id, 'AC'))}</span>`,
-          `      <p>${escapeHtml(displayValue(criterion.text, 'Acceptance criterion'))}</p>`,
-          '    </li>'
-        ].join('')),
-        criteria.length > visibleCriteria.length
-          ? `    <li class="dashboard-more">${criteria.length - visibleCriteria.length} more</li>`
-          : '',
-        '  </ul>'
-      ].join('') : '',
-      '</div>'
+      '<section class="dashboard-why-task-panel" aria-label="Why this task">',
+      '  <header class="dashboard-why-task-header">',
+      '    <div>',
+      `      <span>${escapeHtml(displayValue(currentTask.id, 'unknown'))}</span>`,
+      `      <h3>${escapeHtml(displayValue(currentTask.name, 'Untitled task'))}</h3>`,
+      '    </div>',
+      taskPlanLink,
+      '  </header>',
+      '  <div class="dashboard-why-task-grid">',
+      renderWhyTaskBlock(
+        'Action summary',
+        renderWhyTaskLines(
+          currentTask.action,
+          'No task action recorded.'
+        )
+      ),
+      renderWhyTaskBlock(
+        'Risk',
+        renderWhyTaskRisk(currentTask.risk)
+      ),
+      renderWhyTaskBlock(
+        'Acceptance criteria covered',
+        renderWhyTaskCriteria(currentTask.acceptance_criteria)
+      ),
+      renderWhyTaskBlock(
+        'Verify command',
+        renderWhyTaskLines(
+          currentTask.verify,
+          'No verify command recorded.',
+          { code: true }
+        )
+      ),
+      '  </div>',
+      '</section>'
     ].join('');
   }
 
@@ -949,7 +1045,7 @@
       renderRegionHeader('Current run', 'Active task and automation operation.'),
       renderRunSummary(current),
       renderCurrentRunPanel(model, current, model.automation || {}),
-      renderCurrentTask(model.current_task),
+      renderWhyThisTaskPanel(model.current_task),
       '  </section>',
       '  <section class="dashboard-region" id="progress">',
       renderRegionHeader('Progress', 'Slice and acceptance status.'),

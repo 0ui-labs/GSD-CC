@@ -289,6 +289,69 @@ function createCurrentRunModel() {
   };
 }
 
+function createWhyTaskModel() {
+  return {
+    project: {
+      name: 'Why Task Fixture',
+      project_type: 'application'
+    },
+    current: {
+      milestone: 'M002',
+      slice: 'S04',
+      task: 'T05',
+      phase: 'applying',
+      task_name: 'Explain task rationale',
+      next_action: 'Review the task plan rationale.'
+    },
+    automation: {
+      status: 'inactive',
+      scope: 'task',
+      unit: 'S04/T05'
+    },
+    progress: {
+      slices: [],
+      acceptance_criteria: {
+        total: 0,
+        passed: 0,
+        pending: 0
+      }
+    },
+    current_task: {
+      id: 'S04-T05',
+      name: 'Explain task rationale',
+      risk: {
+        level: 'high',
+        reason: 'Task plan fields must not be mixed with inferred reasoning.'
+      },
+      files: [],
+      boundaries: [],
+      acceptance_criteria: [
+        {
+          id: 'AC-4',
+          text: 'Given a task plan exists\nWhen the dashboard renders\nThen action evidence is visible',
+          status: 'pending'
+        },
+        {
+          id: 'AC-5',
+          text: 'Given verify commands exist\nWhen the dashboard renders\nThen commands are shown verbatim',
+          status: 'passed'
+        }
+      ],
+      action: [
+        '1. Render the task action summary',
+        '2. Show risk and covered ACs'
+      ],
+      verify: [
+        'node test/dashboard-ui-smoke.test.js (AC-4, AC-5)'
+      ],
+      done: null,
+      warnings: []
+    },
+    attention: [],
+    activity: []
+  };
+}
+
 function flushPromises() {
   return new Promise((resolve) => {
     setImmediate(resolve);
@@ -331,6 +394,10 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /dashboard-status-badge/);
   assert.match(source, /dashboard-attention-panel/);
   assert.match(source, /dashboard-current-run-panel/);
+  assert.match(source, /dashboard-why-task-panel/);
+  assert.match(source, /Action summary/);
+  assert.match(source, /Acceptance criteria covered/);
+  assert.match(source, /Verify command/);
   assert.match(source, /formatRuntimeSince/);
   assert.match(source, /Dispatch phase/);
   assert.match(source, /Latest event/);
@@ -513,6 +580,62 @@ async function testCurrentRunPanelRendersActiveOperationDetails() {
   assert.match(root.innerHTML, /AUTO-RECOVERY\.md/);
 }
 
+async function testWhyThisTaskPanelRendersTaskPlanEvidence() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: ''
+  };
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(createWhyTaskModel());
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  assert.match(root.innerHTML, /dashboard-why-task-panel/);
+  assert.match(root.innerHTML, /Why this task/);
+  assert.match(root.innerHTML, /Explain task rationale/);
+  assert.match(root.innerHTML, /Task plan/);
+  assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FS04-T05-PLAN\.xml/);
+  assert.match(root.innerHTML, /Action summary/);
+  assert.match(root.innerHTML, /1\. Render the task action summary/);
+  assert.match(root.innerHTML, /Risk level/);
+  assert.match(root.innerHTML, /high/);
+  assert.match(root.innerHTML, /Task plan fields must not be mixed with inferred reasoning/);
+  assert.match(root.innerHTML, /Acceptance criteria covered/);
+  assert.match(root.innerHTML, /AC-4/);
+  assert.match(root.innerHTML, /action evidence is visible/);
+  assert.match(root.innerHTML, /AC-5/);
+  assert.match(root.innerHTML, /commands are shown verbatim/);
+  assert.match(root.innerHTML, /Verify command/);
+  assert.match(root.innerHTML, /node test\/dashboard-ui-smoke\.test\.js \(AC-4, AC-5\)/);
+  assert.doesNotMatch(root.innerHTML, /doing this because/i);
+}
+
 async function testAttentionPanelRendersRequiredActionDetails() {
   const source = fs.readFileSync(appPath, 'utf8');
   const root = {
@@ -594,6 +717,10 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-current-run-details/);
   assert.match(styles, /\.dashboard-current-run-activity--warning/);
   assert.match(styles, /\.dashboard-current-run-pointer-links/);
+  assert.match(styles, /\.dashboard-why-task-panel/);
+  assert.match(styles, /\.dashboard-why-task-grid/);
+  assert.match(styles, /\.dashboard-why-task-risk-badge--high/);
+  assert.match(styles, /\.dashboard-why-task-criterion--passed/);
   assert.match(styles, /\.dashboard-artifact-link/);
   assert.match(styles, /\.dashboard-workspace/);
   assert.match(styles, /grid-template-columns:\s*minmax\(180px,\s*220px\)\s*minmax\(0,\s*1fr\)\s*minmax\(260px,\s*320px\)/);
@@ -608,6 +735,7 @@ async function run() {
   await testSseStateEventUpdatesRenderedState();
   await testEmptyModelRendersEmptyShellStates();
   await testCurrentRunPanelRendersActiveOperationDetails();
+  await testWhyThisTaskPanelRendersTaskPlanEvidence();
   await testAttentionPanelRendersRequiredActionDetails();
   await testStylesExposeConnectionStates();
 }
