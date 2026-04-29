@@ -51,6 +51,12 @@
     return text ? text : fallback;
   }
 
+  function knownDisplayValue(value) {
+    const text = displayValue(value, '');
+
+    return text && text !== 'unknown' ? text : '';
+  }
+
   function toClassName(value) {
     return String(value || 'unknown')
       .toLowerCase()
@@ -102,6 +108,32 @@
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  function formatRuntimeSince(value) {
+    const started = value ? new Date(value) : null;
+
+    if (!started || Number.isNaN(started.getTime())) {
+      return '';
+    }
+
+    const elapsedSeconds = Math.max(
+      0,
+      Math.floor((Date.now() - started.getTime()) / 1000)
+    );
+    const hours = Math.floor(elapsedSeconds / 3600);
+    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+    const seconds = elapsedSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+
+    if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    }
+
+    return `${seconds}s`;
   }
 
   function normalizeSeverity(value) {
@@ -379,6 +411,189 @@
         current.next_action,
         'Waiting for project state.'
       ))}</p>`,
+      '</section>'
+    ].join('');
+  }
+
+  function describeCurrentTaskId(model, current) {
+    const currentTask = model.current_task || {};
+    const taskPlanId = knownDisplayValue(currentTask.id);
+
+    if (taskPlanId) {
+      return taskPlanId;
+    }
+
+    const slice = knownDisplayValue(current.slice);
+    const task = knownDisplayValue(current.task);
+
+    if (slice && task) {
+      return `${slice}/${task}`;
+    }
+
+    return 'unknown';
+  }
+
+  function resolveCurrentTaskTitle(model, current) {
+    const currentTask = model.current_task || {};
+
+    return knownDisplayValue(current.task_name)
+      || knownDisplayValue(currentTask.name)
+      || knownDisplayValue(current.task)
+      || 'Unknown task';
+  }
+
+  function resolveCurrentRunUnit(model, current, automation) {
+    const activity = current.activity || {};
+
+    return knownDisplayValue(activity.unit)
+      || knownDisplayValue(automation.unit)
+      || describeCurrentTaskId(model, current);
+  }
+
+  function resolveCurrentRunActivity(model, current) {
+    const activity = current.activity || null;
+
+    if (activity) {
+      return activity;
+    }
+
+    return Array.isArray(model.activity) && model.activity.length > 0
+      ? model.activity[0]
+      : null;
+  }
+
+  function resolveDispatchPhase(model, current) {
+    const activity = resolveCurrentRunActivity(model, current);
+    const recovery = model.evidence && model.evidence.latest_recovery
+      ? model.evidence.latest_recovery
+      : {};
+
+    return knownDisplayValue(activity && activity.dispatch_phase)
+      || knownDisplayValue(recovery.dispatch_phase)
+      || 'none';
+  }
+
+  function renderCurrentRunActivity(activity) {
+    if (!activity) {
+      return [
+        '<div class="dashboard-current-run-activity dashboard-current-run-activity--empty">',
+        '  <span>Latest event</span>',
+        '  <strong>No live activity yet</strong>',
+        '  <small>Events appear after auto-mode writes them.</small>',
+        '</div>'
+      ].join('');
+    }
+
+    const meta = [
+      displayValue(activity.category, 'event'),
+      displayValue(activity.type, 'unknown')
+    ].join(' - ');
+
+    return [
+      `<div class="dashboard-current-run-activity dashboard-current-run-activity--${toClassName(activity.severity)}">`,
+      '  <span>Latest event</span>',
+      `  <strong>${escapeHtml(displayValue(activity.message, 'Activity recorded.'))}</strong>`,
+      `  <small>${escapeHtml(formatActivityTime(activity.timestamp))} / ${escapeHtml(meta)}</small>`,
+      '</div>'
+    ].join('');
+  }
+
+  function currentRunPointerSources(model, activity) {
+    const evidence = model.evidence || {};
+    const recovery = evidence.latest_recovery || null;
+    const sources = [];
+
+    if (recovery) {
+      sources.push({
+        label: 'Recovery',
+        path: recovery.report || recovery.source
+      });
+      sources.push({
+        label: 'Log',
+        path: recovery.log_file
+      });
+    }
+
+    if (activity) {
+      sources.push({
+        label: 'Event',
+        path: activity.source
+      });
+      sources.push({
+        label: 'Artifact',
+        path: activity.artifact
+      });
+
+      if (Array.isArray(activity.artifacts)) {
+        activity.artifacts.forEach((path) => {
+          sources.push({
+            label: 'Artifact',
+            path
+          });
+        });
+      }
+    }
+
+    const seen = new Set();
+
+    return sources.filter((source) => {
+      const path = displayValue(source.path, '');
+
+      if (!path || seen.has(path)) {
+        return false;
+      }
+
+      seen.add(path);
+      return true;
+    });
+  }
+
+  function renderCurrentRunPointer(model, activity) {
+    const sources = currentRunPointerSources(model, activity);
+
+    if (sources.length === 0) {
+      return [
+        '<div class="dashboard-current-run-pointer dashboard-current-run-pointer--empty">',
+        '  <span>Latest pointer</span>',
+        '  <strong>No log pointer yet</strong>',
+        '</div>'
+      ].join('');
+    }
+
+    return [
+      '<div class="dashboard-current-run-pointer">',
+      '  <span>Latest pointer</span>',
+      '  <div class="dashboard-current-run-pointer-links">',
+      ...sources.slice(0, 4).map((source) => renderArtifactLink(source.path, source.label)),
+      sources.length > 4
+        ? `    <small>${sources.length - 4} more</small>`
+        : '',
+      '  </div>',
+      '</div>'
+    ].join('');
+  }
+
+  function renderCurrentRunPanel(model, current, automation) {
+    const activity = resolveCurrentRunActivity(model, current);
+    const isActive = automation.status === 'active';
+    const runtime = isActive ? formatRuntimeSince(automation.started_at) : '';
+    const pid = isActive && automation.pid ? automation.pid : 'inactive';
+
+    return [
+      '<section class="dashboard-current-run-panel" aria-label="Current run details">',
+      '  <div class="dashboard-current-run-focus">',
+      '    <span>Current task</span>',
+      `    <h3>${escapeHtml(resolveCurrentTaskTitle(model, current))}</h3>`,
+      `    <small>${escapeHtml(resolveCurrentRunUnit(model, current, automation))}</small>`,
+      '  </div>',
+      '  <dl class="dashboard-current-run-details">',
+      renderField('Current phase', current.phase),
+      renderField('Dispatch phase', resolveDispatchPhase(model, current)),
+      renderField('PID', pid),
+      renderField('Runtime', runtime || (isActive ? 'starting' : 'inactive')),
+      '  </dl>',
+      renderCurrentRunActivity(activity),
+      renderCurrentRunPointer(model, activity),
       '</section>'
     ].join('');
   }
@@ -731,8 +946,9 @@
       renderAttentionPanel(model),
       '  </section>',
       '  <section class="dashboard-region" id="current-run">',
-      renderRegionHeader('Current run', 'The active package and next action.'),
+      renderRegionHeader('Current run', 'Active task and automation operation.'),
       renderRunSummary(current),
+      renderCurrentRunPanel(model, current, model.automation || {}),
       renderCurrentTask(model.current_task),
       '  </section>',
       '  <section class="dashboard-region" id="progress">',

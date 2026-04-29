@@ -225,6 +225,70 @@ function createAttentionModel() {
   };
 }
 
+function createCurrentRunModel() {
+  return {
+    project: {
+      name: 'Current Run Fixture',
+      project_type: 'application'
+    },
+    current: {
+      milestone: 'M001',
+      slice: 'S03',
+      task: 'T04',
+      phase: 'applying',
+      task_name: 'Implement dashboard current run',
+      next_action: 'Wait for S03/T04 to finish.',
+      activity: {
+        timestamp: '2026-04-29T08:45:00.000Z',
+        type: 'dispatch_failed',
+        category: 'dispatch',
+        severity: 'warning',
+        message: 'Apply dispatch failed.',
+        unit: 'S03/T04',
+        phase: 'applying',
+        dispatch_phase: 'apply',
+        source: '.gsd/events.jsonl',
+        line: 8,
+        artifact: '.gsd/AUTO-RECOVERY.md'
+      }
+    },
+    automation: {
+      status: 'active',
+      scope: 'task',
+      unit: 'S03/T04',
+      pid: 4242,
+      started_at: '2026-04-29T08:40:00.000Z'
+    },
+    progress: {
+      slices: [],
+      acceptance_criteria: {
+        total: 0,
+        passed: 0,
+        pending: 0
+      }
+    },
+    current_task: {
+      id: 'S03-T04',
+      name: 'Fallback task title',
+      risk: {
+        level: 'medium'
+      },
+      acceptance_criteria: []
+    },
+    attention: [],
+    activity: [],
+    evidence: {
+      latest_recovery: {
+        reason: 'dispatch_failed',
+        dispatch_phase: 'apply',
+        log_file: '.gsd/auto.log',
+        report: '.gsd/AUTO-RECOVERY.md',
+        source: '.gsd/auto-recovery.json'
+      }
+    }
+  };
+}
+
 function flushPromises() {
   return new Promise((resolve) => {
     setImmediate(resolve);
@@ -266,6 +330,11 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /dashboard-status-strip/);
   assert.match(source, /dashboard-status-badge/);
   assert.match(source, /dashboard-attention-panel/);
+  assert.match(source, /dashboard-current-run-panel/);
+  assert.match(source, /formatRuntimeSince/);
+  assert.match(source, /Dispatch phase/);
+  assert.match(source, /Latest event/);
+  assert.match(source, /Latest pointer/);
   assert.match(source, /\/api\/artifact\?path=/);
   assert.match(source, /dashboard-sidebar/);
   assert.match(source, /dashboard-main/);
@@ -381,8 +450,67 @@ async function testEmptyModelRendersEmptyShellStates() {
 
   assert.match(root.innerHTML, /No progress data yet/);
   assert.match(root.innerHTML, /No current task plan loaded/);
+  assert.match(root.innerHTML, /No live activity yet/);
+  assert.match(root.innerHTML, /No log pointer yet/);
   assert.match(root.innerHTML, /No recent activity yet/);
   assert.match(root.innerHTML, /No attention items/);
+}
+
+async function testCurrentRunPanelRendersActiveOperationDetails() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: ''
+  };
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(createCurrentRunModel());
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  assert.match(root.innerHTML, /dashboard-current-run-panel/);
+  assert.match(root.innerHTML, /Current task/);
+  assert.match(root.innerHTML, /Implement dashboard current run/);
+  assert.match(root.innerHTML, /S03\/T04/);
+  assert.match(root.innerHTML, /Current phase/);
+  assert.match(root.innerHTML, /applying/);
+  assert.match(root.innerHTML, /Dispatch phase/);
+  assert.match(root.innerHTML, /apply/);
+  assert.match(root.innerHTML, /PID/);
+  assert.match(root.innerHTML, /4242/);
+  assert.match(root.innerHTML, /Runtime/);
+  assert.match(root.innerHTML, /Latest event/);
+  assert.match(root.innerHTML, /Apply dispatch failed/);
+  assert.match(root.innerHTML, /dispatch - dispatch_failed/);
+  assert.match(root.innerHTML, /Latest pointer/);
+  assert.match(root.innerHTML, /Log/);
+  assert.match(root.innerHTML, /auto\.log/);
+  assert.match(root.innerHTML, /Recovery/);
+  assert.match(root.innerHTML, /AUTO-RECOVERY\.md/);
 }
 
 async function testAttentionPanelRendersRequiredActionDetails() {
@@ -462,6 +590,10 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-status-badge--approval-required/);
   assert.match(styles, /\.dashboard-attention-panel/);
   assert.match(styles, /\.dashboard-attention-item--critical/);
+  assert.match(styles, /\.dashboard-current-run-panel/);
+  assert.match(styles, /\.dashboard-current-run-details/);
+  assert.match(styles, /\.dashboard-current-run-activity--warning/);
+  assert.match(styles, /\.dashboard-current-run-pointer-links/);
   assert.match(styles, /\.dashboard-artifact-link/);
   assert.match(styles, /\.dashboard-workspace/);
   assert.match(styles, /grid-template-columns:\s*minmax\(180px,\s*220px\)\s*minmax\(0,\s*1fr\)\s*minmax\(260px,\s*320px\)/);
@@ -475,6 +607,7 @@ async function run() {
   await testClientReferencesDashboardEndpoints();
   await testSseStateEventUpdatesRenderedState();
   await testEmptyModelRendersEmptyShellStates();
+  await testCurrentRunPanelRendersActiveOperationDetails();
   await testAttentionPanelRendersRequiredActionDetails();
   await testStylesExposeConnectionStates();
 }
