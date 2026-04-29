@@ -327,10 +327,11 @@ function testMissingStateFieldsRemainUnknown() {
 function currentTaskPlanXml(options = {}) {
   const slice = options.slice || 'S01';
   const task = options.task || 'T01';
+  const name = options.name || 'Dashboard parser task';
 
   return [
     `<task id="${slice}-${task}" type="auto">`,
-    '  <name>Dashboard parser task</name>',
+    `  <name>${name}</name>`,
     '  <files>',
     '    scripts/dashboard/task-plan-parser.js',
     '    scripts/dashboard/read-model.js',
@@ -356,6 +357,53 @@ function currentTaskPlanXml(options = {}) {
     '</task>',
     ''
   ].join('\n');
+}
+
+function writeSlicePlan(projectRoot, slice, name = 'Fixture Slice') {
+  writeProjectFile(projectRoot, `.gsd/${slice}-PLAN.md`, [
+    `# ${slice} - ${name}`,
+    '',
+    '## Overview',
+    'Fixture slice plan.',
+    '',
+    '## Tasks',
+    '',
+    '| Task | Name | Risk | Files | ACs |',
+    '|------|------|------|-------|-----|',
+    '| T01 | First task | low | 1 | 1 |',
+    ''
+  ].join('\n'));
+}
+
+function writeTaskPlan(projectRoot, slice, task, name) {
+  writeProjectFile(
+    projectRoot,
+    `.gsd/${slice}-${task}-PLAN.xml`,
+    currentTaskPlanXml({ slice, task, name })
+  );
+}
+
+function writeTaskSummary(projectRoot, slice, task, status = 'complete') {
+  writeProjectFile(projectRoot, `.gsd/${slice}-${task}-SUMMARY.md`, [
+    `# ${slice}/${task} — Summary`,
+    '',
+    '## Status',
+    status,
+    '',
+    '## What Was Done',
+    '- Fixture work.',
+    ''
+  ].join('\n'));
+}
+
+function writeUnify(projectRoot, slice, status = 'complete') {
+  writeProjectFile(projectRoot, `.gsd/${slice}-UNIFY.md`, [
+    `# ${slice} UNIFY`,
+    '',
+    '## Status',
+    status,
+    ''
+  ].join('\n'));
 }
 
 function warningCodes(model) {
@@ -412,6 +460,152 @@ function testCurrentTaskPlanPopulatesCurrentTask() {
   assert.deepStrictEqual(model.current_task.warnings, []);
 }
 
+function testProgressDiscoversRoadmapSlicesAndArtifacts() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S02',
+    'current_task: T02',
+    'phase: applying',
+    ''
+  ].join('\n'));
+
+  writeProjectFile(projectRoot, '.gsd/M001-ROADMAP.md', [
+    '# M001 — Dashboard Milestone',
+    '',
+    '## Slices',
+    '',
+    '### S01 — Completed Foundation',
+    'Finished baseline work.',
+    '',
+    '### S02 — Active Execution',
+    'Currently running task work.',
+    '',
+    '### S03 — Planned Work',
+    'Ready for execution.',
+    '',
+    '### S04 — Pending Work',
+    'Not planned yet.',
+    '',
+    '### S05 — Awaiting UNIFY',
+    'All tasks are done.',
+    '',
+    '### S06 — Failed Reconciliation',
+    'UNIFY reported failure.',
+    '',
+    '### S07 — Blocked Execution',
+    'A task is blocked.',
+    ''
+  ].join('\n'));
+
+  writeSlicePlan(projectRoot, 'S01', 'Completed Foundation');
+  writeTaskPlan(projectRoot, 'S01', 'T01', 'First completed task');
+  writeTaskPlan(projectRoot, 'S01', 'T02', 'Second completed task');
+  writeTaskSummary(projectRoot, 'S01', 'T01', 'complete');
+  writeTaskSummary(projectRoot, 'S01', 'T02', 'complete');
+  writeUnify(projectRoot, 'S01', 'complete');
+
+  writeSlicePlan(projectRoot, 'S02', 'Active Execution');
+  writeTaskPlan(projectRoot, 'S02', 'T01', 'Completed active task');
+  writeTaskPlan(projectRoot, 'S02', 'T02', 'Current active task');
+  writeTaskSummary(projectRoot, 'S02', 'T01', 'complete');
+  writeProjectFile(projectRoot, '.gsd/S02-T02-PLAN.xml', currentTaskPlanXml({
+    slice: 'S02',
+    task: 'T02',
+    name: 'Current active task'
+  }));
+
+  writeSlicePlan(projectRoot, 'S03', 'Planned Work');
+  writeTaskPlan(projectRoot, 'S03', 'T01', 'Planned task');
+
+  writeSlicePlan(projectRoot, 'S05', 'Awaiting UNIFY');
+  writeTaskPlan(projectRoot, 'S05', 'T01', 'Done before UNIFY');
+  writeTaskSummary(projectRoot, 'S05', 'T01', 'complete');
+
+  writeSlicePlan(projectRoot, 'S06', 'Failed Reconciliation');
+  writeTaskPlan(projectRoot, 'S06', 'T01', 'Failed unify task');
+  writeTaskSummary(projectRoot, 'S06', 'T01', 'complete');
+  writeUnify(projectRoot, 'S06', 'failed');
+
+  writeSlicePlan(projectRoot, 'S07', 'Blocked Execution');
+  writeTaskPlan(projectRoot, 'S07', 'T01', 'Blocked task');
+  writeTaskSummary(projectRoot, 'S07', 'T01', 'blocked');
+
+  const model = buildDashboardModel(projectRoot);
+  const statuses = model.progress.slices.map((slice) => [
+    slice.id,
+    slice.name,
+    slice.status,
+    slice.tasks.total,
+    slice.tasks.completed,
+    slice.tasks.pending
+  ]);
+
+  assert.deepStrictEqual(statuses, [
+    ['S01', 'Completed Foundation', 'unified', 2, 2, 0],
+    ['S02', 'Active Execution', 'running', 2, 1, 1],
+    ['S03', 'Planned Work', 'planned', 1, 0, 1],
+    ['S04', 'Pending Work', 'pending', 0, 0, 0],
+    ['S05', 'Awaiting UNIFY', 'apply-complete', 1, 1, 0],
+    ['S06', 'Failed Reconciliation', 'failed', 1, 1, 0],
+    ['S07', 'Blocked Execution', 'blocked', 1, 1, 0]
+  ]);
+
+  const activeSlice = model.progress.slices.find((slice) => slice.id === 'S02');
+  assert.strictEqual(activeSlice.current, true);
+  assert.strictEqual(activeSlice.artifacts.roadmap, '.gsd/M001-ROADMAP.md');
+  assert.strictEqual(activeSlice.artifacts.plan, '.gsd/S02-PLAN.md');
+  assert.deepStrictEqual(activeSlice.artifacts.task_plans, [
+    '.gsd/S02-T01-PLAN.xml',
+    '.gsd/S02-T02-PLAN.xml'
+  ]);
+  assert.deepStrictEqual(activeSlice.artifacts.summaries, [
+    '.gsd/S02-T01-SUMMARY.md'
+  ]);
+  assert.deepStrictEqual(activeSlice.tasks.items.map((item) => [
+    item.id,
+    item.name,
+    item.status,
+    item.artifacts.plan,
+    item.artifacts.summary
+  ]), [
+    [
+      'T01',
+      'Completed active task',
+      'complete',
+      '.gsd/S02-T01-PLAN.xml',
+      '.gsd/S02-T01-SUMMARY.md'
+    ],
+    [
+      'T02',
+      'Current active task',
+      'pending',
+      '.gsd/S02-T02-PLAN.xml',
+      null
+    ]
+  ]);
+}
+
+function testArtifactOnlySlicesAreIncludedWhenRoadmapIsMissing() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T01',
+    'phase: plan-complete',
+    ''
+  ].join('\n'));
+
+  writeSlicePlan(projectRoot, 'S01');
+  writeTaskPlan(projectRoot, 'S01', 'T01', 'Artifact-only task');
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.progress.slices.length, 1);
+  assert.strictEqual(model.progress.slices[0].id, 'S01');
+  assert.strictEqual(model.progress.slices[0].name, 'unknown');
+  assert.strictEqual(model.progress.slices[0].status, 'planned');
+  assert.strictEqual(model.progress.slices[0].artifacts.roadmap, null);
+}
+
 function testMalformedCurrentTaskPlanProducesWarning() {
   const projectRoot = createProjectWithState([
     'milestone: M001',
@@ -462,6 +656,8 @@ function run() {
   testStateFieldsTakePrecedenceOverConfig();
   testMissingStateFieldsRemainUnknown();
   testCurrentTaskPlanPopulatesCurrentTask();
+  testProgressDiscoversRoadmapSlicesAndArtifacts();
+  testArtifactOnlySlicesAreIncludedWhenRoadmapIsMissing();
   testMalformedCurrentTaskPlanProducesWarning();
   testRelativeProjectRootIsResolved();
 }
