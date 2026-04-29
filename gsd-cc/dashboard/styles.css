@@ -37,18 +37,18 @@ body {
 }
 
 .dashboard-topbar {
-  display: flex;
-  gap: 18px;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  gap: 12px;
   min-width: 0;
-  min-height: 72px;
   padding: 14px clamp(16px, 4vw, 32px);
   border-bottom: 1px solid var(--dashboard-border);
   background: var(--dashboard-surface);
 }
 
 .dashboard-title-group,
+.dashboard-topbar-main,
+.dashboard-status-strip,
+.dashboard-status-badge,
 .dashboard-workspace,
 .dashboard-sidebar,
 .dashboard-main,
@@ -64,6 +64,13 @@ body {
 .dashboard-activity,
 .dashboard-criterion {
   min-width: 0;
+}
+
+.dashboard-topbar-main {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .dashboard-workspace {
@@ -258,6 +265,77 @@ h3 {
 
 .dashboard-connection--disconnected .dashboard-connection-dot {
   background: var(--dashboard-danger);
+}
+
+.dashboard-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.dashboard-status-badge {
+  display: grid;
+  gap: 2px;
+  min-width: 96px;
+  max-width: 180px;
+  padding: 7px 9px;
+  border: 1px solid var(--dashboard-border);
+  border-left: 3px solid var(--dashboard-muted);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-quiet);
+}
+
+.dashboard-status-badge > span,
+.dashboard-status-badge > strong,
+.dashboard-status-badge > small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-status-badge > span {
+  color: var(--dashboard-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dashboard-status-badge > strong {
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.dashboard-status-badge > small {
+  color: var(--dashboard-muted);
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.dashboard-status-badge--active,
+.dashboard-status-badge--applying,
+.dashboard-status-badge--running,
+.dashboard-status-badge--connected {
+  border-left-color: var(--dashboard-success);
+}
+
+.dashboard-status-badge--plan,
+.dashboard-status-badge--plan-complete,
+.dashboard-status-badge--planned,
+.dashboard-status-badge--apply-complete,
+.dashboard-status-badge--unified {
+  border-left-color: var(--dashboard-info);
+}
+
+.dashboard-status-badge--approval-required,
+.dashboard-status-badge--recovery-needed,
+.dashboard-status-badge--stale,
+.dashboard-status-badge--blocked {
+  border-left-color: var(--dashboard-warning);
+}
+
+.dashboard-status-badge--failed,
+.dashboard-status-badge--disconnected {
+  border-left-color: var(--dashboard-danger);
 }
 
 .dashboard-error {
@@ -492,7 +570,7 @@ h3 {
 }
 
 @media (max-width: 820px) {
-  .dashboard-topbar,
+  .dashboard-topbar-main,
   .dashboard-current-slice,
   .dashboard-region-header {
     flex-direction: column;
@@ -539,5 +617,10 @@ h3 {
   .dashboard-connection {
     max-width: none;
     width: 100%;
+  }
+
+  .dashboard-status-badge {
+    flex: 1 1 calc(50% - 8px);
+    max-width: none;
   }
 }

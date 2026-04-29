@@ -139,6 +139,8 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /\/api\/state/);
   assert.match(source, /\/api\/events/);
   assert.match(source, /dashboard-topbar/);
+  assert.match(source, /dashboard-status-strip/);
+  assert.match(source, /dashboard-status-badge/);
   assert.match(source, /dashboard-sidebar/);
   assert.match(source, /dashboard-main/);
   assert.match(source, /dashboard-context/);
@@ -192,6 +194,13 @@ async function testSseStateEventUpdatesRenderedState() {
   assert.strictEqual(FakeEventSource.instances.length, 1);
   assert.strictEqual(FakeEventSource.instances[0].url, '/api/events');
   assert.match(root.innerHTML, /dashboard-topbar/);
+  assert.match(root.innerHTML, /dashboard-status-strip/);
+  assert.match(root.innerHTML, /Fixture Project/);
+  assert.match(root.innerHTML, /M001/);
+  assert.match(root.innerHTML, /S01/);
+  assert.match(root.innerHTML, /T01/);
+  assert.match(root.innerHTML, /Auto/);
+  assert.match(root.innerHTML, /inactive/);
   assert.match(root.innerHTML, /dashboard-sidebar/);
   assert.match(root.innerHTML, /dashboard-main/);
   assert.match(root.innerHTML, /dashboard-context/);
@@ -205,6 +214,7 @@ async function testSseStateEventUpdatesRenderedState() {
   assert.match(root.innerHTML, /applying/);
   assert.doesNotMatch(root.innerHTML, /Handle plan/);
   assert.match(root.innerHTML, /Connected/);
+  assert.match(root.innerHTML, /Updated/);
 }
 
 async function testEmptyModelRendersEmptyShellStates() {
@@ -255,6 +265,10 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-connection--connected/);
   assert.match(styles, /\.dashboard-connection--reconnecting/);
   assert.match(styles, /\.dashboard-connection--disconnected/);
+  assert.match(styles, /\.dashboard-status-strip/);
+  assert.match(styles, /\.dashboard-status-badge/);
+  assert.match(styles, /\.dashboard-status-badge--active/);
+  assert.match(styles, /\.dashboard-status-badge--approval-required/);
   assert.match(styles, /\.dashboard-workspace/);
   assert.match(styles, /grid-template-columns:\s*minmax\(180px,\s*220px\)\s*minmax\(0,\s*1fr\)\s*minmax\(260px,\s*320px\)/);
   assert.match(styles, /\.dashboard-sidebar/);

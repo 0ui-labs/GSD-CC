@@ -62,11 +62,17 @@
       return 'Not updated yet';
     }
 
-    return date.toLocaleTimeString([], {
+    return date.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
     });
+  }
+
+  function formatDateAttribute(date) {
+    return date ? ` datetime="${escapeHtml(date.toISOString())}"` : '';
   }
 
   function formatActivityTime(value) {
@@ -99,6 +105,9 @@
   function renderConnection() {
     const connection = CONNECTION_STATES[app.connection]
       || CONNECTION_STATES.disconnected;
+    const updatedLabel = app.lastUpdatedAt
+      ? `Updated ${formatDate(app.lastUpdatedAt)}`
+      : formatDate(app.lastUpdatedAt);
 
     return [
       `<div class="dashboard-connection dashboard-connection--${app.connection}" role="status">`,
@@ -107,7 +116,7 @@
       `    <strong>${escapeHtml(connection.label)}</strong>`,
       `    <span>${escapeHtml(connection.detail)}</span>`,
       '  </span>',
-      `  <time>${escapeHtml(formatDate(app.lastUpdatedAt))}</time>`,
+      `  <time${formatDateAttribute(app.lastUpdatedAt)}>${escapeHtml(updatedLabel)}</time>`,
       '</div>'
     ].join('');
   }
@@ -139,16 +148,61 @@
     ].join('');
   }
 
-  function renderTopBar(project) {
+  function renderStatusBadge(label, value, options = {}) {
+    const text = displayValue(value, options.fallback || 'unknown');
+    const tone = options.tone || text;
+    const detail = options.detail
+      ? `<small>${escapeHtml(options.detail)}</small>`
+      : '';
+
+    return [
+      `<span class="dashboard-status-badge dashboard-status-badge--${toClassName(tone)}">`,
+      `  <span>${escapeHtml(label)}</span>`,
+      `  <strong>${escapeHtml(text)}</strong>`,
+      detail,
+      '</span>'
+    ].join('');
+  }
+
+  function renderAutomationBadge(automation) {
+    const scope = displayValue(automation.scope, '');
+    const unit = displayValue(automation.unit, '');
+    const detail = [scope, unit].filter(Boolean).join(' / ');
+
+    return renderStatusBadge('Auto', automation.status, {
+      detail,
+      fallback: 'inactive',
+      tone: automation.status
+    });
+  }
+
+  function renderTopStatusStrip(current, automation) {
+    return [
+      '<div class="dashboard-status-strip" aria-label="Current project position">',
+      renderStatusBadge('Milestone', current.milestone),
+      renderStatusBadge('Slice', current.slice),
+      renderStatusBadge('Task', current.task),
+      renderStatusBadge('Phase', current.phase, {
+        tone: current.phase
+      }),
+      renderAutomationBadge(automation),
+      '</div>'
+    ].join('');
+  }
+
+  function renderTopBar(project, current, automation) {
     const title = displayValue(project.name, 'Dashboard loading');
 
     return [
       '<header class="dashboard-topbar">',
-      '  <div class="dashboard-title-group">',
-      '    <p class="dashboard-kicker">GSD-CC</p>',
-      `    <h1>${escapeHtml(title)}</h1>`,
-      '  </div>',
+      '  <div class="dashboard-topbar-main">',
+      '    <div class="dashboard-title-group">',
+      '      <p class="dashboard-kicker">GSD-CC Dashboard</p>',
+      `      <h1>${escapeHtml(title)}</h1>`,
+      '    </div>',
       renderConnection(),
+      '  </div>',
+      renderTopStatusStrip(current, automation),
       '</header>'
     ].join('');
   }
@@ -422,7 +476,7 @@
     const automation = model.automation || {};
 
     root.innerHTML = [
-      renderTopBar(project),
+      renderTopBar(project, current, automation),
       app.error ? `<p class="dashboard-error">${escapeHtml(app.error)}</p>` : '',
       '<div class="dashboard-workspace">',
       renderSidebar(model, current),
