@@ -25,6 +25,11 @@ const DASHBOARD_PHASE_STATUS = new Map([
   ['plan-complete', 'planned'],
   ['unified', 'unified']
 ]);
+const ATTENTION_SEVERITY_RANK = new Map([
+  ['critical', 0],
+  ['warning', 1],
+  ['info', 2]
+]);
 
 function normalizeProjectRoot(projectRoot) {
   return path.resolve(projectRoot || process.cwd());
@@ -71,6 +76,40 @@ function readOptionalTextFile(filePath) {
       return '';
     }
     return '';
+  }
+}
+
+function readOptionalJsonFile(filePath) {
+  if (!hasFile(filePath)) {
+    return {
+      exists: false,
+      data: null,
+      error: null
+    };
+  }
+
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return {
+        exists: true,
+        data: null,
+        error: 'Expected a JSON object.'
+      };
+    }
+
+    return {
+      exists: true,
+      data,
+      error: null
+    };
+  } catch (error) {
+    return {
+      exists: true,
+      data: null,
+      error: error && error.message ? error.message : 'Could not parse JSON.'
+    };
   }
 }
 
@@ -123,6 +162,11 @@ function normalizeFieldValue(value) {
   return normalized;
 }
 
+function nullableKnownValue(value) {
+  const normalized = normalizeFieldValue(value);
+  return normalized || null;
+}
+
 function firstKnownValue(...values) {
   for (const value of values) {
     const normalized = normalizeFieldValue(value);
@@ -152,6 +196,35 @@ function sameIdentifier(left, right) {
 
 function toDisplayPath(fileName) {
   return `.gsd/${fileName}`;
+}
+
+function normalizePid(value) {
+  const normalized = normalizeFieldValue(value);
+
+  if (!normalized || !/^[1-9][0-9]*$/.test(normalized)) {
+    return null;
+  }
+
+  const pid = Number(normalized);
+
+  if (!Number.isSafeInteger(pid)) {
+    return null;
+  }
+
+  return pid;
+}
+
+function isPidRunning(pid) {
+  if (!pid) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return Boolean(error && error.code === 'EPERM');
+  }
 }
 
 function compareIds(left, right) {
@@ -1095,6 +1168,269 @@ function createNoProjectAttentionItem() {
   };
 }
 
+function addAttentionItem(model, item) {
+  model.attention.push({
+    id: item.id,
+    severity: item.severity,
+    title: item.title,
+    message: item.message,
+    source: item.source || null,
+    recommended_action: item.recommended_action
+  });
+}
+
+function sortAttentionItems(model) {
+  model.attention = model.attention
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      const leftRank = ATTENTION_SEVERITY_RANK.has(left.item.severity)
+        ? ATTENTION_SEVERITY_RANK.get(left.item.severity)
+        : ATTENTION_SEVERITY_RANK.get('info');
+      const rightRank = ATTENTION_SEVERITY_RANK.has(right.item.severity)
+        ? ATTENTION_SEVERITY_RANK.get(right.item.severity)
+        : ATTENTION_SEVERITY_RANK.get('info');
+
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+
+      return left.index - right.index;
+    })
+    .map((entry) => entry.item);
+}
+
+function createJsonParseAttention(fileName, error) {
+  return {
+    id: `${fileName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-invalid`,
+    severity: 'warning',
+    title: 'Dashboard artifact could not be read',
+    message: `${toDisplayPath(fileName)} is not valid JSON: ${error}`,
+    source: toDisplayPath(fileName),
+    recommended_action: `Repair or remove ${toDisplayPath(fileName)}.`
+  };
+}
+
+function normalizeApprovalRequest(data) {
+  const slice = nullableKnownValue(data.slice);
+  const task = nullableKnownValue(data.task);
+  const reasons = Array.isArray(data.reasons)
+    ? data.reasons.map((reason) => String(reason))
+    : [];
+
+  return {
+    slice,
+    task,
+    unit: slice && task ? `${slice}/${task}` : null,
+    plan: nullableKnownValue(data.plan),
+    risk_level: nullableKnownValue(data.risk_level) || UNKNOWN,
+    risk_reason: nullableKnownValue(data.risk_reason) || '',
+    fingerprint: nullableKnownValue(data.fingerprint),
+    reasons,
+    created_at: nullableKnownValue(data.created_at),
+    source: toDisplayPath('APPROVAL-REQUEST.json')
+  };
+}
+
+function normalizeRecovery(data, gsdDir) {
+  return {
+    status: nullableKnownValue(data.status) || UNKNOWN,
+    reason: nullableKnownValue(data.reason) || UNKNOWN,
+    message: nullableKnownValue(data.message) || '',
+    scope: nullableKnownValue(data.scope) || UNKNOWN,
+    unit: nullableKnownValue(data.unit),
+    phase: nullableKnownValue(data.phase) || UNKNOWN,
+    dispatch_phase: nullableKnownValue(data.dispatch_phase) || null,
+    started_at: nullableKnownValue(data.started_at),
+    stopped_at: nullableKnownValue(data.stopped_at),
+    start_branch: nullableKnownValue(data.start_branch),
+    current_branch: nullableKnownValue(data.current_branch),
+    start_head: nullableKnownValue(data.start_head),
+    current_head: nullableKnownValue(data.current_head),
+    commits_since_start: Array.isArray(data.commits_since_start)
+      ? data.commits_since_start.map((entry) => String(entry))
+      : [],
+    uncommitted_files: Array.isArray(data.uncommitted_files)
+      ? data.uncommitted_files.map((entry) => String(entry))
+      : [],
+    log_file: nullableKnownValue(data.log_file),
+    safe_next_action: nullableKnownValue(data.safe_next_action)
+      || 'Inspect .gsd/AUTO-RECOVERY.md before continuing.',
+    source: toDisplayPath('auto-recovery.json'),
+    report: hasFile(path.join(gsdDir, 'AUTO-RECOVERY.md'))
+      ? toDisplayPath('AUTO-RECOVERY.md')
+      : null
+  };
+}
+
+function applyLockAutomationState(model, lock) {
+  const pid = lock.data ? normalizePid(lock.data.pid) : null;
+  const live = Boolean(lock.data && isPidRunning(pid));
+
+  model.automation.status = live ? 'active' : 'stale';
+  model.automation.unit = lock.data
+    ? nullableKnownValue(lock.data.unit)
+    : null;
+  model.automation.pid = pid;
+  model.automation.started_at = lock.data
+    ? nullableKnownValue(lock.data.started_at) || nullableKnownValue(lock.data.started)
+    : null;
+
+  if (!live) {
+    addAttentionItem(model, {
+      id: 'auto-lock-stale',
+      severity: 'critical',
+      title: 'Auto-mode lock is stale',
+      message: 'An auto-mode lock exists, but its PID is not running.',
+      source: toDisplayPath('auto.lock'),
+      recommended_action: 'Review the last task state, then remove .gsd/auto.lock before resuming.'
+    });
+  }
+}
+
+function applyApprovalAutomationState(model, approvalRequest, hasLock) {
+  model.evidence.approval_request = approvalRequest;
+
+  if (!hasLock) {
+    model.automation.status = 'approval-required';
+    model.automation.unit = approvalRequest.unit;
+  }
+
+  addAttentionItem(model, {
+    id: 'approval-required',
+    severity: 'critical',
+    title: 'Approval required',
+    message: approvalRequest.unit
+      ? `${approvalRequest.unit} needs approval before auto-mode can continue.`
+      : 'A task needs approval before auto-mode can continue.',
+    source: approvalRequest.source,
+    recommended_action: approvalRequest.reasons[0]
+      || approvalRequest.risk_reason
+      || 'Review the approval request before resuming auto-mode.'
+  });
+}
+
+function applyRecoveryAutomationState(model, recovery, hasLiveLock, hasLock, hasApproval) {
+  model.evidence.latest_recovery = recovery;
+
+  if (!hasLock && !hasApproval) {
+    model.automation.status = 'recovery-needed';
+    model.automation.unit = recovery.unit;
+    model.automation.started_at = recovery.started_at;
+  }
+
+  if (!hasLiveLock) {
+    addAttentionItem(model, {
+      id: 'auto-recovery',
+      severity: 'critical',
+      title: 'Auto-mode stopped early',
+      message: recovery.reason === UNKNOWN
+        ? 'Auto-mode wrote a recovery report.'
+        : `Auto-mode stopped: ${recovery.reason}.`,
+      source: recovery.source,
+      recommended_action: recovery.safe_next_action
+    });
+  }
+}
+
+function populateAutomationAndEvidence(model, gsdDir) {
+  const lock = readOptionalJsonFile(path.join(gsdDir, 'auto.lock'));
+  const hasLock = lock.exists;
+  let hasLiveLock = false;
+
+  if (lock.exists) {
+    if (lock.error) {
+      model.automation.status = 'stale';
+      addAttentionItem(model, createJsonParseAttention('auto.lock', lock.error));
+    } else {
+      applyLockAutomationState(model, lock);
+      hasLiveLock = model.automation.status === 'active';
+    }
+  }
+
+  const approval = readOptionalJsonFile(path.join(gsdDir, 'APPROVAL-REQUEST.json'));
+  const hasApproval = Boolean(approval.exists && approval.data && !approval.error);
+
+  if (approval.exists) {
+    if (approval.error) {
+      addAttentionItem(
+        model,
+        createJsonParseAttention('APPROVAL-REQUEST.json', approval.error)
+      );
+    } else {
+      applyApprovalAutomationState(
+        model,
+        normalizeApprovalRequest(approval.data),
+        hasLock
+      );
+    }
+  }
+
+  const recovery = readOptionalJsonFile(path.join(gsdDir, 'auto-recovery.json'));
+
+  if (recovery.exists) {
+    if (recovery.error) {
+      addAttentionItem(
+        model,
+        createJsonParseAttention('auto-recovery.json', recovery.error)
+      );
+    } else {
+      applyRecoveryAutomationState(
+        model,
+        normalizeRecovery(recovery.data, gsdDir),
+        hasLiveLock,
+        hasLock,
+        hasApproval
+      );
+    }
+  }
+}
+
+function populatePhaseAttention(model, stateFields) {
+  const phase = String(model.current.phase || '').toLowerCase();
+  const isBlocked = phase === 'apply-blocked' || phase === 'unify-blocked';
+  const isFailed = phase === 'apply-failed' || phase === 'unify-failed';
+
+  if (!isBlocked && !isFailed) {
+    return;
+  }
+
+  const reason = nullableKnownValue(stateFields.blocked_reason);
+  addAttentionItem(model, {
+    id: `phase-${phase}`,
+    severity: isFailed ? 'critical' : 'warning',
+    title: isFailed ? 'Phase failed' : 'Phase blocked',
+    message: `${phase} requires attention for ${describeCurrentUnit(model.current)}.`,
+    source: toDisplayPath('STATE.md'),
+    recommended_action: reason
+      ? `Resolve the recorded blocker: ${reason}`
+      : 'Review .gsd/STATE.md and the related artifact before continuing.'
+  });
+}
+
+function populateUnifyRequiredAttention(model, gsdDir) {
+  if (
+    String(model.current.phase || '').toLowerCase() !== 'apply-complete'
+    || !isKnown(model.current.slice)
+  ) {
+    return;
+  }
+
+  const unifyFileName = `${model.current.slice}-UNIFY.md`;
+
+  if (hasFile(path.join(gsdDir, unifyFileName))) {
+    return;
+  }
+
+  addAttentionItem(model, {
+    id: 'unify-required',
+    severity: 'warning',
+    title: 'UNIFY required',
+    message: `${model.current.slice} is apply-complete but has no UNIFY report yet.`,
+    source: toDisplayPath(unifyFileName),
+    recommended_action: `Run UNIFY for ${model.current.slice} before moving on.`
+  });
+}
+
 function createEmptyDashboardModel(projectRoot, options = {}) {
   const gsdExists = Boolean(options.gsdExists);
 
@@ -1205,10 +1541,14 @@ function buildDashboardModel(projectRoot) {
     stateFields.auto_mode_scope,
     configFields.auto_mode_scope
   );
+  populateAutomationAndEvidence(model, gsdDir);
   model.current.next_action = resolveNextAction(model);
   buildSliceProgress(model, gsdDir);
   populateCurrentTaskFromPlan(model, gsdDir);
   populateAcceptanceCriteriaProgress(model, gsdDir);
+  populatePhaseAttention(model, stateFields);
+  populateUnifyRequiredAttention(model, gsdDir);
+  sortAttentionItems(model);
 
   return model;
 }

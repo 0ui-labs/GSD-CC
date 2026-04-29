@@ -134,6 +134,10 @@ function writeGsdFile(projectRoot, fileName, content) {
   writeProjectFile(projectRoot, path.join('.gsd', fileName), content);
 }
 
+function writeGsdJson(projectRoot, fileName, data) {
+  writeGsdFile(projectRoot, fileName, `${JSON.stringify(data, null, 2)}\n`);
+}
+
 function createProjectWithState(stateContent, configContent = '') {
   const projectRoot = makeTempDir('gsd-cc-dashboard-state-');
 
@@ -459,6 +463,12 @@ function writeUnifyWithAcResults(projectRoot, slice, rows, status = 'complete') 
 
 function warningCodes(model) {
   return model.current_task.warnings.map((warning) => warning.code);
+}
+
+function assertTopAttention(model, id, severity) {
+  assert.ok(model.attention.length > 0, `expected ${id} attention item`);
+  assert.strictEqual(model.attention[0].id, id);
+  assert.strictEqual(model.attention[0].severity, severity);
 }
 
 function testCurrentTaskPlanPopulatesCurrentTask() {
@@ -804,6 +814,211 @@ function testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence() {
   ]);
 }
 
+function testLiveAutoLockPopulatesAutomationState() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T01',
+    'phase: applying',
+    'auto_mode_scope: slice',
+    ''
+  ].join('\n'));
+  writeGsdJson(projectRoot, 'auto.lock', {
+    unit: 'S01/T01',
+    phase: 'applying',
+    pid: process.pid,
+    started: '2026-04-29T08:00:00Z'
+  });
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.automation.status, 'active');
+  assert.strictEqual(model.automation.scope, 'slice');
+  assert.strictEqual(model.automation.unit, 'S01/T01');
+  assert.strictEqual(model.automation.pid, process.pid);
+  assert.strictEqual(model.automation.started_at, '2026-04-29T08:00:00Z');
+  assert.deepStrictEqual(model.attention, []);
+}
+
+function testStaleAutoLockProducesTopAttentionItem() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T01',
+    'phase: applying',
+    ''
+  ].join('\n'));
+  writeGsdJson(projectRoot, 'auto.lock', {
+    unit: 'S01/T01',
+    phase: 'applying',
+    pid: 99999999,
+    started: '2026-04-29T08:00:00Z'
+  });
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.automation.status, 'stale');
+  assert.strictEqual(model.automation.unit, 'S01/T01');
+  assert.strictEqual(model.automation.pid, 99999999);
+  assertTopAttention(model, 'auto-lock-stale', 'critical');
+  assert.match(model.attention[0].message, /PID is not running/);
+}
+
+function testApprovalRequestProducesTopAttentionItem() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: plan-complete',
+    ''
+  ].join('\n'));
+  writeGsdJson(projectRoot, 'APPROVAL-REQUEST.json', {
+    slice: 'S01',
+    task: 'T02',
+    plan: '.gsd/S01-T02-PLAN.xml',
+    risk_level: 'high',
+    risk_reason: 'Touches deployment configuration.',
+    fingerprint: '123:456',
+    reasons: [
+      'risk high meets approval_required_risk high'
+    ],
+    created_at: '2026-04-29T08:01:00Z'
+  });
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.automation.status, 'approval-required');
+  assert.strictEqual(model.automation.unit, 'S01/T02');
+  assert.deepStrictEqual(model.evidence.approval_request, {
+    slice: 'S01',
+    task: 'T02',
+    unit: 'S01/T02',
+    plan: '.gsd/S01-T02-PLAN.xml',
+    risk_level: 'high',
+    risk_reason: 'Touches deployment configuration.',
+    fingerprint: '123:456',
+    reasons: [
+      'risk high meets approval_required_risk high'
+    ],
+    created_at: '2026-04-29T08:01:00Z',
+    source: '.gsd/APPROVAL-REQUEST.json'
+  });
+  assertTopAttention(model, 'approval-required', 'critical');
+  assert.match(model.attention[0].recommended_action, /risk high/);
+}
+
+function testAttentionItemsSortBySeverity() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: applying',
+    ''
+  ].join('\n'));
+  writeGsdFile(projectRoot, 'auto.lock', '{not-json');
+  writeGsdJson(projectRoot, 'APPROVAL-REQUEST.json', {
+    slice: 'S01',
+    task: 'T02',
+    risk_level: 'high',
+    reasons: [
+      'risk high meets approval_required_risk high'
+    ]
+  });
+
+  const model = buildDashboardModel(projectRoot);
+
+  assertTopAttention(model, 'approval-required', 'critical');
+  assert.strictEqual(model.attention[1].id, 'auto-lock-invalid');
+  assert.strictEqual(model.attention[1].severity, 'warning');
+}
+
+function testRecoveryProducesTopAttentionItem() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T01',
+    'phase: applying',
+    ''
+  ].join('\n'));
+  writeGsdJson(projectRoot, 'auto-recovery.json', {
+    status: 'problem',
+    reason: 'dispatch_failed',
+    message: 'Dispatch failed with exit 42 on S01/T01.',
+    scope: 'slice',
+    unit: 'S01/T01',
+    phase: 'applying',
+    dispatch_phase: 'apply',
+    started_at: '2026-04-29T08:00:00Z',
+    stopped_at: '2026-04-29T08:02:00Z',
+    commits_since_start: ['abc123 Fix fixture'],
+    uncommitted_files: ['src/fixture.txt'],
+    log_file: '.gsd/auto.log',
+    safe_next_action: 'Inspect the log before resuming.'
+  });
+  writeGsdFile(projectRoot, 'AUTO-RECOVERY.md', '# Auto-Mode Recovery\n');
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.automation.status, 'recovery-needed');
+  assert.strictEqual(model.automation.unit, 'S01/T01');
+  assert.strictEqual(model.evidence.latest_recovery.reason, 'dispatch_failed');
+  assert.strictEqual(model.evidence.latest_recovery.report, '.gsd/AUTO-RECOVERY.md');
+  assert.deepStrictEqual(model.evidence.latest_recovery.uncommitted_files, [
+    'src/fixture.txt'
+  ]);
+  assertTopAttention(model, 'auto-recovery', 'critical');
+  assert.match(model.attention[0].recommended_action, /Inspect the log/);
+}
+
+function testBlockedAndFailedPhasesProduceAttentionItems() {
+  const blockedRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T01',
+    'phase: apply-blocked',
+    'blocked_reason: Missing API credentials',
+    ''
+  ].join('\n'));
+
+  const blockedModel = buildDashboardModel(blockedRoot);
+
+  assertTopAttention(blockedModel, 'phase-apply-blocked', 'warning');
+  assert.match(blockedModel.attention[0].recommended_action, /Missing API credentials/);
+
+  const failedRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S02',
+    'current_task: T03',
+    'phase: unify-failed',
+    ''
+  ].join('\n'));
+
+  const failedModel = buildDashboardModel(failedRoot);
+
+  assertTopAttention(failedModel, 'phase-unify-failed', 'critical');
+}
+
+function testApplyCompleteWithoutUnifyProducesTopAttentionItem() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: apply-complete',
+    ''
+  ].join('\n'));
+  writeSlicePlan(projectRoot, 'S01');
+  writeTaskPlan(projectRoot, 'S01', 'T01', 'Completed task');
+  writeTaskPlan(projectRoot, 'S01', 'T02', 'Current completed task');
+  writeTaskSummary(projectRoot, 'S01', 'T01', 'complete');
+  writeTaskSummary(projectRoot, 'S01', 'T02', 'complete');
+
+  const model = buildDashboardModel(projectRoot);
+
+  assertTopAttention(model, 'unify-required', 'warning');
+  assert.match(model.attention[0].message, /no UNIFY report/);
+  assert.match(model.attention[0].recommended_action, /Run UNIFY for S01/);
+}
+
 function testMalformedCurrentTaskPlanProducesWarning() {
   const projectRoot = createProjectWithState([
     'milestone: M001',
@@ -857,6 +1072,13 @@ function run() {
   testProgressDiscoversRoadmapSlicesAndArtifacts();
   testArtifactOnlySlicesAreIncludedWhenRoadmapIsMissing();
   testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence();
+  testLiveAutoLockPopulatesAutomationState();
+  testStaleAutoLockProducesTopAttentionItem();
+  testApprovalRequestProducesTopAttentionItem();
+  testAttentionItemsSortBySeverity();
+  testRecoveryProducesTopAttentionItem();
+  testBlockedAndFailedPhasesProduceAttentionItems();
+  testApplyCompleteWithoutUnifyProducesTopAttentionItem();
   testMalformedCurrentTaskPlanProducesWarning();
   testRelativeProjectRootIsResolved();
 }
