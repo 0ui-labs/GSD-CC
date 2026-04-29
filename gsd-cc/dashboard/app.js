@@ -69,6 +69,19 @@
     });
   }
 
+  function formatActivityTime(value) {
+    const date = value ? new Date(value) : null;
+
+    if (!date || Number.isNaN(date.getTime())) {
+      return 'No time';
+    }
+
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
   function setConnection(connection) {
     app.connection = connection;
     render();
@@ -99,6 +112,15 @@
     ].join('');
   }
 
+  function renderEmptyState(title, detail) {
+    return [
+      '<div class="dashboard-empty-state">',
+      `  <strong>${escapeHtml(title)}</strong>`,
+      `  <p>${escapeHtml(detail)}</p>`,
+      '</div>'
+    ].join('');
+  }
+
   function renderField(label, value) {
     return [
       '<div class="dashboard-field">',
@@ -117,9 +139,99 @@
     ].join('');
   }
 
+  function renderTopBar(project) {
+    const title = displayValue(project.name, 'Dashboard loading');
+
+    return [
+      '<header class="dashboard-topbar">',
+      '  <div class="dashboard-title-group">',
+      '    <p class="dashboard-kicker">GSD-CC</p>',
+      `    <h1>${escapeHtml(title)}</h1>`,
+      '  </div>',
+      renderConnection(),
+      '</header>'
+    ].join('');
+  }
+
+  function renderNavItem(item, active) {
+    const activeClass = active ? ' dashboard-nav-link--active' : '';
+    const current = active ? ' aria-current="page"' : '';
+
+    return [
+      `<a class="dashboard-nav-link${activeClass}" href="#${escapeHtml(item.id)}"${current}>`,
+      `  <span>${escapeHtml(item.label)}</span>`,
+      `  <small>${escapeHtml(item.meta)}</small>`,
+      '</a>'
+    ].join('');
+  }
+
+  function renderSidebar(model, current) {
+    const activity = Array.isArray(model.activity) ? model.activity : [];
+    const attention = Array.isArray(model.attention) ? model.attention : [];
+    const navItems = [
+      {
+        id: 'current-run',
+        label: 'Run',
+        meta: displayValue(current.phase, 'unknown')
+      },
+      {
+        id: 'progress',
+        label: 'Progress',
+        meta: displayValue(current.slice, 'no slice')
+      },
+      {
+        id: 'activity',
+        label: 'Activity',
+        meta: activity.length > 0 ? `${activity.length} events` : 'empty'
+      },
+      {
+        id: 'context',
+        label: 'Context',
+        meta: attention.length > 0 ? `${attention.length} items` : 'clear'
+      }
+    ];
+
+    return [
+      '<nav class="dashboard-sidebar" aria-label="Dashboard sections">',
+      '  <div class="dashboard-nav-list">',
+      ...navItems.map((item, index) => renderNavItem(item, index === 0)),
+      '  </div>',
+      '</nav>'
+    ].join('');
+  }
+
+  function renderRegionHeader(title, detail) {
+    return [
+      '<header class="dashboard-region-header">',
+      `  <h2>${escapeHtml(title)}</h2>`,
+      detail ? `  <p>${escapeHtml(detail)}</p>` : '',
+      '</header>'
+    ].join('');
+  }
+
+  function renderRunSummary(current) {
+    return [
+      '<section class="dashboard-run-strip" aria-label="Current state">',
+      '  <dl class="dashboard-fields">',
+      renderField('Milestone', current.milestone),
+      renderField('Slice', current.slice),
+      renderField('Task', current.task),
+      renderField('Phase', current.phase),
+      '  </dl>',
+      `  <p class="dashboard-next-action">${escapeHtml(displayValue(
+        current.next_action,
+        'Waiting for project state.'
+      ))}</p>`,
+      '</section>'
+    ].join('');
+  }
+
   function renderAttention(attention) {
     if (!attention || attention.length === 0) {
-      return '<p class="dashboard-empty">No attention items.</p>';
+      return renderEmptyState(
+        'No attention items',
+        'Blocking issues and decisions will appear in this rail.'
+      );
     }
 
     return [
@@ -139,7 +251,10 @@
 
   function renderCurrentTask(currentTask) {
     if (!currentTask || currentTask.id === 'unknown') {
-      return '<p class="dashboard-empty">No current task plan loaded.</p>';
+      return renderEmptyState(
+        'No current task plan loaded',
+        'Load a GSD task plan to see the active work package.'
+      );
     }
 
     const criteria = currentTask.acceptance_criteria || [];
@@ -179,6 +294,13 @@
       : [];
     const currentSlice = slices.find((slice) => slice.current) || null;
 
+    if (slices.length === 0 && !acceptance.total) {
+      return renderEmptyState(
+        'No progress data yet',
+        'Slice and acceptance progress will appear after planning starts.'
+      );
+    }
+
     return [
       '<div class="dashboard-progress">',
       '  <div class="dashboard-metrics">',
@@ -197,59 +319,116 @@
     ].join('');
   }
 
+  function renderActivityItem(item) {
+    const severity = toClassName(item && item.severity);
+    const message = displayValue(item && item.message, 'Activity recorded.');
+    const meta = [
+      displayValue(item && item.category, 'event'),
+      displayValue(item && item.type, 'unknown')
+    ].join(' - ');
+
+    return [
+      `<li class="dashboard-activity dashboard-activity--${severity}">`,
+      `  <time>${escapeHtml(formatActivityTime(item && item.timestamp))}</time>`,
+      '  <span>',
+      `    <strong>${escapeHtml(message)}</strong>`,
+      `    <small>${escapeHtml(meta)}</small>`,
+      '  </span>',
+      '</li>'
+    ].join('');
+  }
+
+  function renderActivity(activity) {
+    const items = Array.isArray(activity) ? activity.slice(0, 6) : [];
+
+    if (items.length === 0) {
+      return renderEmptyState(
+        'No recent activity yet',
+        'Run events will appear here when automation writes them.'
+      );
+    }
+
+    return [
+      '<ol class="dashboard-activity-list">',
+      ...items.map(renderActivityItem),
+      '</ol>'
+    ].join('');
+  }
+
+  function renderAutomation(automation) {
+    return [
+      '<dl class="dashboard-fields dashboard-fields--stacked">',
+      renderField('Status', automation.status),
+      renderField('Scope', automation.scope),
+      renderField('Unit', automation.unit || 'none'),
+      '  </dl>'
+    ].join('');
+  }
+
+  function renderProjectContext(project) {
+    return [
+      '<dl class="dashboard-fields dashboard-fields--stacked">',
+      renderField('Language', project.language),
+      renderField('Type', project.project_type),
+      renderField('Rigor', project.rigor),
+      renderField('Base branch', project.base_branch),
+      '  </dl>'
+    ].join('');
+  }
+
+  function renderMain(model, current) {
+    return [
+      '<main class="dashboard-main" aria-live="polite">',
+      '  <section class="dashboard-region" id="current-run">',
+      renderRegionHeader('Current run', 'The active package and next action.'),
+      renderRunSummary(current),
+      renderCurrentTask(model.current_task),
+      '  </section>',
+      '  <section class="dashboard-region" id="progress">',
+      renderRegionHeader('Progress', 'Slice and acceptance status.'),
+      renderProgress(model.progress),
+      '  </section>',
+      '  <section class="dashboard-region" id="activity">',
+      renderRegionHeader('Recent activity', 'Latest automation events.'),
+      renderActivity(model.activity),
+      '  </section>',
+      '</main>'
+    ].join('');
+  }
+
+  function renderContext(model, project, automation) {
+    return [
+      '<aside class="dashboard-context" id="context" aria-label="Context panel">',
+      '  <section class="dashboard-context-section">',
+      renderRegionHeader('Automation', ''),
+      renderAutomation(automation),
+      '  </section>',
+      '  <section class="dashboard-context-section">',
+      renderRegionHeader('Attention', ''),
+      renderAttention(model.attention),
+      '  </section>',
+      '  <section class="dashboard-context-section">',
+      renderRegionHeader('Project', ''),
+      renderProjectContext(project),
+      '  </section>',
+      '</aside>'
+    ].join('');
+  }
+
   function render() {
     const model = app.model || {};
     const project = model.project || {};
     const current = model.current || {};
     const automation = model.automation || {};
-    const title = displayValue(project.name, 'Dashboard loading');
-    const phase = displayValue(current.phase, 'unknown');
 
     root.innerHTML = [
-      '<section class="dashboard-panel" aria-live="polite">',
-      '  <header class="dashboard-header">',
-      '    <div>',
-      '      <p class="dashboard-kicker">GSD-CC</p>',
-      `      <h1>${escapeHtml(title)}</h1>`,
-      '    </div>',
-      renderConnection(),
-      '  </header>',
+      renderTopBar(project),
       app.error ? `<p class="dashboard-error">${escapeHtml(app.error)}</p>` : '',
-      '  <section class="dashboard-summary" aria-label="Current state">',
-      '    <dl class="dashboard-fields">',
-      renderField('Milestone', current.milestone),
-      renderField('Slice', current.slice),
-      renderField('Task', current.task),
-      renderField('Phase', phase),
-      '    </dl>',
-      `    <p class="dashboard-next-action">${escapeHtml(displayValue(
-        current.next_action,
-        'Waiting for project state.'
-      ))}</p>`,
-      '  </section>',
-      '  <section class="dashboard-grid">',
-      '    <div class="dashboard-section">',
-      '      <h2>Progress</h2>',
-      renderProgress(model.progress),
-      '    </div>',
-      '    <div class="dashboard-section">',
-      '      <h2>Automation</h2>',
-      '      <dl class="dashboard-fields dashboard-fields--compact">',
-      renderField('Status', automation.status),
-      renderField('Scope', automation.scope),
-      renderField('Unit', automation.unit || 'none'),
-      '      </dl>',
-      '    </div>',
-      '    <div class="dashboard-section dashboard-section--wide">',
-      '      <h2>Current task</h2>',
-      renderCurrentTask(model.current_task),
-      '    </div>',
-      '    <div class="dashboard-section dashboard-section--wide">',
-      '      <h2>Attention</h2>',
-      renderAttention(model.attention),
-      '    </div>',
-      '  </section>',
-      '</section>'
+      '<div class="dashboard-workspace">',
+      renderSidebar(model, current),
+      renderMain(model, current),
+      renderContext(model, project, automation),
+      '</div>'
     ].join('');
   }
 

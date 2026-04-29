@@ -46,7 +46,58 @@ function createModel(phase) {
       },
       acceptance_criteria: []
     },
-    attention: []
+    attention: [],
+    activity: [
+      {
+        timestamp: '2026-04-29T08:30:00.000Z',
+        type: 'task_started',
+        category: 'task',
+        severity: 'info',
+        message: 'Task started'
+      }
+    ]
+  };
+}
+
+function createEmptyModel() {
+  return {
+    project: {
+      name: 'Empty Fixture',
+      language: 'unknown',
+      project_type: 'unknown',
+      rigor: 'unknown',
+      base_branch: 'unknown'
+    },
+    current: {
+      milestone: 'unknown',
+      slice: 'unknown',
+      task: 'unknown',
+      phase: 'no-project',
+      next_action: 'Run /gsd-cc to initialize this project.'
+    },
+    automation: {
+      status: 'inactive',
+      scope: 'unknown',
+      unit: null
+    },
+    progress: {
+      slices: [],
+      acceptance_criteria: {
+        total: 0,
+        passed: 0,
+        pending: 0
+      }
+    },
+    current_task: {
+      id: 'unknown',
+      name: 'unknown',
+      risk: {
+        level: 'unknown'
+      },
+      acceptance_criteria: []
+    },
+    attention: [],
+    activity: []
   };
 }
 
@@ -87,6 +138,10 @@ async function testClientReferencesDashboardEndpoints() {
 
   assert.match(source, /\/api\/state/);
   assert.match(source, /\/api\/events/);
+  assert.match(source, /dashboard-topbar/);
+  assert.match(source, /dashboard-sidebar/);
+  assert.match(source, /dashboard-main/);
+  assert.match(source, /dashboard-context/);
   assert.match(source, /\bfetch\(/);
   assert.match(source, /\bEventSource\b/);
   assert.match(source, /connected/);
@@ -101,6 +156,9 @@ async function testSseStateEventUpdatesRenderedState() {
     innerHTML: ''
   };
   const fetchCalls = [];
+
+  FakeEventSource.instances = [];
+
   const sandbox = {
     clearInterval() {},
     document: {
@@ -133,7 +191,12 @@ async function testSseStateEventUpdatesRenderedState() {
   assert.deepStrictEqual(fetchCalls, ['/api/state']);
   assert.strictEqual(FakeEventSource.instances.length, 1);
   assert.strictEqual(FakeEventSource.instances[0].url, '/api/events');
+  assert.match(root.innerHTML, /dashboard-topbar/);
+  assert.match(root.innerHTML, /dashboard-sidebar/);
+  assert.match(root.innerHTML, /dashboard-main/);
+  assert.match(root.innerHTML, /dashboard-context/);
   assert.match(root.innerHTML, /plan/);
+  assert.match(root.innerHTML, /Task started/);
 
   FakeEventSource.instances[0].emit('state', {
     data: JSON.stringify(createModel('applying'))
@@ -144,17 +207,66 @@ async function testSseStateEventUpdatesRenderedState() {
   assert.match(root.innerHTML, /Connected/);
 }
 
+async function testEmptyModelRendersEmptyShellStates() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: ''
+  };
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(createEmptyModel());
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  assert.match(root.innerHTML, /No progress data yet/);
+  assert.match(root.innerHTML, /No current task plan loaded/);
+  assert.match(root.innerHTML, /No recent activity yet/);
+  assert.match(root.innerHTML, /No attention items/);
+}
+
 async function testStylesExposeConnectionStates() {
   const styles = fs.readFileSync(stylesPath, 'utf8');
 
   assert.match(styles, /\.dashboard-connection--connected/);
   assert.match(styles, /\.dashboard-connection--reconnecting/);
   assert.match(styles, /\.dashboard-connection--disconnected/);
+  assert.match(styles, /\.dashboard-workspace/);
+  assert.match(styles, /grid-template-columns:\s*minmax\(180px,\s*220px\)\s*minmax\(0,\s*1fr\)\s*minmax\(260px,\s*320px\)/);
+  assert.match(styles, /\.dashboard-sidebar/);
+  assert.match(styles, /\.dashboard-main/);
+  assert.match(styles, /\.dashboard-context/);
+  assert.match(styles, /@media \(max-width: 1180px\)/);
 }
 
 async function run() {
   await testClientReferencesDashboardEndpoints();
   await testSseStateEventUpdatesRenderedState();
+  await testEmptyModelRendersEmptyShellStates();
   await testStylesExposeConnectionStates();
 }
 
