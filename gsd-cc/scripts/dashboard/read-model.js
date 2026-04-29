@@ -1,6 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 
+const {
+  createEmptyTaskPlan,
+  parseTaskPlanXml
+} = require('./task-plan-parser');
+
 const UNKNOWN = 'unknown';
 const EMPTY_FIELD_VALUES = new Set([
   '',
@@ -17,6 +22,17 @@ function normalizeProjectRoot(projectRoot) {
 function hasDirectory(directoryPath) {
   try {
     return fs.statSync(directoryPath).isDirectory();
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return false;
+    }
+    return false;
+  }
+}
+
+function hasFile(filePath) {
+  try {
+    return fs.statSync(filePath).isFile();
   } catch (error) {
     if (error && error.code === 'ENOENT') {
       return false;
@@ -115,6 +131,60 @@ function describeCurrentUnit(current, includeTask = true) {
   return parts.length > 0 ? parts.join('/') : 'the current work';
 }
 
+function resolveCurrentTaskPlanId(current) {
+  if (isKnown(current.task) && /^S[0-9]+-T[0-9]+$/i.test(current.task)) {
+    return current.task;
+  }
+
+  if (!isKnown(current.slice) || !isKnown(current.task)) {
+    return null;
+  }
+
+  return `${current.slice}-${current.task}`;
+}
+
+function addCurrentTaskWarning(model, code, message) {
+  model.current_task.warnings.push({ code, message });
+}
+
+function populateCurrentTaskFromPlan(model, gsdDir) {
+  const taskPlanId = resolveCurrentTaskPlanId(model.current);
+
+  if (!taskPlanId) {
+    return;
+  }
+
+  const planFileName = `${taskPlanId}-PLAN.xml`;
+  const planPath = path.join(gsdDir, planFileName);
+
+  if (!hasFile(planPath)) {
+    addCurrentTaskWarning(
+      model,
+      'task_plan.missing',
+      `current task plan was not found: .gsd/${planFileName}`
+    );
+    return;
+  }
+
+  try {
+    model.current_task = parseTaskPlanXml(fs.readFileSync(planPath, 'utf8'), {
+      expectedTaskId: taskPlanId,
+      planPath
+    });
+  } catch (error) {
+    addCurrentTaskWarning(
+      model,
+      'task_plan.read_failed',
+      error && error.message ? error.message : 'current task plan could not be read'
+    );
+    return;
+  }
+
+  if (isKnown(model.current_task.name)) {
+    model.current.task_name = model.current_task.name;
+  }
+}
+
 function resolveNextAction(model) {
   const { current, automation } = model;
 
@@ -201,19 +271,7 @@ function createEmptyDashboardModel(projectRoot, options = {}) {
         pending: 0
       }
     },
-    current_task: {
-      risk: {
-        level: UNKNOWN,
-        reason: ''
-      },
-      files: [],
-      boundaries: [],
-      acceptance_criteria: [],
-      action: [],
-      verify: [],
-      done: null,
-      warnings: []
-    },
+    current_task: createEmptyTaskPlan(),
     activity: [],
     evidence: {
       latest_unify: null,
@@ -282,6 +340,7 @@ function buildDashboardModel(projectRoot) {
     configFields.auto_mode_scope
   );
   model.current.next_action = resolveNextAction(model);
+  populateCurrentTaskFromPlan(model, gsdDir);
 
   return model;
 }

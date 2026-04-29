@@ -52,6 +52,9 @@ function assertStableEmptyShape(model) {
     'acceptance_criteria'
   ]);
   assert.deepStrictEqual(Object.keys(model.current_task), [
+    'id',
+    'type',
+    'name',
     'risk',
     'files',
     'boundaries',
@@ -321,6 +324,118 @@ function testMissingStateFieldsRemainUnknown() {
   assert.strictEqual(model.automation.scope, 'unknown');
 }
 
+function currentTaskPlanXml(options = {}) {
+  const slice = options.slice || 'S01';
+  const task = options.task || 'T01';
+
+  return [
+    `<task id="${slice}-${task}" type="auto">`,
+    '  <name>Dashboard parser task</name>',
+    '  <files>',
+    '    scripts/dashboard/task-plan-parser.js',
+    '    scripts/dashboard/read-model.js',
+    '  </files>',
+    '  <risk level="low">',
+    '    Parser output is read-only dashboard data.',
+    '  </risk>',
+    '  <acceptance_criteria>',
+    '    <ac id="AC-1">',
+    '      Given a current task plan exists',
+    '      When the dashboard model is built',
+    '      Then current task details are populated',
+    '    </ac>',
+    '  </acceptance_criteria>',
+    '  <action>',
+    '    1. Parse task plan XML',
+    '  </action>',
+    '  <boundaries>',
+    '    Keep dashboard V1 read-only.',
+    '  </boundaries>',
+    '  <verify>node test/dashboard-read-model.test.js (AC-1)</verify>',
+    '  <done>The dashboard read model includes the current task.</done>',
+    '</task>',
+    ''
+  ].join('\n');
+}
+
+function warningCodes(model) {
+  return model.current_task.warnings.map((warning) => warning.code);
+}
+
+function testCurrentTaskPlanPopulatesCurrentTask() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T01',
+    'phase: plan-complete',
+    ''
+  ].join('\n'));
+  writeProjectFile(projectRoot, '.gsd/S01-T01-PLAN.xml', currentTaskPlanXml());
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.current.task_name, 'Dashboard parser task');
+  assert.strictEqual(model.current_task.id, 'S01-T01');
+  assert.strictEqual(model.current_task.type, 'auto');
+  assert.strictEqual(model.current_task.name, 'Dashboard parser task');
+  assert.deepStrictEqual(model.current_task.files, [
+    'scripts/dashboard/task-plan-parser.js',
+    'scripts/dashboard/read-model.js'
+  ]);
+  assert.deepStrictEqual(model.current_task.risk, {
+    level: 'low',
+    reason: 'Parser output is read-only dashboard data.'
+  });
+  assert.deepStrictEqual(model.current_task.acceptance_criteria, [
+    {
+      id: 'AC-1',
+      text: [
+        'Given a current task plan exists',
+        'When the dashboard model is built',
+        'Then current task details are populated'
+      ].join('\n')
+    }
+  ]);
+  assert.deepStrictEqual(model.current_task.action, [
+    '1. Parse task plan XML'
+  ]);
+  assert.deepStrictEqual(model.current_task.boundaries, [
+    'Keep dashboard V1 read-only.'
+  ]);
+  assert.deepStrictEqual(model.current_task.verify, [
+    'node test/dashboard-read-model.test.js (AC-1)'
+  ]);
+  assert.strictEqual(
+    model.current_task.done,
+    'The dashboard read model includes the current task.'
+  );
+  assert.deepStrictEqual(model.current_task.warnings, []);
+}
+
+function testMalformedCurrentTaskPlanProducesWarning() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: plan-complete',
+    ''
+  ].join('\n'));
+  writeProjectFile(
+    projectRoot,
+    '.gsd/S01-T02-PLAN.xml',
+    '<task id="S01-T02" type="auto"><name>Broken task'
+  );
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.current.task_name, 'unknown');
+  assert.strictEqual(model.current_task.id, 'S01-T02');
+  assert.strictEqual(model.current_task.type, 'auto');
+  assert.deepStrictEqual(model.current_task.files, []);
+  assert.ok(warningCodes(model).includes('task.xml.root_unclosed'));
+  assert.ok(warningCodes(model).includes('task.name.unclosed'));
+}
+
 function testRelativeProjectRootIsResolved() {
   const previousCwd = process.cwd();
   const parentDir = makeTempDir('gsd-cc-dashboard-parent-');
@@ -346,6 +461,8 @@ function run() {
   testConfigFallbackPopulatesProjectFields();
   testStateFieldsTakePrecedenceOverConfig();
   testMissingStateFieldsRemainUnknown();
+  testCurrentTaskPlanPopulatesCurrentTask();
+  testMalformedCurrentTaskPlanProducesWarning();
   testRelativeProjectRootIsResolved();
 }
 
