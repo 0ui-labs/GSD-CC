@@ -820,9 +820,16 @@ function buildTaskProgress(gsdDir, taskPlans, summaries) {
           level: UNKNOWN,
           reason: ''
         },
+      files: parsedPlan ? parsedPlan.files : [],
+      boundaries: parsedPlan ? parsedPlan.boundaries : [],
       acceptance_criteria: {
-        total: parsedPlan ? parsedPlan.acceptance_criteria.length : 0
+        total: parsedPlan ? parsedPlan.acceptance_criteria.length : 0,
+        items: parsedPlan ? parsedPlan.acceptance_criteria : []
       },
+      action: parsedPlan ? parsedPlan.action : [],
+      verify: parsedPlan ? parsedPlan.verify : [],
+      done: parsedPlan ? parsedPlan.done : null,
+      warnings: parsedPlan ? parsedPlan.warnings : [],
       artifacts: {
         plan: plan ? plan.displayPath : null,
         summary: summary ? summary.displayPath : null

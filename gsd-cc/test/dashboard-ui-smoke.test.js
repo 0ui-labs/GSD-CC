@@ -688,6 +688,204 @@ function createSliceRoadmapModel() {
   };
 }
 
+function createTaskDetailModel() {
+  return {
+    project: {
+      name: 'Task Detail Fixture',
+      project_type: 'application'
+    },
+    current: {
+      milestone: 'M005',
+      slice: 'S07',
+      task: 'T02',
+      phase: 'applying',
+      task_name: 'Build task detail view',
+      next_action: 'Inspect the selected task.'
+    },
+    automation: {
+      status: 'active',
+      scope: 'task',
+      unit: 'S07/T02'
+    },
+    progress: {
+      acceptance_criteria: {
+        total: 3,
+        passed: 1,
+        partial: 0,
+        failed: 0,
+        pending: 2
+      },
+      slices: [
+        {
+          id: 'S07',
+          name: 'Task inspection',
+          current: true,
+          status: 'running',
+          artifacts: {
+            roadmap: '.gsd/M005-ROADMAP.md',
+            plan: '.gsd/S07-PLAN.md',
+            unify: null
+          },
+          acceptance_criteria: {
+            total: 3,
+            passed: 1,
+            partial: 0,
+            failed: 0,
+            pending: 2
+          },
+          tasks: {
+            total: 3,
+            completed: 1,
+            pending: 2,
+            risk: {
+              low: 1,
+              medium: 1,
+              high: 1,
+              unknown: 0
+            },
+            items: [
+              {
+                id: 'T01',
+                task_id: 'S07-T01',
+                name: 'Completed selected task',
+                status: 'complete',
+                risk: {
+                  level: 'low',
+                  reason: 'Already summarized.'
+                },
+                files: [
+                  'src/completed.js'
+                ],
+                boundaries: [
+                  'Keep completed task read-only.'
+                ],
+                acceptance_criteria: {
+                  total: 1,
+                  items: [
+                    {
+                      id: 'AC-1',
+                      text: 'Given a completed summary exists\nWhen a task is selected\nThen summary status is visible',
+                      status: 'passed',
+                      evidence: 'summary confirmed the task',
+                      source: '.gsd/S07-T01-SUMMARY.md',
+                      source_type: 'summary'
+                    }
+                  ]
+                },
+                verify: [
+                  'node test/dashboard-ui-smoke.test.js (AC-1)'
+                ],
+                done: 'The summary is available.',
+                artifacts: {
+                  plan: '.gsd/S07-T01-PLAN.xml',
+                  summary: '.gsd/S07-T01-SUMMARY.md'
+                }
+              },
+              {
+                id: 'T02',
+                task_id: 'S07-T02',
+                name: 'Build task detail view',
+                status: 'pending',
+                risk: {
+                  level: 'high',
+                  reason: 'Selection state must stay local to the dashboard.'
+                },
+                files: [
+                  'dashboard/app.js',
+                  'dashboard/styles.css'
+                ],
+                boundaries: [
+                  'Do not implement the evidence panel.'
+                ],
+                acceptance_criteria: {
+                  total: 2,
+                  items: [
+                    {
+                      id: 'AC-2',
+                      text: 'Given the current task is selected\nWhen details render\nThen files and boundaries are shown',
+                      status: 'pending'
+                    },
+                    {
+                      id: 'AC-3',
+                      text: 'Given source artifacts exist\nWhen details render\nThen plan links are visible',
+                      status: 'pending'
+                    }
+                  ]
+                },
+                verify: [
+                  'node test/dashboard-ui-smoke.test.js (AC-2, AC-3)'
+                ],
+                done: null,
+                artifacts: {
+                  plan: '.gsd/S07-T02-PLAN.xml',
+                  summary: null
+                }
+              },
+              {
+                id: 'T03',
+                task_id: 'S07-T03',
+                name: null,
+                status: 'pending',
+                risk: {
+                  level: 'medium'
+                },
+                acceptance_criteria: {
+                  total: 0
+                },
+                artifacts: {
+                  plan: null,
+                  summary: null
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    current_task: {
+      id: 'S07-T02',
+      name: 'Build task detail view',
+      risk: {
+        level: 'high',
+        reason: 'Selection state must stay local to the dashboard.'
+      },
+      files: [
+        'dashboard/app.js',
+        'dashboard/styles.css'
+      ],
+      boundaries: [
+        'Do not implement the evidence panel.'
+      ],
+      acceptance_criteria: [
+        {
+          id: 'AC-2',
+          text: 'Given the current task is selected\nWhen details render\nThen files and boundaries are shown',
+          status: 'pending',
+          evidence: '',
+          source: null,
+          source_type: null
+        },
+        {
+          id: 'AC-3',
+          text: 'Given source artifacts exist\nWhen details render\nThen plan links are visible',
+          status: 'pending',
+          evidence: '',
+          source: null,
+          source_type: null
+        }
+      ],
+      action: [],
+      verify: [
+        'node test/dashboard-ui-smoke.test.js (AC-2, AC-3)'
+      ],
+      done: null,
+      warnings: []
+    },
+    attention: [],
+    activity: []
+  };
+}
+
 function flushPromises() {
   return new Promise((resolve) => {
     setImmediate(resolve);
@@ -737,6 +935,10 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /dashboard-slice-roadmap/);
   assert.match(source, /dashboard-slice-detail/);
   assert.match(source, /data-dashboard-slice-id/);
+  assert.match(source, /dashboard-task-detail/);
+  assert.match(source, /data-dashboard-task-id/);
+  assert.match(source, /Summary status/);
+  assert.match(source, /Source artifacts/);
   assert.match(source, /Risk distribution/);
   assert.match(source, /formatActivityTimestamp/);
   assert.match(source, /Action summary/);
@@ -1193,6 +1395,103 @@ async function testSliceRoadmapRendersSelectableProgress() {
   assert.match(root.innerHTML, /dashboard-slice-status--unified/);
 }
 
+async function testTaskDetailRendersSelectedTaskPlanData() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: '',
+    clickListener: null,
+    addEventListener(name, listener) {
+      assert.strictEqual(name, 'click');
+      this.clickListener = listener;
+    },
+    contains() {
+      return true;
+    }
+  };
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(createTaskDetailModel());
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  assert.match(root.innerHTML, /dashboard-task-detail/);
+  assert.match(root.innerHTML, /Task detail/);
+  assert.match(root.innerHTML, /Current task/);
+  assert.match(root.innerHTML, /Build task detail view/);
+  assert.match(root.innerHTML, /Summary status/);
+  assert.match(root.innerHTML, /applying/);
+  assert.match(root.innerHTML, /Risk/);
+  assert.match(root.innerHTML, /high/);
+  assert.match(root.innerHTML, /Selection state must stay local/);
+  assert.match(root.innerHTML, /Files/);
+  assert.match(root.innerHTML, /dashboard\/app\.js/);
+  assert.match(root.innerHTML, /dashboard\/styles\.css/);
+  assert.match(root.innerHTML, /Boundaries/);
+  assert.match(root.innerHTML, /Do not implement the evidence panel/);
+  assert.match(root.innerHTML, /Acceptance criteria/);
+  assert.match(root.innerHTML, /AC-2/);
+  assert.match(root.innerHTML, /files and boundaries are shown/);
+  assert.match(root.innerHTML, /Verify/);
+  assert.match(root.innerHTML, /node test\/dashboard-ui-smoke\.test\.js \(AC-2, AC-3\)/);
+  assert.match(root.innerHTML, /Source artifacts/);
+  assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FS07-T02-PLAN\.xml/);
+  assert.match(root.innerHTML, /dashboard-slice-task--current/);
+  assert.match(root.innerHTML, /dashboard-slice-task--selected/);
+
+  const selectedNode = {
+    getAttribute(name) {
+      assert.strictEqual(name, 'data-dashboard-task-id');
+      return 'S07-T01';
+    }
+  };
+
+  root.clickListener({
+    target: {
+      closest(selector) {
+        if (selector === '[data-dashboard-slice-id]') {
+          return null;
+        }
+
+        assert.strictEqual(selector, '[data-dashboard-task-id]');
+        return selectedNode;
+      }
+    }
+  });
+
+  assert.match(root.innerHTML, /Completed task/);
+  assert.match(root.innerHTML, /Completed selected task/);
+  assert.match(root.innerHTML, /complete/);
+  assert.match(root.innerHTML, /summary confirmed the task/);
+  assert.match(root.innerHTML, /The summary is available/);
+  assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FS07-T01-SUMMARY\.md/);
+  assert.doesNotMatch(root.innerHTML, /Current task<\/strong>/);
+}
+
 async function testStylesExposeConnectionStates() {
   const styles = fs.readFileSync(stylesPath, 'utf8');
 
@@ -1225,6 +1524,11 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-slice-status--running/);
   assert.match(styles, /\.dashboard-slice-risk--high/);
   assert.match(styles, /\.dashboard-slice-task-list/);
+  assert.match(styles, /\.dashboard-task-detail/);
+  assert.match(styles, /\.dashboard-task-detail--current/);
+  assert.match(styles, /\.dashboard-task-detail--completed/);
+  assert.match(styles, /\.dashboard-task-detail-grid/);
+  assert.match(styles, /\.dashboard-task-detail-criterion--passed/);
   assert.match(styles, /max-height:\s*min\(680px,\s*72vh\)/);
   assert.match(styles, /overflow-y:\s*auto/);
   assert.match(styles, /\.dashboard-artifact-link/);
@@ -1245,6 +1549,7 @@ async function run() {
   await testAttentionPanelRendersRequiredActionDetails();
   await testActivityFeedRendersExecutionHistory();
   await testSliceRoadmapRendersSelectableProgress();
+  await testTaskDetailRendersSelectedTaskPlanData();
   await testStylesExposeConnectionStates();
 }
 

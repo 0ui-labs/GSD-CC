@@ -54,6 +54,11 @@
     'failed',
     'unknown'
   ];
+  const TASK_STATE_LABELS = {
+    completed: 'Completed task',
+    current: 'Current task',
+    pending: 'Pending task'
+  };
   const root = document.querySelector('[data-dashboard-root]');
 
   if (!root) {
@@ -67,7 +72,8 @@
     lastUpdatedAt: null,
     model: null,
     pollTimer: null,
-    selectedSliceId: ''
+    selectedSliceId: '',
+    selectedTaskId: ''
   };
 
   function escapeHtml(value) {
@@ -278,6 +284,49 @@
     return `.gsd/${id}-PLAN.xml`;
   }
 
+  function normalizeTaskId(value) {
+    return displayValue(value, '').toUpperCase();
+  }
+
+  function splitTaskPlanId(value) {
+    const match = normalizeTaskId(value).match(/^(S[0-9]+)-(T[0-9]+)$/);
+
+    if (!match) {
+      return null;
+    }
+
+    return {
+      slice: match[1],
+      task: match[2]
+    };
+  }
+
+  function sliceTaskPlanId(slice, task) {
+    const existingPlanId = knownDisplayValue(task && task.task_id);
+
+    if (/^S[0-9]+-T[0-9]+$/i.test(existingPlanId)) {
+      return existingPlanId;
+    }
+
+    const taskId = knownDisplayValue(task && task.id);
+
+    if (/^S[0-9]+-T[0-9]+$/i.test(taskId)) {
+      return taskId;
+    }
+
+    const sliceId = knownDisplayValue(slice && slice.id);
+
+    if (sliceId && /^T[0-9]+$/i.test(taskId)) {
+      return `${sliceId}-${taskId}`;
+    }
+
+    return taskId || existingPlanId;
+  }
+
+  function taskSelectionId(slice, task) {
+    return sliceTaskPlanId(slice, task) || knownDisplayValue(task && task.id);
+  }
+
   function uniqueValues(values) {
     const seen = new Set();
     const unique = [];
@@ -385,11 +434,115 @@
       || null;
   }
 
+  function taskMatchesId(slice, task, taskId) {
+    const normalized = normalizeTaskId(taskId);
+
+    if (!normalized) {
+      return false;
+    }
+
+    return [
+      task && task.id,
+      task && task.task_id,
+      sliceTaskPlanId(slice, task)
+    ].some((value) => normalizeTaskId(value) === normalized);
+  }
+
+  function currentTaskParts(model) {
+    const currentTask = model && model.current_task ? model.current_task : {};
+    const current = model && model.current ? model.current : {};
+    const taskPlanId = knownDisplayValue(currentTask.id);
+    const parsed = splitTaskPlanId(taskPlanId);
+
+    if (parsed) {
+      return {
+        ...parsed,
+        planId: taskPlanId
+      };
+    }
+
+    const slice = knownDisplayValue(current.slice);
+    const task = knownDisplayValue(current.task);
+
+    if (!slice || !task) {
+      return null;
+    }
+
+    const combined = splitTaskPlanId(task) || splitTaskPlanId(`${slice}-${task}`);
+
+    return combined
+      ? {
+        ...combined,
+        planId: `${combined.slice}-${combined.task}`
+      }
+      : null;
+  }
+
+  function taskIsCurrent(model, slice, task) {
+    const current = currentTaskParts(model);
+
+    if (!current) {
+      return false;
+    }
+
+    return normalizeSliceId(slice && slice.id) === current.slice
+      && (
+        normalizeTaskId(task && task.id) === current.task
+        || normalizeTaskId(task && task.task_id) === current.planId
+        || normalizeTaskId(sliceTaskPlanId(slice, task)) === current.planId
+      );
+  }
+
+  function taskHasSummary(task) {
+    const artifacts = task && task.artifacts ? task.artifacts : {};
+
+    return Boolean(knownDisplayValue(artifacts.summary));
+  }
+
+  function taskState(model, slice, task) {
+    if (taskIsCurrent(model, slice, task)) {
+      return 'current';
+    }
+
+    return taskHasSummary(task) ? 'completed' : 'pending';
+  }
+
+  function findTaskById(slice, taskId) {
+    return sliceTaskItems(slice).find((task) => taskMatchesId(slice, task, taskId))
+      || null;
+  }
+
+  function defaultSelectedTask(model, slice) {
+    const items = sliceTaskItems(slice);
+
+    if (items.length === 0) {
+      return null;
+    }
+
+    return items.find((task) => taskIsCurrent(model, slice, task))
+      || items[0]
+      || null;
+  }
+
   function defaultSelectedSlice(slices, current) {
     return slices.find((slice) => slice && slice.current)
       || findSliceById(slices, current && current.slice)
       || slices[0]
       || null;
+  }
+
+  function ensureSelectedTask(model, selectedSlice) {
+    if (!selectedSlice) {
+      app.selectedTaskId = '';
+      return;
+    }
+
+    if (app.selectedTaskId && findTaskById(selectedSlice, app.selectedTaskId)) {
+      return;
+    }
+
+    const selected = defaultSelectedTask(model, selectedSlice);
+    app.selectedTaskId = selected ? taskSelectionId(selectedSlice, selected) : '';
   }
 
   function ensureSelectedSlice(model) {
@@ -402,11 +555,13 @@
     }
 
     if (app.selectedSliceId && findSliceById(slices, app.selectedSliceId)) {
+      ensureSelectedTask(model, findSliceById(slices, app.selectedSliceId));
       return;
     }
 
     const selected = defaultSelectedSlice(slices, model && model.current);
     app.selectedSliceId = selected ? selected.id : '';
+    ensureSelectedTask(model, selected);
   }
 
   function setConnection(connection) {
@@ -1276,7 +1431,248 @@
     ].join('');
   }
 
-  function renderSliceTaskList(slice) {
+  function taskAcceptanceItems(task) {
+    const criteria = task && task.acceptance_criteria
+      ? task.acceptance_criteria
+      : {};
+
+    if (Array.isArray(criteria)) {
+      return criteria;
+    }
+
+    return Array.isArray(criteria.items) ? criteria.items : [];
+  }
+
+  function taskAcceptanceTotal(task) {
+    const criteria = task && task.acceptance_criteria
+      ? task.acceptance_criteria
+      : {};
+    const total = Number(criteria.total);
+
+    if (Number.isFinite(total) && total > 0) {
+      return total;
+    }
+
+    return taskAcceptanceItems(task).length;
+  }
+
+  function taskSummaryStatus(model, slice, task) {
+    if (taskIsCurrent(model, slice, task)) {
+      return displayValue(model.current && model.current.phase, 'current');
+    }
+
+    return displayValue(task && task.status, taskHasSummary(task) ? 'complete' : 'pending');
+  }
+
+  function renderTaskDetailBadge(label, value, tone) {
+    return [
+      `<span class="dashboard-task-detail-badge dashboard-task-detail-badge--${toClassName(tone || value)}">`,
+      `  <span>${escapeHtml(label)}</span>`,
+      `  <strong>${escapeHtml(displayValue(value, 'unknown'))}</strong>`,
+      '</span>'
+    ].join('');
+  }
+
+  function renderTaskDetailLines(title, values, emptyText, options = {}) {
+    const lines = uniqueValues(Array.isArray(values) ? values : []);
+
+    return [
+      '<section class="dashboard-task-detail-block">',
+      `  <h4>${escapeHtml(title)}</h4>`,
+      lines.length === 0
+        ? `  <p class="dashboard-task-detail-empty">${escapeHtml(emptyText)}</p>`
+        : [
+          '  <ul class="dashboard-task-detail-list">',
+          ...lines.map((line) => [
+            '    <li>',
+            options.code
+              ? `      <code>${escapeHtml(line)}</code>`
+              : `      <span>${escapeHtml(line)}</span>`,
+            '    </li>'
+          ].join('')),
+          '  </ul>'
+        ].join(''),
+      '</section>'
+    ].join('');
+  }
+
+  function renderTaskDetailCriteria(task) {
+    const items = taskAcceptanceItems(task);
+    const total = taskAcceptanceTotal(task);
+
+    if (items.length === 0) {
+      const empty = total > 0
+        ? `${total} acceptance criteria recorded; task-plan text is not available.`
+        : 'No acceptance criteria recorded.';
+
+      return [
+        '<section class="dashboard-task-detail-block">',
+        '  <h4>Acceptance criteria</h4>',
+        `  <p class="dashboard-task-detail-empty">${escapeHtml(empty)}</p>`,
+        '</section>'
+      ].join('');
+    }
+
+    return [
+      '<section class="dashboard-task-detail-block">',
+      '  <h4>Acceptance criteria</h4>',
+      '  <ul class="dashboard-task-detail-criteria">',
+      ...items.map((criterion) => {
+        const status = displayValue(criterion && criterion.status, '');
+        const source = criterion && criterion.source
+          ? renderArtifactLink(
+            criterion.source,
+            criterion.source_type ? `${criterion.source_type} source` : 'Source'
+          )
+          : '';
+
+        return [
+          `    <li class="dashboard-task-detail-criterion dashboard-task-detail-criterion--${toClassName(status || 'pending')}">`,
+          `      <strong>${escapeHtml(displayValue(criterion && criterion.id, 'AC'))}</strong>`,
+          `      <p>${escapeHtml(displayValue(
+            criterion && criterion.text,
+            'Acceptance criterion'
+          ))}</p>`,
+          status ? `      <small>${escapeHtml(status)}</small>` : '',
+          criterion && criterion.evidence
+            ? `      <small>${escapeHtml(criterion.evidence)}</small>`
+            : '',
+          source ? `      <span>${source}</span>` : '',
+          '    </li>'
+        ].join('');
+      }),
+      '  </ul>',
+      '</section>'
+    ].join('');
+  }
+
+  function renderTaskDetailArtifacts(model, slice, task) {
+    const artifacts = task && task.artifacts ? task.artifacts : {};
+    const planPath = artifacts.plan || (
+      taskIsCurrent(model, slice, task)
+        ? currentTaskPlanPath(model.current_task || {})
+        : ''
+    );
+    const sources = [
+      {
+        label: 'Task plan',
+        path: planPath
+      },
+      {
+        label: 'Summary',
+        path: artifacts.summary
+      }
+    ];
+    const links = sources
+      .map((source) => renderArtifactLink(source.path, source.label))
+      .filter(Boolean);
+
+    if (links.length === 0) {
+      return '<p class="dashboard-task-detail-empty">No source artifacts discovered.</p>';
+    }
+
+    return links.join('');
+  }
+
+  function mergeCurrentTaskDetails(model, slice, task) {
+    if (!taskIsCurrent(model, slice, task)) {
+      return task || {};
+    }
+
+    const currentTask = model.current_task || {};
+
+    if (!currentTask || currentTask.id === 'unknown') {
+      return task || {};
+    }
+
+    return {
+      ...(task || {}),
+      id: task && task.id ? task.id : currentTask.id,
+      task_id: currentTask.id,
+      name: knownDisplayValue(currentTask.name) || (task && task.name),
+      risk: currentTask.risk || (task && task.risk),
+      files: Array.isArray(currentTask.files) ? currentTask.files : task && task.files,
+      boundaries: Array.isArray(currentTask.boundaries)
+        ? currentTask.boundaries
+        : task && task.boundaries,
+      acceptance_criteria: Array.isArray(currentTask.acceptance_criteria)
+        ? currentTask.acceptance_criteria
+        : task && task.acceptance_criteria,
+      action: Array.isArray(currentTask.action) ? currentTask.action : task && task.action,
+      verify: Array.isArray(currentTask.verify) ? currentTask.verify : task && task.verify,
+      done: currentTask.done || (task && task.done),
+      warnings: Array.isArray(currentTask.warnings)
+        ? currentTask.warnings
+        : task && task.warnings,
+      artifacts: {
+        ...(task && task.artifacts ? task.artifacts : {}),
+        plan: (task && task.artifacts && task.artifacts.plan)
+          || currentTaskPlanPath(currentTask)
+      }
+    };
+  }
+
+  function renderSelectedTaskDetail(model, slice, task) {
+    if (!task) {
+      return renderEmptyState(
+        'No task selected',
+        'Select a task in this slice to inspect its plan status.'
+      );
+    }
+
+    const detailTask = mergeCurrentTaskDetails(model, slice, task);
+    const state = taskState(model, slice, task);
+    const status = taskSummaryStatus(model, slice, task);
+    const risk = detailTask.risk || {};
+    const riskLevel = normalizeRiskLevel(risk.level);
+
+    return [
+      `<section class="dashboard-task-detail dashboard-task-detail--${state}" aria-label="Task detail">`,
+      '  <header class="dashboard-task-detail-header">',
+      '    <div>',
+      `      <span>${escapeHtml(sliceTaskPlanId(slice, detailTask) || displayValue(detailTask.id, 'Task'))}</span>`,
+      `      <h3>${escapeHtml(displayValue(detailTask.name, 'Untitled task'))}</h3>`,
+      '    </div>',
+      `    <strong class="dashboard-task-detail-state">${escapeHtml(TASK_STATE_LABELS[state])}</strong>`,
+      '  </header>',
+      '  <div class="dashboard-task-detail-summary">',
+      renderTaskDetailBadge('Summary status', status, state === 'current' ? 'current' : status),
+      renderTaskDetailBadge('Risk', riskLevel, riskLevel),
+      '    <div class="dashboard-task-detail-artifacts" aria-label="Source artifacts">',
+      renderTaskDetailArtifacts(model, slice, detailTask),
+      '    </div>',
+      '  </div>',
+      risk.reason
+        ? `  <p class="dashboard-task-detail-risk">${escapeHtml(risk.reason)}</p>`
+        : '',
+      '  <div class="dashboard-task-detail-grid">',
+      renderTaskDetailLines(
+        'Files',
+        detailTask.files,
+        'No file list recorded.',
+        { code: true }
+      ),
+      renderTaskDetailLines(
+        'Boundaries',
+        detailTask.boundaries,
+        'No boundaries recorded.'
+      ),
+      renderTaskDetailCriteria(detailTask),
+      renderTaskDetailLines(
+        'Verify',
+        detailTask.verify,
+        'No verify command recorded.',
+        { code: true }
+      ),
+      '  </div>',
+      detailTask.done
+        ? `  <p class="dashboard-task-detail-done">${escapeHtml(detailTask.done)}</p>`
+        : '',
+      '</section>'
+    ].join('');
+  }
+
+  function renderSliceTaskList(model, slice, selectedTask) {
     const items = sliceTaskItems(slice);
 
     if (items.length === 0) {
@@ -1286,22 +1682,30 @@
     return [
       '<ol class="dashboard-slice-task-list" aria-label="Slice tasks">',
       ...items.map((task) => {
-        const acTotal = task && task.acceptance_criteria
-          ? Number(task.acceptance_criteria.total) || 0
-          : 0;
+        const acTotal = taskAcceptanceTotal(task);
         const riskLevel = normalizeRiskLevel(task && task.risk && task.risk.level);
+        const state = taskState(model, slice, task);
+        const selected = selectedTask && taskMatchesId(
+          slice,
+          task,
+          taskSelectionId(slice, selectedTask)
+        );
+        const selectedClass = selected ? ' dashboard-slice-task--selected' : '';
 
         return [
-          `<li class="dashboard-slice-task dashboard-slice-task--${toClassName(task && task.status)}">`,
-          '  <div>',
-          `    <strong>${escapeHtml(displayValue(task && task.id, 'Task'))}</strong>`,
-          `    <span>${escapeHtml(displayValue(task && task.name, 'Untitled task'))}</span>`,
-          '  </div>',
-          '  <div class="dashboard-slice-task-meta">',
-          `    <span>${escapeHtml(displayValue(task && task.status, 'pending'))}</span>`,
-          `    <span>${escapeHtml(riskLevel)} risk</span>`,
-          `    <span>${escapeHtml(acTotal)} ACs</span>`,
-          '  </div>',
+          '<li>',
+          `<button type="button" class="dashboard-slice-task dashboard-slice-task--${toClassName(task && task.status)} dashboard-slice-task--${state}${selectedClass}" data-dashboard-task-id="${escapeHtml(taskSelectionId(slice, task))}" aria-pressed="${selected ? 'true' : 'false'}">`,
+          '    <span>',
+          `      <strong>${escapeHtml(displayValue(task && task.id, 'Task'))}</strong>`,
+          `      <span>${escapeHtml(displayValue(task && task.name, 'Untitled task'))}</span>`,
+          '    </span>',
+          '    <span class="dashboard-slice-task-meta">',
+          `      <span>${escapeHtml(TASK_STATE_LABELS[state])}</span>`,
+          `      <span>${escapeHtml(displayValue(task && task.status, 'pending'))}</span>`,
+          `      <span>${escapeHtml(riskLevel)} risk</span>`,
+          `      <span>${escapeHtml(acTotal)} ACs</span>`,
+          '    </span>',
+          '  </button>',
           '</li>'
         ].join('');
       }),
@@ -1309,7 +1713,7 @@
     ].join('');
   }
 
-  function renderSelectedSliceDetail(slice) {
+  function renderSelectedSliceDetail(model, slice) {
     if (!slice) {
       return renderEmptyState(
         'No slice selected',
@@ -1322,6 +1726,8 @@
     const currentLabel = slice.current
       ? '<span class="dashboard-slice-detail-current">Current slice</span>'
       : '';
+    const selectedTask = findTaskById(slice, app.selectedTaskId)
+      || defaultSelectedTask(model, slice);
 
     return [
       '<section class="dashboard-slice-detail" aria-label="Selected slice detail">',
@@ -1359,8 +1765,9 @@
       '  </div>',
       '  <section class="dashboard-slice-task-section">',
       '    <h4>Tasks</h4>',
-      renderSliceTaskList(slice),
+      renderSliceTaskList(model, slice, selectedTask),
       '  </section>',
+      renderSelectedTaskDetail(model, slice, selectedTask),
       '</section>'
     ].join('');
   }
@@ -1393,7 +1800,7 @@
       slices.length > 0
         ? renderSliceRoadmap(slices, selectedSlice)
         : '<p class="dashboard-empty">No active slice.</p>',
-      renderSelectedSliceDetail(selectedSlice),
+      renderSelectedSliceDetail(app.model || {}, selectedSlice),
       '</div>'
     ].join('');
   }
@@ -1731,25 +2138,47 @@
   }
 
   function handleDashboardClick(event) {
-    const target = event && event.target && typeof event.target.closest === 'function'
+    const sliceTarget = event && event.target && typeof event.target.closest === 'function'
       ? event.target.closest('[data-dashboard-slice-id]')
       : null;
 
-    if (!target) {
+    if (sliceTarget && typeof root.contains === 'function' && !root.contains(sliceTarget)) {
       return;
     }
 
-    if (typeof root.contains === 'function' && !root.contains(target)) {
+    if (sliceTarget) {
+      const sliceId = sliceTarget.getAttribute('data-dashboard-slice-id');
+
+      if (!sliceId || sliceId === app.selectedSliceId) {
+        return;
+      }
+
+      app.selectedSliceId = sliceId;
+      app.selectedTaskId = '';
+      ensureSelectedSlice(app.model || {});
+      render();
       return;
     }
 
-    const sliceId = target.getAttribute('data-dashboard-slice-id');
+    const taskTarget = event && event.target && typeof event.target.closest === 'function'
+      ? event.target.closest('[data-dashboard-task-id]')
+      : null;
 
-    if (!sliceId || sliceId === app.selectedSliceId) {
+    if (!taskTarget) {
       return;
     }
 
-    app.selectedSliceId = sliceId;
+    if (typeof root.contains === 'function' && !root.contains(taskTarget)) {
+      return;
+    }
+
+    const taskId = taskTarget.getAttribute('data-dashboard-task-id');
+
+    if (!taskId || taskId === app.selectedTaskId) {
+      return;
+    }
+
+    app.selectedTaskId = taskId;
     render();
   }
 
