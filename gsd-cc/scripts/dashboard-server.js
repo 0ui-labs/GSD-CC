@@ -86,6 +86,16 @@ function writeNoCacheJson(res, req, statusCode, payload) {
   }, body);
 }
 
+function writeArtifactError(res, req, statusCode, code, message) {
+  writeNoCacheJson(res, req, statusCode, {
+    ok: false,
+    error: {
+      code,
+      message
+    }
+  });
+}
+
 function writeNotFound(res, req) {
   writeResponse(res, req, 404, {
     'Content-Type': 'text/plain; charset=utf-8'
@@ -105,9 +115,9 @@ function writeServerError(res, req) {
   }, 'Internal server error\n');
 }
 
-function parseRequestPath(req) {
+function parseRequestUrl(req) {
   try {
-    return new URL(req.url || '/', 'http://dashboard.local').pathname;
+    return new URL(req.url || '/', 'http://dashboard.local');
   } catch (_error) {
     return null;
   }
@@ -140,6 +150,158 @@ function serveStaticAsset(req, res, route, dashboardDir) {
   });
 }
 
+function isPathInside(parentPath, childPath) {
+  const relative = path.relative(parentPath, childPath);
+
+  return Boolean(relative)
+    && !relative.startsWith('..')
+    && !path.isAbsolute(relative);
+}
+
+function hasTraversalSegment(value) {
+  return value
+    .replace(/\\/g, '/')
+    .split('/')
+    .some((segment) => segment === '..');
+}
+
+function normalizeArtifactRequestPath(value) {
+  if (!value) {
+    return {
+      error: 'Artifact path is required.'
+    };
+  }
+
+  if (
+    value.includes('\0')
+    || path.isAbsolute(value)
+    || path.win32.isAbsolute(value)
+    || hasTraversalSegment(value)
+  ) {
+    return {
+      error: 'Artifact path must be a safe repository-relative path.'
+    };
+  }
+
+  const normalized = path.posix.normalize(value.replace(/\\/g, '/'));
+
+  if (!normalized.startsWith('.gsd/') || normalized === '.gsd/') {
+    return {
+      error: 'Artifact path must point to a file inside .gsd/.'
+    };
+  }
+
+  return {
+    path: normalized
+  };
+}
+
+function isMissingFileError(error) {
+  return Boolean(
+    error
+    && (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+  );
+}
+
+async function buildArtifactPayload(projectRoot, requestedPath) {
+  const normalized = normalizeArtifactRequestPath(requestedPath);
+
+  if (normalized.error) {
+    const error = new Error(normalized.error);
+    error.statusCode = 400;
+    error.artifactCode = 'invalid_artifact_path';
+    throw error;
+  }
+
+  const gsdDir = path.resolve(projectRoot, '.gsd');
+  const artifactPath = path.resolve(projectRoot, normalized.path);
+
+  if (!isPathInside(gsdDir, artifactPath)) {
+    const error = new Error('Artifact path must point to a file inside .gsd/.');
+    error.statusCode = 400;
+    error.artifactCode = 'invalid_artifact_path';
+    throw error;
+  }
+
+  let gsdStats;
+  let artifactStats;
+
+  try {
+    [gsdStats, artifactStats] = await Promise.all([
+      fs.promises.lstat(gsdDir),
+      fs.promises.lstat(artifactPath)
+    ]);
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      const notFound = new Error('Artifact not found.');
+      notFound.statusCode = 404;
+      notFound.artifactCode = 'artifact_not_found';
+      throw notFound;
+    }
+
+    throw error;
+  }
+
+  if (!gsdStats.isDirectory() || !artifactStats.isFile()) {
+    const notFound = new Error('Artifact not found.');
+    notFound.statusCode = 404;
+    notFound.artifactCode = 'artifact_not_found';
+    throw notFound;
+  }
+
+  const [realGsdDir, realArtifactPath] = await Promise.all([
+    fs.promises.realpath(gsdDir),
+    fs.promises.realpath(artifactPath)
+  ]);
+
+  if (!isPathInside(realGsdDir, realArtifactPath)) {
+    const error = new Error('Artifact path must point to a file inside .gsd/.');
+    error.statusCode = 400;
+    error.artifactCode = 'invalid_artifact_path';
+    throw error;
+  }
+
+  const content = await fs.promises.readFile(artifactPath, 'utf8');
+
+  return {
+    ok: true,
+    artifact: {
+      path: normalized.path,
+      name: path.basename(normalized.path),
+      size: artifactStats.size,
+      modifiedAt: artifactStats.mtime.toISOString(),
+      content
+    }
+  };
+}
+
+function writeArtifact(req, res, requestUrl, projectRoot) {
+  buildArtifactPayload(projectRoot, requestUrl.searchParams.get('path'))
+    .then((payload) => {
+      writeNoCacheJson(res, req, 200, payload);
+    })
+    .catch((error) => {
+      if (error && error.statusCode && error.artifactCode) {
+        writeArtifactError(
+          res,
+          req,
+          error.statusCode,
+          error.artifactCode,
+          error.message
+        );
+        return;
+      }
+
+      writeArtifactError(
+        res,
+        req,
+        500,
+        'artifact_unavailable',
+        'Artifact is temporarily unavailable.'
+      );
+    });
+}
+
 function writeDashboardModel(req, res, modelBuilder, projectRoot) {
   try {
     writeNoCacheJson(res, req, 200, modelBuilder(projectRoot));
@@ -167,11 +329,13 @@ function createDashboardServer(options = {}) {
       return;
     }
 
-    const requestPath = parseRequestPath(req);
-    if (!requestPath) {
+    const requestUrl = parseRequestUrl(req);
+    if (!requestUrl) {
       writeNotFound(res, req);
       return;
     }
+
+    const requestPath = requestUrl.pathname;
 
     if (requestPath === '/api/health') {
       writeJson(res, req, 200, {
@@ -185,6 +349,11 @@ function createDashboardServer(options = {}) {
 
     if (requestPath === '/api/state') {
       writeDashboardModel(req, res, modelBuilder, projectRoot);
+      return;
+    }
+
+    if (requestPath === '/api/artifact') {
+      writeArtifact(req, res, requestUrl, projectRoot);
       return;
     }
 

@@ -189,6 +189,93 @@ async function testStateReturnsSafeJsonError() {
   });
 }
 
+async function testArtifactReturnsGsdFileContent() {
+  const projectRoot = makeTempDir('gsd-cc-dashboard-artifact-api-');
+  const gsdDir = path.join(projectRoot, '.gsd');
+  const stateContent = [
+    'milestone: M001',
+    'current_slice: S01',
+    ''
+  ].join('\n');
+
+  fs.mkdirSync(gsdDir);
+  fs.writeFileSync(path.join(gsdDir, 'STATE.md'), stateContent);
+
+  await withServer({ projectRoot, port: 0 }, async (serverInfo) => {
+    const response = await request(
+      serverInfo,
+      `/api/artifact?path=${encodeURIComponent('.gsd/STATE.md')}`
+    );
+
+    assert.strictEqual(response.statusCode, 200);
+    assert.match(contentType(response), /^application\/json\b/);
+    assertNoCache(response);
+
+    const payload = JSON.parse(response.body);
+    assert.strictEqual(payload.ok, true);
+    assert.strictEqual(payload.artifact.path, '.gsd/STATE.md');
+    assert.strictEqual(payload.artifact.name, 'STATE.md');
+    assert.strictEqual(payload.artifact.content, stateContent);
+    assert.strictEqual(payload.artifact.size, Buffer.byteLength(stateContent));
+    assert.ok(Date.parse(payload.artifact.modifiedAt));
+  });
+}
+
+async function testArtifactReturnsNotFoundForMissingFile() {
+  const projectRoot = makeTempDir('gsd-cc-dashboard-missing-artifact-');
+
+  fs.mkdirSync(path.join(projectRoot, '.gsd'));
+
+  await withServer({ projectRoot, port: 0 }, async (serverInfo) => {
+    const response = await request(
+      serverInfo,
+      `/api/artifact?path=${encodeURIComponent('.gsd/MISSING.md')}`
+    );
+
+    assert.strictEqual(response.statusCode, 404);
+    assert.match(contentType(response), /^application\/json\b/);
+    assertNoCache(response);
+    assert.deepStrictEqual(JSON.parse(response.body), {
+      ok: false,
+      error: {
+        code: 'artifact_not_found',
+        message: 'Artifact not found.'
+      }
+    });
+  });
+}
+
+async function testArtifactRejectsUnsafePaths() {
+  const projectRoot = makeTempDir('gsd-cc-dashboard-unsafe-artifact-');
+
+  await withServer({ projectRoot, port: 0 }, async (serverInfo) => {
+    const traversal = await request(
+      serverInfo,
+      `/api/artifact?path=${encodeURIComponent('../package.json')}`
+    );
+    const absolute = await request(
+      serverInfo,
+      `/api/artifact?path=${encodeURIComponent(
+        path.join(projectRoot, '.gsd', 'STATE.md')
+      )}`
+    );
+    const outsideGsd = await request(
+      serverInfo,
+      `/api/artifact?path=${encodeURIComponent('package.json')}`
+    );
+
+    for (const response of [traversal, absolute, outsideGsd]) {
+      assert.strictEqual(response.statusCode, 400);
+      assert.match(contentType(response), /^application\/json\b/);
+      assertNoCache(response);
+      assert.strictEqual(
+        JSON.parse(response.body).error.code,
+        'invalid_artifact_path'
+      );
+    }
+  });
+}
+
 async function testUnknownPathsReturnSafeNotFound() {
   await withServer({ port: 0 }, async (serverInfo) => {
     const response = await request(serverInfo, '/../package.json');
@@ -258,6 +345,9 @@ async function run() {
   await testStaticAssetsUseExpectedContentTypes();
   await testStateReturnsDashboardModelAsJson();
   await testStateReturnsSafeJsonError();
+  await testArtifactReturnsGsdFileContent();
+  await testArtifactReturnsNotFoundForMissingFile();
+  await testArtifactRejectsUnsafePaths();
   await testUnknownPathsReturnSafeNotFound();
   await testUnsupportedMethodsReturnSafeResponse();
   await testDefaultPortFallsBackWhenBusy();
