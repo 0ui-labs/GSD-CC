@@ -154,3 +154,35 @@ auto_event_write() {
 
   return 0
 }
+
+auto_event_auto_started() {
+  auto_event_write "auto_started" "Auto-mode started." "$@"
+}
+
+auto_event_auto_finished() {
+  auto_event_write "auto_finished" "Auto-mode finished." "$@"
+}
+
+auto_event_slice_started() {
+  auto_event_write "slice_started" "Started slice ${SLICE:-unknown}." "$@"
+}
+
+auto_event_phase_started() {
+  auto_event_write "phase_started" "Started phase ${PHASE:-unknown}." "$@"
+}
+
+auto_event_phase_completed() {
+  auto_event_write "phase_completed" "Completed phase ${PHASE:-unknown}." "$@"
+}
+
+auto_event_dispatch_started() {
+  auto_event_write "dispatch_started" "Started ${DISPATCH_PHASE:-unknown} dispatch." "$@"
+}
+
+auto_event_dispatch_failed() {
+  auto_event_write "dispatch_failed" "Failed ${DISPATCH_PHASE:-unknown} dispatch." "$@"
+}
+
+auto_event_budget_reached() {
+  auto_event_write "budget_reached" "Token budget reached." "$@"
+}

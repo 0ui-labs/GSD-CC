@@ -11,6 +11,8 @@ AUTO_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$AUTO_SCRIPT_DIR/lib/runtime.sh"
 # shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/events.sh"
+# shellcheck source=/dev/null
 source "$AUTO_SCRIPT_DIR/lib/recovery.sh"
 # shellcheck source=/dev/null
 source "$AUTO_SCRIPT_DIR/lib/state.sh"
@@ -102,6 +104,22 @@ fi
 
 RETRY_COUNT=0
 MAX_RETRIES=2
+AUTO_EVENT_LAST_SLICE=""
+
+emit_slice_started_once() {
+  if [[ -z "${SLICE:-}" || "$SLICE" == "-" || "$SLICE" == "—" ]]; then
+    return 0
+  fi
+
+  if [[ "$AUTO_EVENT_LAST_SLICE" == "$SLICE" ]]; then
+    return 0
+  fi
+
+  AUTO_EVENT_LAST_SLICE="$SLICE"
+  auto_event_slice_started "scope=$AUTO_SCOPE"
+}
+
+auto_event_auto_started "scope=$AUTO_SCOPE" "budget=$BUDGET"
 
 while true; do
   # ── 1. Read state ──────────────────────────────────────────────────────────
@@ -121,6 +139,8 @@ while true; do
 
   validate_current_state
   ensure_auto_phase_ready "$PHASE"
+  emit_slice_started_once
+  auto_event_phase_started "scope=$AUTO_SCOPE"
 
   # ── 2. UNIFY enforcement ───────────────────────────────────────────────────
 
@@ -188,9 +208,11 @@ while true; do
       cat "$PROMPTS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
 
       RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"
+      auto_event_dispatch_started "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
       dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" \
         "Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git merge *),Bash(git commit *)" \
         15 600 || {
+        auto_event_dispatch_failed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE" "exit_code=$?"
         log "❌ UNIFY dispatch failed. Check $LOG_FILE for details."
         record_auto_problem_stop "dispatch_failed" \
           "UNIFY dispatch failed for $SLICE." \
@@ -200,6 +222,7 @@ while true; do
 
       log_cost "$SLICE" "unify" "$RESULT_FILE"
       validate_current_state "$PHASE"
+      auto_event_phase_completed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
 
       if [[ "$AUTO_SCOPE" == "slice" ]]; then
         log "✓ UNIFY complete for $START_SLICE."
@@ -236,9 +259,11 @@ while true; do
 
       RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"
       DISPATCH_PHASE="reassess"
+      auto_event_dispatch_started "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
       dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" \
         "Read,Write,Edit,Glob,Grep" \
         10 300 || {
+        auto_event_dispatch_failed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE" "exit_code=$?"
         log "⚠ REASSESS dispatch failed (non-critical). Continuing..."
       }
 
@@ -253,6 +278,7 @@ while true; do
 
   # Check if milestone is complete (all slices unified)
   if [[ "$AUTO_SCOPE" == "slice" && "$PHASE" == "unified" ]]; then
+    auto_event_phase_completed "scope=$AUTO_SCOPE"
     log "Auto (this slice) complete for $START_SLICE."
     log "   Run /gsd-cc to review and choose the next step."
     break
@@ -263,10 +289,12 @@ while true; do
 
     if [[ -z "$NEXT_SLICE" ]]; then
       echo ""
+      auto_event_phase_completed "scope=$AUTO_SCOPE"
       log "✅ Milestone $MILESTONE complete. All slices planned, executed, and unified."
       break
     fi
 
+    auto_event_phase_completed "scope=$AUTO_SCOPE"
     SLICE="$NEXT_SLICE"
     TASK="T01"
 
@@ -284,6 +312,8 @@ while true; do
     PHASE="$NEXT_PHASE"
     validate_current_state
     log "▶ Moving to next slice: $SLICE ($PHASE)"
+    emit_slice_started_once
+    auto_event_phase_started "scope=$AUTO_SCOPE"
   fi
 
   # ── 4. Budget check ────────────────────────────────────────────────────────
@@ -292,6 +322,7 @@ while true; do
     TOTAL=$(jq -s '[.[].usage // {} | (.input_tokens // 0) + (.output_tokens // 0)] | add // 0' "$COSTS_FILE" 2>/dev/null || echo 0)
     if [[ "$TOTAL" -gt "$BUDGET" ]]; then
       echo ""
+      auto_event_budget_reached "scope=$AUTO_SCOPE" "total_tokens=$TOTAL" "budget=$BUDGET"
       log "💰 Budget reached (${TOTAL} tokens). Stopping auto-mode."
       record_auto_problem_stop "budget_reached" \
         "Token budget reached at ${TOTAL} tokens." \
@@ -389,8 +420,10 @@ while true; do
     log_apply_allowlist
   fi
 
+  auto_event_dispatch_started "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
   dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" "$ALLOWED_TOOLS" "$MAX_TURNS" "$TIMEOUT" || {
     EXIT_CODE=$?
+    auto_event_dispatch_failed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE" "exit_code=$EXIT_CODE"
     if [[ $EXIT_CODE -eq 124 ]]; then
       log "⏰ Timeout after ${TIMEOUT}s on ${SLICE}/${TASK}. Stopping."
       record_auto_problem_stop "timeout" \
@@ -465,6 +498,7 @@ while true; do
 
   # ── 13. Release lock ──────────────────────────────────────────────────────
 
+  auto_event_phase_completed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
   release_lock
 
   log "✓ ${SLICE}/${TASK} complete."
@@ -479,4 +513,9 @@ done
 
 release_lock
 echo ""
+MILESTONE=$(read_optional_state_field "milestone")
+SLICE=$(read_optional_state_field "current_slice")
+TASK=$(read_optional_state_field "current_task")
+PHASE=$(read_optional_state_field "phase")
+auto_event_auto_finished "scope=${AUTO_SCOPE:-unknown}" "budget=$BUDGET"
 log "Auto-mode finished."

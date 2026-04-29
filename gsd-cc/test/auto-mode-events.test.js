@@ -7,6 +7,17 @@ const {
   packageRoot
 } = require('./helpers/package-fixture');
 const {
+  createAutoModeProject,
+  runAutoLoop
+} = require('./helpers/auto-mode');
+const {
+  ensureFakeBin,
+  writeFakeClaude,
+  writeFakeDate,
+  writeFakeGit,
+  writeFakeJq
+} = require('./helpers/fake-bin');
+const {
   makeTempDir
 } = require('./helpers/temp');
 
@@ -44,6 +55,35 @@ function readEvents(projectDir) {
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
+}
+
+function makeEnv(binDir, extra = {}) {
+  return {
+    ...process.env,
+    ...extra,
+    GSD_CC_DISABLE_TEE: '1',
+    HOME: makeTempDir('gsd-cc-auto-events-home-'),
+    PATH: `${binDir}${path.delimiter}${process.env.PATH || ''}`
+  };
+}
+
+function setupAutoLoopBin(claudeScript) {
+  const tempRoot = makeTempDir('gsd-cc-auto-events-bin-');
+  const binDir = ensureFakeBin(tempRoot);
+  writeFakeDate(binDir);
+  writeFakeGit(binDir);
+  writeFakeJq(binDir);
+  writeFakeClaude(binDir, claudeScript);
+  return binDir;
+}
+
+function assertAutoLoopSucceeded(result) {
+  assert.ifError(result.error);
+  assert.strictEqual(
+    result.status,
+    0,
+    `auto-loop failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+  );
 }
 
 function testWritesEscapedJsonLine() {
@@ -124,6 +164,123 @@ printf '%s\\n' 'still-running'
   assert.match(result.stdout, /still-running/);
 }
 
+function testAutoLoopWritesLifecycleEventsInOrder() {
+  const binDir = setupAutoLoopBin(`#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+
+const promptIndex = process.argv.indexOf('-p');
+const prompt = promptIndex >= 0 ? process.argv[promptIndex + 1] || '' : '';
+const gsdDir = path.join(process.cwd(), '.gsd');
+
+if (prompt.includes('UNIFY_PROMPT')) {
+  fs.writeFileSync(path.join(gsdDir, 'S01-UNIFY.md'), '# Unified\\n');
+  const statePath = path.join(gsdDir, 'STATE.md');
+  const state = fs.readFileSync(statePath, 'utf8');
+  fs.writeFileSync(statePath, state.replace(/^phase:.*$/m, 'phase: unified'));
+}
+
+console.log(JSON.stringify({
+  model: 'fake-claude',
+  usage: { input_tokens: 1, output_tokens: 1 }
+}));
+`);
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'apply-complete',
+      auto_mode_scope: 'slice'
+    }
+  });
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assertAutoLoopSucceeded(result);
+
+  const events = readEvents(projectDir);
+  assert.deepStrictEqual(
+    events.map((event) => event.type),
+    [
+      'auto_started',
+      'slice_started',
+      'phase_started',
+      'dispatch_started',
+      'phase_completed',
+      'auto_finished'
+    ]
+  );
+  assert.strictEqual(events[0].scope, 'slice');
+  assert.strictEqual(events[1].slice, 'S01');
+  assert.strictEqual(events[2].phase, 'apply-complete');
+  assert.strictEqual(events[3].dispatch_phase, 'unify');
+  assert.strictEqual(events[4].phase, 'apply-complete');
+}
+
+function testAutoLoopWritesDispatchFailureEvent() {
+  const binDir = setupAutoLoopBin(`#!/usr/bin/env node
+console.log(JSON.stringify({
+  model: 'fake-claude',
+  usage: { input_tokens: 1, output_tokens: 1 }
+}));
+process.exit(42);
+`);
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'plan-complete',
+      auto_mode_scope: 'slice'
+    }
+  });
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assertAutoLoopSucceeded(result);
+
+  const events = readEvents(projectDir);
+  const types = events.map((event) => event.type);
+  assert.deepStrictEqual(types.slice(0, 5), [
+    'auto_started',
+    'slice_started',
+    'phase_started',
+    'dispatch_started',
+    'dispatch_failed'
+  ]);
+  assert.strictEqual(events[4].dispatch_phase, 'apply');
+  assert.strictEqual(events[4].exit_code, '42');
+  assert.strictEqual(events[events.length - 1].type, 'auto_finished');
+}
+
+function testAutoLoopWritesBudgetReachedEvent() {
+  const binDir = setupAutoLoopBin(`#!/usr/bin/env node
+console.log(JSON.stringify({
+  model: 'fake-claude',
+  usage: { input_tokens: 1, output_tokens: 1 }
+}));
+`);
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'plan-complete',
+      auto_mode_scope: 'slice'
+    }
+  });
+  writeFile(
+    path.join(projectDir, '.gsd', 'COSTS.jsonl'),
+    '{"usage":{"input_tokens":2,"output_tokens":2}}\n'
+  );
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir, { GSD_CC_BUDGET: '1' }));
+
+  assertAutoLoopSucceeded(result);
+
+  const events = readEvents(projectDir);
+  const budgetEvent = events.find((event) => event.type === 'budget_reached');
+  assert.ok(budgetEvent, 'budget_reached event should be recorded');
+  assert.strictEqual(budgetEvent.total_tokens, '4');
+  assert.strictEqual(budgetEvent.budget, '1');
+  assert.strictEqual(events[events.length - 1].type, 'auto_finished');
+}
+
 testWritesEscapedJsonLine();
 testReadsContextFromStateWhenVariablesAreMissing();
 testWriteFailureIsNonFatal();
+testAutoLoopWritesLifecycleEventsInOrder();
+testAutoLoopWritesDispatchFailureEvent();
+testAutoLoopWritesBudgetReachedEvent();
