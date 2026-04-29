@@ -30,6 +30,60 @@ const ATTENTION_SEVERITY_RANK = new Map([
   ['warning', 1],
   ['info', 2]
 ]);
+const EVENT_SOURCE_PATH = '.gsd/events.jsonl';
+const DEFAULT_ACTIVITY_LIMIT = 50;
+const EVENT_CATEGORY_BY_TYPE = new Map([
+  ['auto_started', 'lifecycle'],
+  ['auto_finished', 'lifecycle'],
+  ['slice_started', 'lifecycle'],
+  ['phase_started', 'lifecycle'],
+  ['phase_completed', 'lifecycle'],
+  ['task_started', 'task'],
+  ['task_completed', 'task'],
+  ['verification_planned', 'task'],
+  ['summary_missing_retry', 'task'],
+  ['dispatch_started', 'dispatch'],
+  ['dispatch_failed', 'dispatch'],
+  ['approval_required', 'approval'],
+  ['approval_found', 'approval'],
+  ['recovery_written', 'recovery'],
+  ['fallback_commit_started', 'commit'],
+  ['fallback_commit_completed', 'commit'],
+  ['budget_reached', 'budget'],
+  ['state_validation_failed', 'error']
+]);
+const EVENT_WARNING_TYPES = new Set([
+  'budget_reached',
+  'dispatch_failed',
+  'recovery_written',
+  'state_validation_failed',
+  'summary_missing_retry'
+]);
+const EVENT_CRITICAL_TYPES = new Set([
+  'approval_required'
+]);
+const EVENT_ARTIFACT_KEYS = [
+  'artifact',
+  'task_plan',
+  'summary',
+  'request',
+  'approval_log',
+  'plan',
+  'report',
+  'log_file'
+];
+const EVENT_DETAIL_EXCLUDE_KEYS = new Set([
+  'timestamp',
+  'ts',
+  'type',
+  'milestone',
+  'slice',
+  'task',
+  'phase',
+  'dispatch_phase',
+  'message',
+  ...EVENT_ARTIFACT_KEYS
+]);
 
 function normalizeProjectRoot(projectRoot) {
   return path.resolve(projectRoot || process.cwd());
@@ -1199,6 +1253,285 @@ function sortAttentionItems(model) {
     .map((entry) => entry.item);
 }
 
+function eventStringValue(value) {
+  const normalized = nullableKnownValue(value);
+
+  if (!normalized || normalized === UNKNOWN) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function normalizeEventTimestamp(data) {
+  return eventStringValue(data.timestamp) || eventStringValue(data.ts);
+}
+
+function eventTimestampMs(timestamp) {
+  if (!timestamp) {
+    return null;
+  }
+
+  const parsed = Date.parse(timestamp);
+
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function eventCategory(type) {
+  return EVENT_CATEGORY_BY_TYPE.get(type) || 'other';
+}
+
+function eventSeverity(type) {
+  if (EVENT_CRITICAL_TYPES.has(type)) {
+    return 'critical';
+  }
+
+  if (EVENT_WARNING_TYPES.has(type)) {
+    return 'warning';
+  }
+
+  return 'info';
+}
+
+function eventUnit(data) {
+  const slice = eventStringValue(data.slice);
+  const task = eventStringValue(data.task);
+
+  if (slice && task) {
+    return `${slice}/${task}`;
+  }
+
+  return slice || task || null;
+}
+
+function collectEventArtifacts(data) {
+  const artifacts = [];
+
+  for (const key of EVENT_ARTIFACT_KEYS) {
+    const value = eventStringValue(data[key]);
+
+    if (value && !artifacts.includes(value)) {
+      artifacts.push(value);
+    }
+  }
+
+  return artifacts;
+}
+
+function normalizeEventDetailValue(value) {
+  if (typeof value === 'string') {
+    return eventStringValue(value);
+  }
+
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return value;
+}
+
+function collectEventDetails(data) {
+  const details = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (EVENT_DETAIL_EXCLUDE_KEYS.has(key)) {
+      continue;
+    }
+
+    const normalized = normalizeEventDetailValue(value);
+
+    if (normalized !== null) {
+      details[key] = normalized;
+    }
+  }
+
+  return details;
+}
+
+function fallbackEventMessage(type) {
+  return type.replace(/_/g, ' ');
+}
+
+function normalizeEventRecord(data, lineNumber, order) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return {
+      warning: {
+        line: lineNumber,
+        reason: 'Expected a JSON object.'
+      }
+    };
+  }
+
+  const type = eventStringValue(data.type);
+
+  if (!type) {
+    return {
+      warning: {
+        line: lineNumber,
+        reason: 'Missing event type.'
+      }
+    };
+  }
+
+  const timestamp = normalizeEventTimestamp(data);
+  const artifacts = collectEventArtifacts(data);
+  const event = {
+    id: `events.jsonl:${lineNumber}`,
+    timestamp,
+    type,
+    category: eventCategory(type),
+    severity: eventSeverity(type),
+    message: eventStringValue(data.message) || fallbackEventMessage(type),
+    milestone: eventStringValue(data.milestone),
+    slice: eventStringValue(data.slice),
+    task: eventStringValue(data.task),
+    unit: eventUnit(data),
+    phase: eventStringValue(data.phase),
+    dispatch_phase: eventStringValue(data.dispatch_phase),
+    source: EVENT_SOURCE_PATH,
+    line: lineNumber,
+    artifact: artifacts[0] || null,
+    artifacts,
+    details: collectEventDetails(data)
+  };
+
+  return {
+    entry: {
+      event,
+      order,
+      sortTime: eventTimestampMs(timestamp)
+    }
+  };
+}
+
+function compareActivityEntries(left, right) {
+  const leftTime = left.sortTime === null ? -Infinity : left.sortTime;
+  const rightTime = right.sortTime === null ? -Infinity : right.sortTime;
+
+  if (leftTime !== rightTime) {
+    return rightTime - leftTime;
+  }
+
+  return right.order - left.order;
+}
+
+function parseEventJournal(gsdDir, options = {}) {
+  const limit = options.limit || DEFAULT_ACTIVITY_LIMIT;
+  const eventsPath = path.join(gsdDir, 'events.jsonl');
+  const warnings = [];
+  const entries = [];
+
+  if (!hasFile(eventsPath)) {
+    return {
+      events: [],
+      warnings
+    };
+  }
+
+  let content = '';
+
+  try {
+    content = fs.readFileSync(eventsPath, 'utf8');
+  } catch (error) {
+    return {
+      events: [],
+      warnings: [{
+        line: null,
+        reason: error && error.message ? error.message : 'Could not read event journal.'
+      }]
+    };
+  }
+
+  String(content).split(/\r?\n/).forEach((line, index) => {
+    const lineNumber = index + 1;
+
+    if (!line.trim()) {
+      return;
+    }
+
+    let data;
+
+    try {
+      data = JSON.parse(line);
+    } catch (error) {
+      warnings.push({
+        line: lineNumber,
+        reason: error && error.message ? error.message : 'Could not parse JSON.'
+      });
+      return;
+    }
+
+    const result = normalizeEventRecord(data, lineNumber, index);
+
+    if (result.warning) {
+      warnings.push(result.warning);
+      return;
+    }
+
+    entries.push(result.entry);
+  });
+
+  return {
+    events: entries
+      .sort(compareActivityEntries)
+      .slice(0, limit)
+      .map((entry) => entry.event),
+    warnings
+  };
+}
+
+function deriveCurrentActivity(activity) {
+  if (!activity || activity.length === 0) {
+    return null;
+  }
+
+  const latest = activity[0];
+
+  return {
+    timestamp: latest.timestamp,
+    type: latest.type,
+    category: latest.category,
+    severity: latest.severity,
+    message: latest.message,
+    unit: latest.unit,
+    phase: latest.phase,
+    dispatch_phase: latest.dispatch_phase,
+    source: latest.source,
+    line: latest.line,
+    artifact: latest.artifact
+  };
+}
+
+function createEventJournalAttention(warnings) {
+  const count = warnings.length;
+  const firstWarning = warnings[0] || {};
+  const lineSuffix = firstWarning.line ? ` line ${firstWarning.line}` : '';
+  const plural = count === 1 ? 'line' : 'lines';
+
+  return {
+    id: 'events-jsonl-invalid',
+    severity: 'warning',
+    title: 'Event journal has unreadable lines',
+    message: `Ignored ${count} malformed event ${plural} in ${EVENT_SOURCE_PATH}.`,
+    source: EVENT_SOURCE_PATH,
+    recommended_action: [
+      `Repair ${EVENT_SOURCE_PATH}${lineSuffix}:`,
+      firstWarning.reason || 'invalid event data'
+    ].join(' ')
+  };
+}
+
+function populateActivity(model, gsdDir) {
+  const journal = parseEventJournal(gsdDir);
+
+  model.activity = journal.events;
+  model.current.activity = deriveCurrentActivity(journal.events);
+
+  if (journal.warnings.length > 0) {
+    addAttentionItem(model, createEventJournalAttention(journal.warnings));
+  }
+}
+
 function createJsonParseAttention(fileName, error) {
   return {
     id: `${fileName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-invalid`,
@@ -1451,6 +1784,7 @@ function createEmptyDashboardModel(projectRoot, options = {}) {
       task: UNKNOWN,
       phase: gsdExists ? UNKNOWN : 'no-project',
       task_name: UNKNOWN,
+      activity: null,
       next_action: gsdExists
         ? 'Add GSD-CC project state to show dashboard details.'
         : 'Run /gsd-cc to initialize this project.'
@@ -1542,6 +1876,7 @@ function buildDashboardModel(projectRoot) {
     configFields.auto_mode_scope
   );
   populateAutomationAndEvidence(model, gsdDir);
+  populateActivity(model, gsdDir);
   model.current.next_action = resolveNextAction(model);
   buildSliceProgress(model, gsdDir);
   populateCurrentTaskFromPlan(model, gsdDir);

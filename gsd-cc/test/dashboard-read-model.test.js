@@ -38,6 +38,7 @@ function assertStableEmptyShape(model) {
     'task',
     'phase',
     'task_name',
+    'activity',
     'next_action'
   ]);
   assert.deepStrictEqual(Object.keys(model.automation), [
@@ -91,6 +92,7 @@ function testMissingGsdReturnsFriendlyNoProjectModel() {
   assert.strictEqual(model.current.milestone, 'unknown');
   assert.strictEqual(model.current.slice, 'unknown');
   assert.strictEqual(model.current.task, 'unknown');
+  assert.strictEqual(model.current.activity, null);
   assert.match(model.current.next_action, /initialize this project/);
 
   assert.strictEqual(model.attention.length, 1);
@@ -136,6 +138,10 @@ function writeGsdFile(projectRoot, fileName, content) {
 
 function writeGsdJson(projectRoot, fileName, data) {
   writeGsdFile(projectRoot, fileName, `${JSON.stringify(data, null, 2)}\n`);
+}
+
+function writeGsdJsonLines(projectRoot, fileName, lines) {
+  writeGsdFile(projectRoot, fileName, `${lines.join('\n')}\n`);
 }
 
 function createProjectWithState(stateContent, configContent = '') {
@@ -1019,6 +1025,122 @@ function testApplyCompleteWithoutUnifyProducesTopAttentionItem() {
   assert.match(model.attention[0].recommended_action, /Run UNIFY for S01/);
 }
 
+function testEventJournalPopulatesRecentActivity() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: applying',
+    ''
+  ].join('\n'));
+  writeGsdJsonLines(projectRoot, 'events.jsonl', [
+    JSON.stringify({
+      timestamp: '2026-04-29T08:02:00Z',
+      type: 'dispatch_started',
+      milestone: 'M001',
+      slice: 'S01',
+      task: 'T02',
+      phase: 'applying',
+      dispatch_phase: 'apply',
+      message: 'Started apply dispatch.',
+      artifact: '.gsd/S01-T02-PLAN.xml',
+      attempt: '1'
+    }),
+    JSON.stringify({
+      timestamp: '2026-04-29T08:01:00Z',
+      type: 'task_started',
+      milestone: 'M001',
+      slice: 'S01',
+      task: 'T02',
+      phase: 'applying',
+      message: 'Started task S01/T02.',
+      task_plan: '.gsd/S01-T02-PLAN.xml'
+    }),
+    JSON.stringify({
+      timestamp: '2026-04-29T08:02:00Z',
+      type: 'dispatch_failed',
+      milestone: 'M001',
+      slice: 'S01',
+      task: 'T02',
+      phase: 'applying',
+      dispatch_phase: 'apply',
+      message: 'Apply dispatch failed.',
+      artifact: '.gsd/AUTO-RECOVERY.md',
+      exit_code: '42'
+    })
+  ]);
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.deepStrictEqual(model.activity.map((event) => event.type), [
+    'dispatch_failed',
+    'dispatch_started',
+    'task_started'
+  ]);
+  assert.strictEqual(model.activity[0].category, 'dispatch');
+  assert.strictEqual(model.activity[0].severity, 'warning');
+  assert.strictEqual(model.activity[0].unit, 'S01/T02');
+  assert.strictEqual(model.activity[0].dispatch_phase, 'apply');
+  assert.deepStrictEqual(model.activity[0].artifacts, [
+    '.gsd/AUTO-RECOVERY.md'
+  ]);
+  assert.deepStrictEqual(model.activity[0].details, {
+    exit_code: '42'
+  });
+  assert.deepStrictEqual(model.current.activity, {
+    timestamp: '2026-04-29T08:02:00Z',
+    type: 'dispatch_failed',
+    category: 'dispatch',
+    severity: 'warning',
+    message: 'Apply dispatch failed.',
+    unit: 'S01/T02',
+    phase: 'applying',
+    dispatch_phase: 'apply',
+    source: '.gsd/events.jsonl',
+    line: 3,
+    artifact: '.gsd/AUTO-RECOVERY.md'
+  });
+}
+
+function testMalformedEventJournalLinesProduceWarning() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: applying',
+    ''
+  ].join('\n'));
+  writeGsdJsonLines(projectRoot, 'events.jsonl', [
+    '{not-json',
+    JSON.stringify(['not', 'an', 'event']),
+    JSON.stringify({
+      timestamp: '2026-04-29T08:00:00Z',
+      message: 'Missing type.'
+    }),
+    JSON.stringify({
+      timestamp: '2026-04-29T08:01:00Z',
+      type: 'task_started',
+      message: 'Started task S01/T02.',
+      slice: 'S01',
+      task: 'T02'
+    })
+  ]);
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.deepStrictEqual(model.activity.map((event) => event.type), [
+    'task_started'
+  ]);
+  assert.strictEqual(model.current.activity.type, 'task_started');
+
+  const warning = model.attention.find((item) => item.id === 'events-jsonl-invalid');
+  assert.ok(warning, 'expected malformed event journal warning');
+  assert.strictEqual(warning.severity, 'warning');
+  assert.strictEqual(warning.source, '.gsd/events.jsonl');
+  assert.match(warning.message, /Ignored 3 malformed event lines/);
+  assert.match(warning.recommended_action, /line 1/);
+}
+
 function testMalformedCurrentTaskPlanProducesWarning() {
   const projectRoot = createProjectWithState([
     'milestone: M001',
@@ -1079,6 +1201,8 @@ function run() {
   testRecoveryProducesTopAttentionItem();
   testBlockedAndFailedPhasesProduceAttentionItems();
   testApplyCompleteWithoutUnifyProducesTopAttentionItem();
+  testEventJournalPopulatesRecentActivity();
+  testMalformedEventJournalLinesProduceWarning();
   testMalformedCurrentTaskPlanProducesWarning();
   testRelativeProjectRootIsResolved();
 }
