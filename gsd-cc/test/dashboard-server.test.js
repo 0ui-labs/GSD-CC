@@ -4,6 +4,7 @@ const path = require('path');
 
 const {
   DEFAULT_HOST,
+  DEFAULT_PORT,
   startDashboardServer
 } = require('../scripts/dashboard-server');
 const {
@@ -49,6 +50,44 @@ async function withServer(options, testFn) {
     await testFn(serverInfo);
   } finally {
     await serverInfo.close();
+  }
+}
+
+function listenOnPort(port) {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('occupied\n');
+    });
+
+    server.once('error', reject);
+    server.listen(port, DEFAULT_HOST, () => {
+      server.off('error', reject);
+      resolve(server);
+    });
+  });
+}
+
+function closeHttpServer(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function occupyDefaultPortIfAvailable() {
+  try {
+    return await listenOnPort(DEFAULT_PORT);
+  } catch (error) {
+    if (error && error.code === 'EADDRINUSE') {
+      return null;
+    }
+    throw error;
   }
 }
 
@@ -112,11 +151,55 @@ async function testUnsupportedMethodsReturnSafeResponse() {
   });
 }
 
+async function testDefaultPortFallsBackWhenBusy() {
+  const occupiedServer = await occupyDefaultPortIfAvailable();
+
+  try {
+    await withServer({
+      host: DEFAULT_HOST,
+      fallbackAttempts: 50
+    }, async (serverInfo) => {
+      assert.notStrictEqual(serverInfo.port, DEFAULT_PORT);
+      assert.ok(
+        serverInfo.port > DEFAULT_PORT && serverInfo.port <= DEFAULT_PORT + 50,
+        `expected fallback port near ${DEFAULT_PORT}, got ${serverInfo.port}`
+      );
+
+      const response = await request(serverInfo, '/api/health');
+      const health = JSON.parse(response.body);
+      assert.strictEqual(health.port, serverInfo.port);
+    });
+  } finally {
+    if (occupiedServer) {
+      await closeHttpServer(occupiedServer);
+    }
+  }
+}
+
+async function testExplicitPortCollisionDoesNotFallback() {
+  const occupiedServer = await listenOnPort(0);
+  const occupiedPort = occupiedServer.address().port;
+
+  try {
+    await assert.rejects(
+      () => startDashboardServer({
+        host: DEFAULT_HOST,
+        port: occupiedPort
+      }),
+      (error) => error && error.code === 'EADDRINUSE'
+    );
+  } finally {
+    await closeHttpServer(occupiedServer);
+  }
+}
+
 async function run() {
   await testHealthUsesLoopbackByDefault();
   await testStaticAssetsUseExpectedContentTypes();
   await testUnknownPathsReturnSafeNotFound();
   await testUnsupportedMethodsReturnSafeResponse();
+  await testDefaultPortFallsBackWhenBusy();
+  await testExplicitPortCollisionDoesNotFallback();
 }
 
 run().catch((error) => {

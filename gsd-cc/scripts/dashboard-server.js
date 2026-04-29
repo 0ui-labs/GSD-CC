@@ -5,7 +5,8 @@ const http = require('http');
 const path = require('path');
 
 const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_PORT = 0;
+const DEFAULT_PORT = 4766;
+const DEFAULT_PORT_FALLBACK_ATTEMPTS = 20;
 const DASHBOARD_DIR = path.resolve(__dirname, '..', 'dashboard');
 
 const STATIC_ROUTES = {
@@ -107,6 +108,10 @@ function getBoundPort(server, fallbackPort) {
   return fallbackPort;
 }
 
+function createDashboardUrl(host, port) {
+  return `http://${formatHostForUrl(host)}:${port}/`;
+}
+
 function serveStaticAsset(req, res, route, dashboardDir) {
   const filePath = path.join(dashboardDir, route.file);
 
@@ -178,17 +183,7 @@ function formatHostForUrl(host) {
   return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
 }
 
-function startDashboardServer(options = {}) {
-  const host = normalizeHost(options.host);
-  const port = normalizePort(options.port);
-  const projectRoot = normalizeProjectRoot(options.projectRoot);
-  const server = createDashboardServer({
-    ...options,
-    host,
-    port,
-    projectRoot
-  });
-
+function listen(server, host, port) {
   return new Promise((resolve, reject) => {
     function handleError(error) {
       server.off('listening', handleListening);
@@ -197,22 +192,77 @@ function startDashboardServer(options = {}) {
 
     function handleListening() {
       server.off('error', handleError);
-
-      const boundPort = getBoundPort(server, port);
-      resolve({
-        server,
-        host,
-        port: boundPort,
-        projectRoot,
-        url: `http://${formatHostForUrl(host)}:${boundPort}/`,
-        close: () => closeServer(server)
-      });
+      resolve();
     }
 
     server.once('error', handleError);
     server.once('listening', handleListening);
     server.listen(port, host);
   });
+}
+
+function shouldTryNextPort(error, port, allowPortFallback, attemptsRemaining) {
+  return Boolean(
+    allowPortFallback
+    && attemptsRemaining > 0
+    && port > 0
+    && error
+    && error.code === 'EADDRINUSE'
+  );
+}
+
+async function startDashboardServer(options = {}) {
+  const host = normalizeHost(options.host);
+  const port = normalizePort(options.port);
+  const projectRoot = normalizeProjectRoot(options.projectRoot);
+  const portWasProvided = !(
+    options.port === null
+    || options.port === undefined
+    || options.port === ''
+  );
+  const allowPortFallback = options.allowPortFallback !== undefined
+    ? Boolean(options.allowPortFallback)
+    : !portWasProvided && port > 0;
+  const fallbackAttempts = options.fallbackAttempts === undefined
+    ? DEFAULT_PORT_FALLBACK_ATTEMPTS
+    : Number(options.fallbackAttempts);
+
+  if (!Number.isInteger(fallbackAttempts) || fallbackAttempts < 0) {
+    throw new Error('Dashboard fallback attempts must be a non-negative integer.');
+  }
+
+  let nextPort = port;
+  let attemptsRemaining = fallbackAttempts;
+
+  while (true) {
+    const server = createDashboardServer({
+      ...options,
+      host,
+      port: nextPort,
+      projectRoot
+    });
+
+    try {
+      await listen(server, host, nextPort);
+
+      const boundPort = getBoundPort(server, nextPort);
+      return {
+        server,
+        host,
+        port: boundPort,
+        projectRoot,
+        url: createDashboardUrl(host, boundPort),
+        close: () => closeServer(server)
+      };
+    } catch (error) {
+      if (!shouldTryNextPort(error, nextPort, allowPortFallback, attemptsRemaining)) {
+        throw error;
+      }
+
+      nextPort += 1;
+      attemptsRemaining -= 1;
+    }
+  }
 }
 
 if (require.main === module) {
@@ -232,5 +282,6 @@ module.exports = {
   DEFAULT_HOST,
   DEFAULT_PORT,
   createDashboardServer,
+  createDashboardUrl,
   startDashboardServer
 };

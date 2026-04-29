@@ -31,7 +31,7 @@ function printHelp() {
          npx gsd-cc dashboard [options]
 
   ${yellow}Commands:${reset}
-    ${cyan}dashboard${reset}       Start the local dashboard launcher
+    ${cyan}dashboard${reset}       Start the local dashboard server
 
   ${yellow}Options:${reset}
     ${cyan}-g, --global${reset}      Install globally to ~/.claude/skills/ ${dim}(default)${reset}
@@ -42,8 +42,8 @@ function printHelp() {
     ${cyan}-h, --help${reset}        Show this help message
 
   ${yellow}Dashboard Options:${reset}
-    ${cyan}--host <host>${reset}     Host to bind when the dashboard server is added
-    ${cyan}--port <number>${reset}   Port to bind when the dashboard server is added
+    ${cyan}--host <host>${reset}     Host to bind ${dim}(default: 127.0.0.1)${reset}
+    ${cyan}--port <number>${reset}   Port to bind ${dim}(default: 4766)${reset}
     ${cyan}--no-open${reset}         Do not open a browser automatically
 
   ${yellow}Examples:${reset}
@@ -146,7 +146,7 @@ function main(rawArgs) {
 
   try {
     if (options.command === 'dashboard') {
-      launchDashboard(options);
+      launchDashboard(options).catch(fail);
     } else if (hasUninstall) {
       uninstall(options);
     } else if (hasGlobal) {
