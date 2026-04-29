@@ -43,6 +43,17 @@
     'budget',
     'other'
   ];
+  const SLICE_RISK_ORDER = ['high', 'medium', 'low', 'unknown'];
+  const SLICE_STATUS_ORDER = [
+    'unified',
+    'apply-complete',
+    'running',
+    'planned',
+    'pending',
+    'blocked',
+    'failed',
+    'unknown'
+  ];
   const root = document.querySelector('[data-dashboard-root]');
 
   if (!root) {
@@ -55,7 +66,8 @@
     eventSource: null,
     lastUpdatedAt: null,
     model: null,
-    pollTimer: null
+    pollTimer: null,
+    selectedSliceId: ''
   };
 
   function escapeHtml(value) {
@@ -282,6 +294,121 @@
     return unique;
   }
 
+  function normalizeRiskLevel(value) {
+    const level = toClassName(value);
+
+    return SLICE_RISK_ORDER.includes(level) ? level : 'unknown';
+  }
+
+  function normalizeSliceId(value) {
+    return displayValue(value, '').toUpperCase();
+  }
+
+  function sliceTaskItems(slice) {
+    const tasks = slice && slice.tasks ? slice.tasks : {};
+
+    return Array.isArray(tasks.items) ? tasks.items : [];
+  }
+
+  function countSliceTasks(slice) {
+    const tasks = slice && slice.tasks ? slice.tasks : {};
+    const total = Number(tasks.total);
+
+    if (Number.isFinite(total) && total > 0) {
+      return total;
+    }
+
+    return sliceTaskItems(slice).length;
+  }
+
+  function sliceAcceptanceSummary(slice) {
+    const summary = slice && slice.acceptance_criteria
+      ? slice.acceptance_criteria
+      : {};
+    const total = Number(summary.total);
+
+    if (Number.isFinite(total) && total > 0) {
+      return {
+        total,
+        passed: Number(summary.passed) || 0,
+        partial: Number(summary.partial) || 0,
+        failed: Number(summary.failed) || 0,
+        pending: Number(summary.pending) || 0
+      };
+    }
+
+    return sliceTaskItems(slice).reduce((counts, task) => {
+      const taskAc = task && task.acceptance_criteria
+        ? Number(task.acceptance_criteria.total)
+        : 0;
+
+      counts.total += Number.isFinite(taskAc) ? taskAc : 0;
+      return counts;
+    }, {
+      total: 0,
+      passed: 0,
+      partial: 0,
+      failed: 0,
+      pending: 0
+    });
+  }
+
+  function sliceRiskSummary(slice) {
+    const tasks = slice && slice.tasks ? slice.tasks : {};
+    const risk = tasks.risk && typeof tasks.risk === 'object'
+      ? tasks.risk
+      : null;
+
+    if (risk) {
+      return SLICE_RISK_ORDER.reduce((summary, level) => {
+        summary[level] = Number(risk[level]) || 0;
+        return summary;
+      }, {});
+    }
+
+    return sliceTaskItems(slice).reduce((summary, task) => {
+      const level = normalizeRiskLevel(task && task.risk && task.risk.level);
+      summary[level] += 1;
+      return summary;
+    }, {
+      high: 0,
+      medium: 0,
+      low: 0,
+      unknown: 0
+    });
+  }
+
+  function findSliceById(slices, sliceId) {
+    const normalized = normalizeSliceId(sliceId);
+
+    return slices.find((slice) => normalizeSliceId(slice && slice.id) === normalized)
+      || null;
+  }
+
+  function defaultSelectedSlice(slices, current) {
+    return slices.find((slice) => slice && slice.current)
+      || findSliceById(slices, current && current.slice)
+      || slices[0]
+      || null;
+  }
+
+  function ensureSelectedSlice(model) {
+    const progress = model && model.progress ? model.progress : {};
+    const slices = Array.isArray(progress.slices) ? progress.slices : [];
+
+    if (slices.length === 0) {
+      app.selectedSliceId = '';
+      return;
+    }
+
+    if (app.selectedSliceId && findSliceById(slices, app.selectedSliceId)) {
+      return;
+    }
+
+    const selected = defaultSelectedSlice(slices, model && model.current);
+    app.selectedSliceId = selected ? selected.id : '';
+  }
+
   function setConnection(connection) {
     app.connection = connection;
     render();
@@ -293,6 +420,7 @@
       ? model.error.message
       : '';
     app.lastUpdatedAt = new Date();
+    ensureSelectedSlice(model);
     render();
   }
 
@@ -997,14 +1125,255 @@
     ].join('');
   }
 
-  function renderProgress(progress) {
+  function renderSliceStat(label, value) {
+    return [
+      '<span class="dashboard-slice-stat">',
+      `  <strong>${escapeHtml(displayValue(value, '0'))}</strong>`,
+      `  <span>${escapeHtml(label)}</span>`,
+      '</span>'
+    ].join('');
+  }
+
+  function renderSliceStatusSummary(slices) {
+    const counts = slices.reduce((summary, slice) => {
+      const status = toClassName(slice && slice.status);
+      summary[status] = (summary[status] || 0) + 1;
+      return summary;
+    }, {});
+    const statuses = [
+      ...SLICE_STATUS_ORDER.filter((status) => counts[status] > 0),
+      ...Object.keys(counts).filter((status) => !SLICE_STATUS_ORDER.includes(status))
+    ];
+
+    if (statuses.length === 0) {
+      return '';
+    }
+
+    return [
+      '<div class="dashboard-slice-status-summary" aria-label="Slice statuses">',
+      ...statuses.map((status) => [
+        `<span class="dashboard-slice-status-count dashboard-slice-status-count--${status}">`,
+        `  <strong>${counts[status]}</strong>`,
+        `  <span>${escapeHtml(status)}</span>`,
+        '</span>'
+      ].join('')),
+      '</div>'
+    ].join('');
+  }
+
+  function renderSliceRiskDistribution(riskSummary) {
+    const entries = SLICE_RISK_ORDER
+      .map((level) => ({
+        level,
+        count: Number(riskSummary && riskSummary[level]) || 0
+      }))
+      .filter((entry) => entry.count > 0);
+
+    if (entries.length === 0) {
+      return [
+        '<span class="dashboard-slice-risk dashboard-slice-risk--empty">',
+        '  <span>No risk data</span>',
+        '</span>'
+      ].join('');
+    }
+
+    return entries.map((entry) => [
+      `<span class="dashboard-slice-risk dashboard-slice-risk--${entry.level}">`,
+      `  <strong>${entry.count}</strong>`,
+      `  <span>${escapeHtml(entry.level)}</span>`,
+      '</span>'
+    ].join('')).join('');
+  }
+
+  function renderSliceRoadmapItem(slice, selected) {
+    const currentClass = slice.current ? ' dashboard-slice-roadmap-item--current' : '';
+    const selectedClass = selected ? ' dashboard-slice-roadmap-item--selected' : '';
+    const currentLabel = slice.current
+      ? '<em>Current</em>'
+      : '';
+    const acSummary = sliceAcceptanceSummary(slice);
+    const riskSummary = sliceRiskSummary(slice);
+
+    return [
+      `<button type="button" class="dashboard-slice-roadmap-item${currentClass}${selectedClass}" data-dashboard-slice-id="${escapeHtml(slice.id)}" aria-pressed="${selected ? 'true' : 'false'}">`,
+      '  <span class="dashboard-slice-roadmap-heading">',
+      `    <strong>${escapeHtml(displayValue(slice.id, 'Slice'))}</strong>`,
+      `    <span>${escapeHtml(displayValue(slice.name, 'Untitled slice'))}</span>`,
+      currentLabel,
+      '  </span>',
+      `  <span class="dashboard-slice-status dashboard-slice-status--${toClassName(slice.status)}">${escapeHtml(displayValue(slice.status, 'unknown'))}</span>`,
+      '  <span class="dashboard-slice-roadmap-stats">',
+      renderSliceStat('tasks', countSliceTasks(slice)),
+      renderSliceStat('ACs', acSummary.total),
+      '  </span>',
+      '  <span class="dashboard-slice-roadmap-risks" aria-label="Risk distribution">',
+      renderSliceRiskDistribution(riskSummary),
+      '  </span>',
+      '</button>'
+    ].join('');
+  }
+
+  function renderSliceRoadmap(slices, selectedSlice) {
+    const selectedId = selectedSlice ? normalizeSliceId(selectedSlice.id) : '';
+
+    return [
+      '<div class="dashboard-slice-roadmap" role="list" aria-label="Slice roadmap">',
+      ...slices.map((slice) => [
+        '<div role="listitem">',
+        renderSliceRoadmapItem(
+          slice,
+          normalizeSliceId(slice && slice.id) === selectedId
+        ),
+        '</div>'
+      ].join('')),
+      '</div>'
+    ].join('');
+  }
+
+  function renderSliceAcceptanceDetails(acSummary) {
+    if (!acSummary.total) {
+      return '<p class="dashboard-slice-detail-empty">No acceptance criteria recorded.</p>';
+    }
+
+    return [
+      '<div class="dashboard-slice-detail-ac">',
+      renderSliceStat('passed', acSummary.passed),
+      renderSliceStat('partial', acSummary.partial),
+      renderSliceStat('failed', acSummary.failed),
+      renderSliceStat('pending', acSummary.pending),
+      '</div>'
+    ].join('');
+  }
+
+  function renderSliceArtifacts(slice) {
+    const artifacts = slice && slice.artifacts ? slice.artifacts : {};
+    const sources = [
+      {
+        label: 'Roadmap',
+        path: artifacts.roadmap
+      },
+      {
+        label: 'Plan',
+        path: artifacts.plan
+      },
+      {
+        label: 'UNIFY',
+        path: artifacts.unify
+      }
+    ];
+    const links = sources
+      .map((source) => renderArtifactLink(source.path, source.label))
+      .filter(Boolean);
+
+    if (links.length === 0) {
+      return '';
+    }
+
+    return [
+      '<div class="dashboard-slice-detail-artifacts" aria-label="Slice artifacts">',
+      ...links,
+      '</div>'
+    ].join('');
+  }
+
+  function renderSliceTaskList(slice) {
+    const items = sliceTaskItems(slice);
+
+    if (items.length === 0) {
+      return '<p class="dashboard-slice-detail-empty">No task plans discovered for this slice.</p>';
+    }
+
+    return [
+      '<ol class="dashboard-slice-task-list" aria-label="Slice tasks">',
+      ...items.map((task) => {
+        const acTotal = task && task.acceptance_criteria
+          ? Number(task.acceptance_criteria.total) || 0
+          : 0;
+        const riskLevel = normalizeRiskLevel(task && task.risk && task.risk.level);
+
+        return [
+          `<li class="dashboard-slice-task dashboard-slice-task--${toClassName(task && task.status)}">`,
+          '  <div>',
+          `    <strong>${escapeHtml(displayValue(task && task.id, 'Task'))}</strong>`,
+          `    <span>${escapeHtml(displayValue(task && task.name, 'Untitled task'))}</span>`,
+          '  </div>',
+          '  <div class="dashboard-slice-task-meta">',
+          `    <span>${escapeHtml(displayValue(task && task.status, 'pending'))}</span>`,
+          `    <span>${escapeHtml(riskLevel)} risk</span>`,
+          `    <span>${escapeHtml(acTotal)} ACs</span>`,
+          '  </div>',
+          '</li>'
+        ].join('');
+      }),
+      '</ol>'
+    ].join('');
+  }
+
+  function renderSelectedSliceDetail(slice) {
+    if (!slice) {
+      return renderEmptyState(
+        'No slice selected',
+        'Select a roadmap slice to inspect its progress.'
+      );
+    }
+
+    const acSummary = sliceAcceptanceSummary(slice);
+    const riskSummary = sliceRiskSummary(slice);
+    const currentLabel = slice.current
+      ? '<span class="dashboard-slice-detail-current">Current slice</span>'
+      : '';
+
+    return [
+      '<section class="dashboard-slice-detail" aria-label="Selected slice detail">',
+      '  <header class="dashboard-slice-detail-header">',
+      '    <div>',
+      `      <span>${escapeHtml(displayValue(slice.id, 'Slice'))}</span>`,
+      `      <h3>${escapeHtml(displayValue(slice.name, 'Untitled slice'))}</h3>`,
+      '    </div>',
+      currentLabel,
+      '  </header>',
+      '  <div class="dashboard-slice-detail-grid">',
+      '    <section>',
+      '      <h4>Status</h4>',
+      `      <span class="dashboard-slice-status dashboard-slice-status--${toClassName(slice.status)}">${escapeHtml(displayValue(slice.status, 'unknown'))}</span>`,
+      '      <div class="dashboard-slice-detail-stats">',
+      renderSliceStat('tasks', countSliceTasks(slice)),
+      renderSliceStat('completed', slice.tasks && slice.tasks.completed),
+      renderSliceStat('pending', slice.tasks && slice.tasks.pending),
+      '      </div>',
+      '    </section>',
+      '    <section>',
+      '      <h4>Acceptance criteria</h4>',
+      renderSliceAcceptanceDetails(acSummary),
+      '    </section>',
+      '    <section>',
+      '      <h4>Risk distribution</h4>',
+      '      <div class="dashboard-slice-roadmap-risks">',
+      renderSliceRiskDistribution(riskSummary),
+      '      </div>',
+      '    </section>',
+      '    <section>',
+      '      <h4>Artifacts</h4>',
+      renderSliceArtifacts(slice) || '<p class="dashboard-slice-detail-empty">No slice artifacts discovered.</p>',
+      '    </section>',
+      '  </div>',
+      '  <section class="dashboard-slice-task-section">',
+      '    <h4>Tasks</h4>',
+      renderSliceTaskList(slice),
+      '  </section>',
+      '</section>'
+    ].join('');
+  }
+
+  function renderProgress(progress, current) {
     const acceptance = progress && progress.acceptance_criteria
       ? progress.acceptance_criteria
       : {};
     const slices = progress && Array.isArray(progress.slices)
       ? progress.slices
       : [];
-    const currentSlice = slices.find((slice) => slice.current) || null;
+    const selectedSlice = findSliceById(slices, app.selectedSliceId)
+      || defaultSelectedSlice(slices, current);
 
     if (slices.length === 0 && !acceptance.total) {
       return renderEmptyState(
@@ -1020,13 +1389,11 @@
       renderMetric('AC passed', acceptance.passed || 0),
       renderMetric('AC pending', acceptance.pending || 0),
       '  </div>',
-      currentSlice ? [
-        '<p class="dashboard-current-slice">',
-        `  <strong>${escapeHtml(currentSlice.id)}</strong>`,
-        `  <span>${escapeHtml(displayValue(currentSlice.name, 'Current slice'))}</span>`,
-        `  <em>${escapeHtml(displayValue(currentSlice.status, 'unknown'))}</em>`,
-        '</p>'
-      ].join('') : '<p class="dashboard-empty">No active slice.</p>',
+      renderSliceStatusSummary(slices),
+      slices.length > 0
+        ? renderSliceRoadmap(slices, selectedSlice)
+        : '<p class="dashboard-empty">No active slice.</p>',
+      renderSelectedSliceDetail(selectedSlice),
       '</div>'
     ].join('');
   }
@@ -1223,7 +1590,7 @@
       '  </section>',
       '  <section class="dashboard-region" id="progress">',
       renderRegionHeader('Progress', 'Slice and acceptance status.'),
-      renderProgress(model.progress),
+      renderProgress(model.progress, current),
       '  </section>',
       '  <section class="dashboard-region" id="activity">',
       renderRegionHeader('Recent activity', 'Latest automation events.'),
@@ -1361,6 +1728,33 @@
 
       setConnection('reconnecting');
     });
+  }
+
+  function handleDashboardClick(event) {
+    const target = event && event.target && typeof event.target.closest === 'function'
+      ? event.target.closest('[data-dashboard-slice-id]')
+      : null;
+
+    if (!target) {
+      return;
+    }
+
+    if (typeof root.contains === 'function' && !root.contains(target)) {
+      return;
+    }
+
+    const sliceId = target.getAttribute('data-dashboard-slice-id');
+
+    if (!sliceId || sliceId === app.selectedSliceId) {
+      return;
+    }
+
+    app.selectedSliceId = sliceId;
+    render();
+  }
+
+  if (typeof root.addEventListener === 'function') {
+    root.addEventListener('click', handleDashboardClick);
   }
 
   if (typeof window !== 'undefined' && window.addEventListener) {

@@ -68,7 +68,23 @@ body {
 .dashboard-why-task-risk-badge,
 .dashboard-why-task-criterion,
 .dashboard-metrics,
+.dashboard-progress,
 .dashboard-current-slice,
+.dashboard-slice-status-summary,
+.dashboard-slice-status-count,
+.dashboard-slice-roadmap,
+.dashboard-slice-roadmap-item,
+.dashboard-slice-roadmap-heading,
+.dashboard-slice-roadmap-stats,
+.dashboard-slice-roadmap-risks,
+.dashboard-slice-detail,
+.dashboard-slice-detail-header,
+.dashboard-slice-detail-grid,
+.dashboard-slice-detail-stats,
+.dashboard-slice-detail-ac,
+.dashboard-slice-task-section,
+.dashboard-slice-task,
+.dashboard-slice-task-meta,
 .dashboard-connection,
 .dashboard-nav-link,
 .dashboard-empty-state,
@@ -542,6 +558,382 @@ h3 {
 .dashboard-current-slice em {
   font-style: normal;
   color: var(--dashboard-accent);
+}
+
+.dashboard-progress {
+  display: grid;
+  gap: 18px;
+}
+
+.dashboard-slice-status-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dashboard-slice-status-count {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 5px 8px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-muted);
+  background: var(--dashboard-quiet);
+}
+
+.dashboard-slice-status-count strong,
+.dashboard-slice-status-count span {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-slice-status-count strong {
+  color: var(--dashboard-text);
+}
+
+.dashboard-slice-status-count span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dashboard-slice-status-count--unified,
+.dashboard-slice-status-count--apply-complete {
+  border-color: rgba(21, 128, 61, 0.32);
+  color: var(--dashboard-success);
+}
+
+.dashboard-slice-status-count--running {
+  border-color: rgba(15, 118, 110, 0.34);
+  color: var(--dashboard-accent);
+}
+
+.dashboard-slice-status-count--planned,
+.dashboard-slice-status-count--pending {
+  border-color: rgba(37, 99, 235, 0.28);
+  color: var(--dashboard-info);
+}
+
+.dashboard-slice-status-count--blocked {
+  border-color: rgba(180, 83, 9, 0.34);
+  color: var(--dashboard-warning);
+}
+
+.dashboard-slice-status-count--failed {
+  border-color: rgba(185, 28, 28, 0.36);
+  color: var(--dashboard-danger);
+}
+
+.dashboard-slice-roadmap {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-slice-roadmap-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(88px, auto) minmax(130px, auto) minmax(160px, 0.8fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--dashboard-border);
+  border-left: 4px solid var(--dashboard-muted);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-text);
+  background: var(--dashboard-surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dashboard-slice-roadmap-item:hover,
+.dashboard-slice-roadmap-item:focus-visible,
+.dashboard-slice-roadmap-item--selected {
+  border-color: var(--dashboard-accent);
+  background: #f3fbf8;
+  outline: none;
+}
+
+.dashboard-slice-roadmap-item--current {
+  border-left-color: var(--dashboard-accent);
+}
+
+.dashboard-slice-roadmap-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.dashboard-slice-roadmap-heading strong,
+.dashboard-slice-roadmap-heading span,
+.dashboard-slice-roadmap-heading em {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-slice-roadmap-heading strong {
+  font-size: 0.9rem;
+}
+
+.dashboard-slice-roadmap-heading span {
+  color: var(--dashboard-text);
+  line-height: 1.35;
+}
+
+.dashboard-slice-roadmap-heading em,
+.dashboard-slice-detail-current {
+  justify-self: start;
+  font-style: normal;
+  color: var(--dashboard-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-slice-status {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  justify-self: start;
+  padding: 4px 7px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-muted);
+  background: var(--dashboard-quiet);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.dashboard-slice-status--unified,
+.dashboard-slice-status--apply-complete {
+  border-color: rgba(21, 128, 61, 0.32);
+  color: var(--dashboard-success);
+}
+
+.dashboard-slice-status--running {
+  border-color: rgba(15, 118, 110, 0.34);
+  color: var(--dashboard-accent);
+}
+
+.dashboard-slice-status--planned,
+.dashboard-slice-status--pending {
+  border-color: rgba(37, 99, 235, 0.28);
+  color: var(--dashboard-info);
+}
+
+.dashboard-slice-status--blocked {
+  border-color: rgba(180, 83, 9, 0.34);
+  color: var(--dashboard-warning);
+}
+
+.dashboard-slice-status--failed {
+  border-color: rgba(185, 28, 28, 0.36);
+  color: var(--dashboard-danger);
+}
+
+.dashboard-slice-roadmap-stats,
+.dashboard-slice-detail-stats,
+.dashboard-slice-detail-ac,
+.dashboard-slice-roadmap-risks,
+.dashboard-slice-detail-artifacts,
+.dashboard-slice-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.dashboard-slice-stat,
+.dashboard-slice-risk {
+  display: inline-flex;
+  gap: 5px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-muted);
+  background: var(--dashboard-surface);
+  line-height: 1.2;
+}
+
+.dashboard-slice-stat strong,
+.dashboard-slice-stat span,
+.dashboard-slice-risk strong,
+.dashboard-slice-risk span {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-slice-stat strong,
+.dashboard-slice-risk strong {
+  color: var(--dashboard-text);
+}
+
+.dashboard-slice-stat span,
+.dashboard-slice-risk span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-slice-risk--high {
+  border-color: rgba(185, 28, 28, 0.36);
+  color: var(--dashboard-danger);
+}
+
+.dashboard-slice-risk--medium {
+  border-color: rgba(180, 83, 9, 0.34);
+  color: var(--dashboard-warning);
+}
+
+.dashboard-slice-risk--low {
+  border-color: rgba(21, 128, 61, 0.32);
+  color: var(--dashboard-success);
+}
+
+.dashboard-slice-risk--unknown,
+.dashboard-slice-risk--empty {
+  border-color: var(--dashboard-soft-border);
+}
+
+.dashboard-slice-detail {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-slice-detail-header {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.dashboard-slice-detail-header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.dashboard-slice-detail-header span,
+.dashboard-slice-detail-grid h4,
+.dashboard-slice-task-section h4 {
+  color: var(--dashboard-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-slice-detail-header h3 {
+  margin: 0;
+}
+
+.dashboard-slice-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-slice-detail-grid section {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 100%;
+  padding: 12px;
+  border: 1px solid var(--dashboard-soft-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-quiet);
+}
+
+.dashboard-slice-detail-grid h4,
+.dashboard-slice-task-section h4 {
+  margin: 0;
+}
+
+.dashboard-slice-detail-empty {
+  color: var(--dashboard-muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-slice-task-section {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-slice-task-list {
+  display: grid;
+  gap: 8px;
+  max-height: min(460px, 58vh);
+  margin: 0;
+  padding: 0 4px 0 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.dashboard-slice-task {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--dashboard-soft-border);
+  border-left: 4px solid var(--dashboard-muted);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-slice-task--complete,
+.dashboard-slice-task--passed {
+  border-left-color: var(--dashboard-success);
+}
+
+.dashboard-slice-task--partial,
+.dashboard-slice-task--pending {
+  border-left-color: var(--dashboard-info);
+}
+
+.dashboard-slice-task--blocked {
+  border-left-color: var(--dashboard-warning);
+}
+
+.dashboard-slice-task--failed {
+  border-left-color: var(--dashboard-danger);
+}
+
+.dashboard-slice-task div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.dashboard-slice-task strong,
+.dashboard-slice-task span {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-slice-task div:first-child span {
+  color: var(--dashboard-text);
+  line-height: 1.35;
+}
+
+.dashboard-slice-task-meta {
+  justify-content: end;
+}
+
+.dashboard-slice-task-meta span {
+  padding: 3px 6px;
+  border: 1px solid var(--dashboard-soft-border);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-muted);
+  background: var(--dashboard-quiet);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .dashboard-empty {
@@ -1180,10 +1572,21 @@ h3 {
   .dashboard-attention-details,
   .dashboard-activity,
   .dashboard-activity-details,
+  .dashboard-slice-roadmap-item,
+  .dashboard-slice-detail-grid,
+  .dashboard-slice-task,
   .dashboard-current-run-panel,
   .dashboard-current-run-details,
   .dashboard-why-task-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-slice-detail-header {
+    flex-direction: column;
+  }
+
+  .dashboard-slice-task-meta {
+    justify-content: start;
   }
 
   .dashboard-why-task-header {

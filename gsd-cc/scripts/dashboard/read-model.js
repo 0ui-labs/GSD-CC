@@ -84,6 +84,7 @@ const EVENT_DETAIL_EXCLUDE_KEYS = new Set([
   'message',
   ...EVENT_ARTIFACT_KEYS
 ]);
+const RISK_LEVELS = ['low', 'medium', 'high'];
 
 function normalizeProjectRoot(projectRoot) {
   return path.resolve(projectRoot || process.cwd());
@@ -753,16 +754,40 @@ function summarizeTaskStatus(statuses) {
   return summary;
 }
 
-function taskNameFromPlan(gsdDir, taskPlan) {
-  const parsed = parseTaskPlanXml(
-    readOptionalTextFile(path.join(gsdDir, taskPlan.fileName)),
-    {
-      expectedTaskId: taskPlan.taskId,
-      planPath: path.join(gsdDir, taskPlan.fileName)
-    }
-  );
+function createRiskDistribution() {
+  return {
+    low: 0,
+    medium: 0,
+    high: 0,
+    unknown: 0
+  };
+}
 
-  return parsed.name;
+function normalizeRiskLevel(value) {
+  const normalized = String(value || '').toLowerCase();
+
+  return RISK_LEVELS.includes(normalized) ? normalized : UNKNOWN;
+}
+
+function summarizeTaskRisk(items) {
+  const summary = createRiskDistribution();
+
+  for (const item of items) {
+    const level = normalizeRiskLevel(item && item.risk && item.risk.level);
+    summary[level] += 1;
+  }
+
+  return summary;
+}
+
+function createAcceptanceCounts() {
+  return {
+    total: 0,
+    passed: 0,
+    partial: 0,
+    failed: 0,
+    pending: 0
+  };
 }
 
 function buildTaskProgress(gsdDir, taskPlans, summaries) {
@@ -778,6 +803,7 @@ function buildTaskProgress(gsdDir, taskPlans, summaries) {
   ]);
   const items = sortById([...knownTaskIds].map((task) => {
     const plan = taskPlans.find((taskPlan) => taskPlan.task === task) || null;
+    const parsedPlan = plan ? parseTaskPlanFromArtifact(gsdDir, plan) : null;
     const summary = summariesByTask.get(task) || null;
     const summaryStatus = summary
       ? extractMarkdownStatus(readOptionalTextFile(path.join(gsdDir, summary.fileName)))
@@ -786,8 +812,17 @@ function buildTaskProgress(gsdDir, taskPlans, summaries) {
     return {
       id: task,
       task_id: plan ? plan.taskId : `${summary.slice}-${task}`,
-      name: plan ? taskNameFromPlan(gsdDir, plan) : UNKNOWN,
+      name: parsedPlan ? parsedPlan.name : UNKNOWN,
       status: summary ? summaryStatus : 'pending',
+      risk: parsedPlan
+        ? parsedPlan.risk
+        : {
+          level: UNKNOWN,
+          reason: ''
+        },
+      acceptance_criteria: {
+        total: parsedPlan ? parsedPlan.acceptance_criteria.length : 0
+      },
       artifacts: {
         plan: plan ? plan.displayPath : null,
         summary: summary ? summary.displayPath : null
@@ -807,6 +842,7 @@ function buildTaskProgress(gsdDir, taskPlans, summaries) {
     completed,
     pending: Math.max(taskPlans.length - completed, 0),
     ...statusCounts,
+    risk: summarizeTaskRisk(items),
     items
   };
 }
@@ -903,6 +939,7 @@ function createSliceProgress(options) {
       task_plans: [],
       summaries: []
     },
+    acceptance_criteria: createAcceptanceCounts(),
     tasks: createEmptyTaskProgress()
   };
 }
@@ -1039,16 +1076,15 @@ function evidenceForCriterion(evidenceByKey, criterion) {
   ) || null;
 }
 
-function countAcceptanceCriteria(criteria, evidenceByKey) {
-  const counts = {
-    total: criteria.length,
-    passed: 0,
-    partial: 0,
-    failed: 0,
-    pending: 0
-  };
+function countAcceptanceCriteria(criteria, evidenceByKey, predicate = null) {
+  const counts = createAcceptanceCounts();
 
   for (const criterion of criteria) {
+    if (predicate && !predicate(criterion)) {
+      continue;
+    }
+
+    counts.total += 1;
     const evidence = evidenceForCriterion(evidenceByKey, criterion);
     const status = evidence ? evidence.status : 'pending';
 
@@ -1060,6 +1096,16 @@ function countAcceptanceCriteria(criteria, evidenceByKey) {
   }
 
   return counts;
+}
+
+function annotateSliceAcceptanceCriteriaProgress(model, criteria, evidenceByKey) {
+  for (const slice of model.progress.slices) {
+    slice.acceptance_criteria = countAcceptanceCriteria(
+      criteria,
+      evidenceByKey,
+      (criterion) => sameIdentifier(criterion.slice, slice.id)
+    );
+  }
 }
 
 function resolveCurrentTaskContext(current) {
@@ -1108,6 +1154,7 @@ function populateAcceptanceCriteriaProgress(model, gsdDir) {
 
   model.progress.acceptance_criteria = countAcceptanceCriteria(criteria, evidenceByKey);
   annotateCurrentTaskAcceptanceCriteria(model, evidenceByKey);
+  annotateSliceAcceptanceCriteriaProgress(model, criteria, evidenceByKey);
 }
 
 function describeCurrentUnit(current, includeTask = true) {

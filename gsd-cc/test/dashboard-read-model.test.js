@@ -632,10 +632,25 @@ function testProgressDiscoversRoadmapSlicesAndArtifacts() {
   assert.deepStrictEqual(activeSlice.artifacts.summaries, [
     '.gsd/S02-T01-SUMMARY.md'
   ]);
+  assert.deepStrictEqual(activeSlice.tasks.risk, {
+    low: 2,
+    medium: 0,
+    high: 0,
+    unknown: 0
+  });
+  assert.deepStrictEqual(activeSlice.acceptance_criteria, {
+    total: 2,
+    passed: 0,
+    partial: 0,
+    failed: 0,
+    pending: 2
+  });
   assert.deepStrictEqual(activeSlice.tasks.items.map((item) => [
     item.id,
     item.name,
     item.status,
+    item.risk.level,
+    item.acceptance_criteria.total,
     item.artifacts.plan,
     item.artifacts.summary
   ]), [
@@ -643,6 +658,8 @@ function testProgressDiscoversRoadmapSlicesAndArtifacts() {
       'T01',
       'Completed active task',
       'complete',
+      'low',
+      1,
       '.gsd/S02-T01-PLAN.xml',
       '.gsd/S02-T01-SUMMARY.md'
     ],
@@ -650,6 +667,8 @@ function testProgressDiscoversRoadmapSlicesAndArtifacts() {
       'T02',
       'Current active task',
       'pending',
+      'low',
+      1,
       '.gsd/S02-T02-PLAN.xml',
       null
     ]
@@ -783,6 +802,13 @@ function testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence() {
   const model = buildDashboardModel(projectRoot);
 
   assert.deepStrictEqual(model.progress.acceptance_criteria, {
+    total: 5,
+    passed: 2,
+    partial: 1,
+    failed: 1,
+    pending: 1
+  });
+  assert.deepStrictEqual(model.progress.slices[0].acceptance_criteria, {
     total: 5,
     passed: 2,
     partial: 1,

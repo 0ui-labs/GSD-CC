@@ -478,6 +478,216 @@ function createActivityFeedModel() {
   };
 }
 
+function createSliceRoadmapModel() {
+  return {
+    project: {
+      name: 'Slice Roadmap Fixture',
+      project_type: 'application'
+    },
+    current: {
+      milestone: 'M004',
+      slice: 'S03',
+      task: 'T02',
+      phase: 'applying',
+      task_name: 'Build slice roadmap',
+      next_action: 'Review current slice progress.'
+    },
+    automation: {
+      status: 'active',
+      scope: 'slice',
+      unit: 'S03'
+    },
+    progress: {
+      acceptance_criteria: {
+        total: 8,
+        passed: 3,
+        partial: 1,
+        failed: 1,
+        pending: 3
+      },
+      slices: [
+        {
+          id: 'S01',
+          name: 'Pending discovery',
+          current: false,
+          status: 'pending',
+          artifacts: {
+            roadmap: '.gsd/M004-ROADMAP.md',
+            plan: null,
+            unify: null
+          },
+          acceptance_criteria: {
+            total: 0,
+            passed: 0,
+            partial: 0,
+            failed: 0,
+            pending: 0
+          },
+          tasks: {
+            total: 0,
+            completed: 0,
+            pending: 0,
+            risk: {
+              low: 0,
+              medium: 0,
+              high: 0,
+              unknown: 0
+            },
+            items: []
+          }
+        },
+        {
+          id: 'S02',
+          name: 'Planned foundation',
+          current: false,
+          status: 'planned',
+          artifacts: {
+            roadmap: '.gsd/M004-ROADMAP.md',
+            plan: '.gsd/S02-PLAN.md',
+            unify: null
+          },
+          acceptance_criteria: {
+            total: 2,
+            passed: 0,
+            partial: 0,
+            failed: 0,
+            pending: 2
+          },
+          tasks: {
+            total: 1,
+            completed: 0,
+            pending: 1,
+            risk: {
+              low: 1,
+              medium: 0,
+              high: 0,
+              unknown: 0
+            },
+            items: [
+              {
+                id: 'T01',
+                name: 'Plan the shell',
+                status: 'pending',
+                risk: {
+                  level: 'low'
+                },
+                acceptance_criteria: {
+                  total: 2
+                }
+              }
+            ]
+          }
+        },
+        {
+          id: 'S03',
+          name: 'Running dashboard roadmap',
+          current: true,
+          status: 'running',
+          artifacts: {
+            roadmap: '.gsd/M004-ROADMAP.md',
+            plan: '.gsd/S03-PLAN.md',
+            unify: null
+          },
+          acceptance_criteria: {
+            total: 4,
+            passed: 1,
+            partial: 1,
+            failed: 0,
+            pending: 2
+          },
+          tasks: {
+            total: 2,
+            completed: 1,
+            pending: 1,
+            risk: {
+              low: 0,
+              medium: 1,
+              high: 1,
+              unknown: 0
+            },
+            items: [
+              {
+                id: 'T01',
+                name: 'Render roadmap cards',
+                status: 'complete',
+                risk: {
+                  level: 'medium'
+                },
+                acceptance_criteria: {
+                  total: 2
+                }
+              },
+              {
+                id: 'T02',
+                name: 'Build selectable detail',
+                status: 'pending',
+                risk: {
+                  level: 'high'
+                },
+                acceptance_criteria: {
+                  total: 2
+                }
+              }
+            ]
+          }
+        },
+        {
+          id: 'S04',
+          name: 'Final reconciliation',
+          current: false,
+          status: 'unified',
+          artifacts: {
+            roadmap: '.gsd/M004-ROADMAP.md',
+            plan: '.gsd/S04-PLAN.md',
+            unify: '.gsd/S04-UNIFY.md'
+          },
+          acceptance_criteria: {
+            total: 2,
+            passed: 2,
+            partial: 0,
+            failed: 0,
+            pending: 0
+          },
+          tasks: {
+            total: 1,
+            completed: 1,
+            pending: 0,
+            risk: {
+              low: 1,
+              medium: 0,
+              high: 0,
+              unknown: 0
+            },
+            items: [
+              {
+                id: 'T01',
+                name: 'Ship summary',
+                status: 'complete',
+                risk: {
+                  level: 'low'
+                },
+                acceptance_criteria: {
+                  total: 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    current_task: {
+      id: 'S03-T02',
+      name: 'Build slice roadmap',
+      risk: {
+        level: 'high'
+      },
+      acceptance_criteria: []
+    },
+    attention: [],
+    activity: []
+  };
+}
+
 function flushPromises() {
   return new Promise((resolve) => {
     setImmediate(resolve);
@@ -524,6 +734,10 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /dashboard-activity-feed/);
   assert.match(source, /dashboard-activity-summary/);
   assert.match(source, /dashboard-activity-pill/);
+  assert.match(source, /dashboard-slice-roadmap/);
+  assert.match(source, /dashboard-slice-detail/);
+  assert.match(source, /data-dashboard-slice-id/);
+  assert.match(source, /Risk distribution/);
   assert.match(source, /formatActivityTimestamp/);
   assert.match(source, /Action summary/);
   assert.match(source, /Acceptance criteria covered/);
@@ -896,6 +1110,89 @@ async function testActivityFeedRendersExecutionHistory() {
   assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FAUTO-RECOVERY\.md/);
 }
 
+async function testSliceRoadmapRendersSelectableProgress() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: '',
+    clickListener: null,
+    addEventListener(name, listener) {
+      assert.strictEqual(name, 'click');
+      this.clickListener = listener;
+    },
+    contains() {
+      return true;
+    }
+  };
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(createSliceRoadmapModel());
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  assert.match(root.innerHTML, /dashboard-slice-roadmap/);
+  assert.match(root.innerHTML, /Slice statuses/);
+  assert.match(root.innerHTML, /Pending discovery/);
+  assert.match(root.innerHTML, /Planned foundation/);
+  assert.match(root.innerHTML, /Running dashboard roadmap/);
+  assert.match(root.innerHTML, /Final reconciliation/);
+  assert.match(root.innerHTML, /dashboard-slice-roadmap-item--current/);
+  assert.match(root.innerHTML, /Current slice/);
+  assert.match(root.innerHTML, /dashboard-slice-roadmap-item--selected/);
+  assert.match(root.innerHTML, /Risk distribution/);
+  assert.match(root.innerHTML, /high/);
+  assert.match(root.innerHTML, /medium/);
+  assert.match(root.innerHTML, /low/);
+  assert.match(root.innerHTML, /Acceptance criteria/);
+  assert.match(root.innerHTML, /Render roadmap cards/);
+  assert.match(root.innerHTML, /Build selectable detail/);
+  assert.doesNotMatch(root.innerHTML, /Ship summary/);
+
+  const selectedNode = {
+    getAttribute(name) {
+      assert.strictEqual(name, 'data-dashboard-slice-id');
+      return 'S04';
+    }
+  };
+
+  root.clickListener({
+    target: {
+      closest(selector) {
+        assert.strictEqual(selector, '[data-dashboard-slice-id]');
+        return selectedNode;
+      }
+    }
+  });
+
+  assert.match(root.innerHTML, /Ship summary/);
+  assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FS04-UNIFY\.md/);
+  assert.match(root.innerHTML, /dashboard-slice-status--unified/);
+}
+
 async function testStylesExposeConnectionStates() {
   const styles = fs.readFileSync(stylesPath, 'utf8');
 
@@ -921,6 +1218,13 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-activity-count--approval/);
   assert.match(styles, /\.dashboard-activity-pill--recovery/);
   assert.match(styles, /\.dashboard-activity-details/);
+  assert.match(styles, /\.dashboard-slice-roadmap/);
+  assert.match(styles, /\.dashboard-slice-roadmap-item--current/);
+  assert.match(styles, /\.dashboard-slice-roadmap-item--selected/);
+  assert.match(styles, /\.dashboard-slice-detail/);
+  assert.match(styles, /\.dashboard-slice-status--running/);
+  assert.match(styles, /\.dashboard-slice-risk--high/);
+  assert.match(styles, /\.dashboard-slice-task-list/);
   assert.match(styles, /max-height:\s*min\(680px,\s*72vh\)/);
   assert.match(styles, /overflow-y:\s*auto/);
   assert.match(styles, /\.dashboard-artifact-link/);
@@ -940,6 +1244,7 @@ async function run() {
   await testWhyThisTaskPanelRendersTaskPlanEvidence();
   await testAttentionPanelRendersRequiredActionDetails();
   await testActivityFeedRendersExecutionHistory();
+  await testSliceRoadmapRendersSelectableProgress();
   await testStylesExposeConnectionStates();
 }
 
