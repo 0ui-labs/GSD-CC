@@ -6,10 +6,14 @@ const path = require('path');
 const {
   buildDashboardModel
 } = require('./dashboard/read-model');
+const {
+  watchDashboardFiles
+} = require('./dashboard/watch');
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4766;
 const DEFAULT_PORT_FALLBACK_ATTEMPTS = 20;
+const DEFAULT_EVENT_HEARTBEAT_MS = 30000;
 const DASHBOARD_DIR = path.resolve(__dirname, '..', 'dashboard');
 
 const STATIC_ROUTES = {
@@ -48,6 +52,20 @@ function normalizeProjectRoot(projectRoot) {
   return path.resolve(projectRoot || process.cwd());
 }
 
+function normalizePositiveInteger(value, fallback, label) {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  const normalized = Number(value);
+
+  if (!Number.isInteger(normalized) || normalized < 1) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+
+  return normalized;
+}
+
 function canReadBody(method) {
   return method !== 'HEAD';
 }
@@ -84,6 +102,18 @@ function writeNoCacheJson(res, req, statusCode, payload) {
     Expires: '0',
     Pragma: 'no-cache'
   }, body);
+}
+
+function writeSseHeaders(res) {
+  res.writeHead(200, {
+    'Cache-Control': 'no-store, max-age=0',
+    Connection: 'keep-alive',
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    Expires: '0',
+    Pragma: 'no-cache',
+    'X-Accel-Buffering': 'no',
+    'X-Content-Type-Options': 'nosniff'
+  });
 }
 
 function writeArtifactError(res, req, statusCode, code, message) {
@@ -316,12 +346,181 @@ function writeDashboardModel(req, res, modelBuilder, projectRoot) {
   }
 }
 
+function buildSafeDashboardModel(modelBuilder, projectRoot) {
+  try {
+    return modelBuilder(projectRoot);
+  } catch (_error) {
+    return {
+      ok: false,
+      error: {
+        code: 'dashboard_model_failed',
+        message: 'Dashboard state is temporarily unavailable.'
+      }
+    };
+  }
+}
+
+function writeSseEvent(res, eventName, payload) {
+  res.write(`event: ${eventName}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function writeSseComment(res, comment) {
+  res.write(`: ${comment}\n\n`);
+}
+
+function createStateEventStream(options) {
+  const projectRoot = options.projectRoot;
+  const modelBuilder = options.modelBuilder;
+  const watchOptions = options.watchOptions || {};
+  const heartbeatMs = normalizePositiveInteger(
+    options.heartbeatMs,
+    DEFAULT_EVENT_HEARTBEAT_MS,
+    'Dashboard event heartbeat'
+  );
+  const clients = new Set();
+
+  let watcher = null;
+  let heartbeatTimer = null;
+  let closed = false;
+
+  function closeWatcher() {
+    if (!watcher) {
+      return;
+    }
+
+    watcher.close();
+    watcher = null;
+  }
+
+  function stopHeartbeat() {
+    if (!heartbeatTimer) {
+      return;
+    }
+
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+
+  function stopIdleWork() {
+    if (clients.size > 0) {
+      return;
+    }
+
+    closeWatcher();
+    stopHeartbeat();
+  }
+
+  function sendState(client) {
+    if (client.closed || client.res.destroyed) {
+      return;
+    }
+
+    writeSseEvent(
+      client.res,
+      'state',
+      buildSafeDashboardModel(modelBuilder, projectRoot)
+    );
+  }
+
+  function broadcastState() {
+    for (const client of clients) {
+      sendState(client);
+    }
+  }
+
+  function broadcastHeartbeat() {
+    for (const client of clients) {
+      if (!client.closed && !client.res.destroyed) {
+        writeSseComment(client.res, 'heartbeat');
+      }
+    }
+  }
+
+  function ensureWatcher() {
+    if (watcher || closed) {
+      return;
+    }
+
+    watcher = watchDashboardFiles(projectRoot, () => {
+      broadcastState();
+    }, watchOptions);
+  }
+
+  function ensureHeartbeat() {
+    if (heartbeatTimer || closed) {
+      return;
+    }
+
+    heartbeatTimer = setInterval(broadcastHeartbeat, heartbeatMs);
+
+    if (heartbeatTimer.unref) {
+      heartbeatTimer.unref();
+    }
+  }
+
+  function removeClient(client) {
+    if (client.closed) {
+      return;
+    }
+
+    client.closed = true;
+    clients.delete(client);
+    stopIdleWork();
+  }
+
+  return {
+    addClient(req, res) {
+      if (closed) {
+        res.end();
+        return;
+      }
+
+      const client = {
+        closed: false,
+        res
+      };
+
+      clients.add(client);
+      req.on('close', () => removeClient(client));
+      res.on('close', () => removeClient(client));
+
+      if (res.socket && res.socket.setKeepAlive) {
+        res.socket.setKeepAlive(true);
+      }
+
+      writeSseHeaders(res);
+      ensureWatcher();
+      ensureHeartbeat();
+      sendState(client);
+    },
+    close() {
+      closed = true;
+      closeWatcher();
+      stopHeartbeat();
+
+      for (const client of clients) {
+        client.closed = true;
+        client.res.end();
+      }
+
+      clients.clear();
+    }
+  };
+}
+
 function createDashboardServer(options = {}) {
   const host = normalizeHost(options.host);
   const port = normalizePort(options.port);
   const projectRoot = normalizeProjectRoot(options.projectRoot);
   const dashboardDir = path.resolve(options.dashboardDir || DASHBOARD_DIR);
   const modelBuilder = options.modelBuilder || buildDashboardModel;
+  const eventStream = createStateEventStream({
+    projectRoot,
+    modelBuilder,
+    watchOptions: options.watchOptions,
+    heartbeatMs: options.eventHeartbeatMs
+  });
 
   const server = http.createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -352,6 +551,17 @@ function createDashboardServer(options = {}) {
       return;
     }
 
+    if (requestPath === '/api/events') {
+      if (req.method === 'HEAD') {
+        writeSseHeaders(res);
+        res.end();
+        return;
+      }
+
+      eventStream.addClient(req, res);
+      return;
+    }
+
     if (requestPath === '/api/artifact') {
       writeArtifact(req, res, requestUrl, projectRoot);
       return;
@@ -366,10 +576,17 @@ function createDashboardServer(options = {}) {
     serveStaticAsset(req, res, route, dashboardDir);
   });
 
+  server.closeDashboardEventStream = () => eventStream.close();
+  server.on('close', () => eventStream.close());
+
   return server;
 }
 
 function closeServer(server) {
+  if (server && typeof server.closeDashboardEventStream === 'function') {
+    server.closeDashboardEventStream();
+  }
+
   return new Promise((resolve, reject) => {
     server.close((error) => {
       if (error) {
