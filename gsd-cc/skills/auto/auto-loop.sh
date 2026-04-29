@@ -130,6 +130,7 @@ while true; do
   RIGOR=$(read_optional_state_field "rigor")
   MILESTONE=$(read_optional_state_field "milestone")
   DISPATCH_PHASE=""
+  TASK_ATTEMPT=1
 
   if [[ "$AUTO_SCOPE" == "slice" && "$SLICE" != "$START_SLICE" ]]; then
     log "Auto (this slice) complete for $START_SLICE."
@@ -412,6 +413,12 @@ while true; do
   if [[ "$DISPATCH_PHASE" == "plan" ]]; then
     ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git branch *),Bash(git add *),Bash(git commit *)"
   else
+    TASK_ATTEMPT=$((RETRY_COUNT + 1))
+    auto_event_task_started \
+      "scope=$AUTO_SCOPE" \
+      "attempt=$TASK_ATTEMPT" \
+      "task_plan=$TASK_PLAN" \
+      "artifact=$TASK_PLAN"
     if ! ensure_apply_approval "$SLICE" "$TASK" "$TASK_PLAN"; then
       break
     fi
@@ -494,6 +501,12 @@ while true; do
         "Inspect the uncommitted files, resolve unrelated changes, then run /gsd-cc."
       break
     fi
+    auto_event_task_completed \
+      "scope=$AUTO_SCOPE" \
+      "attempt=$TASK_ATTEMPT" \
+      "task_plan=$TASK_PLAN" \
+      "summary=$EXPECTED_SUMMARY" \
+      "artifact=$EXPECTED_SUMMARY"
   fi
 
   # ── 13. Release lock ──────────────────────────────────────────────────────

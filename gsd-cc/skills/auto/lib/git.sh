@@ -304,6 +304,8 @@ run_apply_fallback_commit() {
   local summary_status
   local commit_subject
   local commit_body
+  local commit_sha
+  local stage_paths_summary
   local allowlist=()
   local stage_paths=()
   local path
@@ -384,6 +386,20 @@ run_apply_fallback_commit() {
     done
   fi
 
+  if declare -F auto_event_join_values >/dev/null 2>&1; then
+    stage_paths_summary="$(auto_event_join_values "${stage_paths[@]}")"
+  else
+    stage_paths_summary="${stage_paths[*]}"
+  fi
+
+  if declare -F auto_event_fallback_commit_started >/dev/null 2>&1; then
+    auto_event_fallback_commit_started \
+      "task_plan=$task_plan" \
+      "summary=$summary_path" \
+      "artifact=$summary_path" \
+      "paths=$stage_paths_summary"
+  fi
+
   for path in "${stage_paths[@]}"; do
     git add -- "$path"
   done
@@ -401,6 +417,17 @@ run_apply_fallback_commit() {
     log "❌ Fallback commit failed for ${slice}/${task}."
     log "   Inspect the git worktree before restarting auto-mode."
     return 1
+  fi
+
+  commit_sha="$(git rev-parse --short HEAD 2>/dev/null || true)"
+  if declare -F auto_event_fallback_commit_completed >/dev/null 2>&1; then
+    auto_event_fallback_commit_completed \
+      "task_plan=$task_plan" \
+      "summary=$summary_path" \
+      "artifact=$summary_path" \
+      "paths=$stage_paths_summary" \
+      "commit=$commit_sha" \
+      "subject=$commit_subject"
   fi
 
   log "✓ Fallback committed task-scoped changes for ${slice}/${task}."

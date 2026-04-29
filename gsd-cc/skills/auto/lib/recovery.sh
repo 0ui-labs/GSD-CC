@@ -258,4 +258,14 @@ auto_recovery_write() {
     printf '%s\n' '## Safest Next Action'
     printf '%s\n' "$safe_next_action"
   } > "$markdown_path" 2>/dev/null || true
+
+  if declare -F auto_event_recovery_written >/dev/null 2>&1; then
+    auto_event_recovery_written \
+      "reason=$reason" \
+      "artifact=$markdown_path" \
+      "markdown=$markdown_path" \
+      "json=$json_path" \
+      "log_file=$LOG_FILE" \
+      "safe_next_action=$safe_next_action"
+  fi
 }

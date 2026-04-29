@@ -180,6 +180,7 @@ ensure_apply_approval() {
   local file_path
   local pattern
   local term
+  local reasons_summary
   local reasons=()
 
   risk_level=$(extract_xml_attr "$plan_path" "risk" "level")
@@ -227,11 +228,32 @@ ensure_apply_approval() {
 
   if approval_grant_exists "$slice" "$task" "$fingerprint"; then
     log "✓ Approval found for ${slice}/${task}."
+    if declare -F auto_event_approval_found >/dev/null 2>&1; then
+      reasons_summary="$(auto_event_join_values "${reasons[@]}")"
+      auto_event_approval_found \
+        "task_plan=$plan_path" \
+        "approval_log=$GSD_DIR/APPROVALS.jsonl" \
+        "risk_level=$risk_level" \
+        "risk_reason=$risk_reason" \
+        "fingerprint=$fingerprint" \
+        "reasons=$reasons_summary"
+    fi
     clear_current_approval_request "$slice" "$task"
     return 0
   fi
 
   write_approval_request "$slice" "$task" "$plan_path" "$risk_level" "$risk_reason" "$fingerprint" "${reasons[@]}"
+  if declare -F auto_event_approval_required >/dev/null 2>&1; then
+    reasons_summary="$(auto_event_join_values "${reasons[@]}")"
+    auto_event_approval_required \
+      "task_plan=$plan_path" \
+      "request=$GSD_DIR/APPROVAL-REQUEST.json" \
+      "artifact=$GSD_DIR/APPROVAL-REQUEST.json" \
+      "risk_level=$risk_level" \
+      "risk_reason=$risk_reason" \
+      "fingerprint=$fingerprint" \
+      "reasons=$reasons_summary"
+  fi
   log "🛑 Approval required before auto-mode can run ${slice}/${task}."
   log "   Request: $GSD_DIR/APPROVAL-REQUEST.json"
   log_paths "${reasons[@]}"

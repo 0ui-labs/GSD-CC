@@ -95,6 +95,21 @@ auto_event_json_pair() {
     "$(auto_event_json_escape "$value")"
 }
 
+auto_event_join_values() {
+  local joined=""
+  local value
+
+  for value in "$@"; do
+    [[ -z "$value" ]] && continue
+    if [[ -n "$joined" ]]; then
+      joined="${joined}; "
+    fi
+    joined="${joined}${value}"
+  done
+
+  printf '%s' "$joined"
+}
+
 auto_event_write() {
   local type="${1:-}"
   local message="${2:-}"
@@ -185,4 +200,32 @@ auto_event_dispatch_failed() {
 
 auto_event_budget_reached() {
   auto_event_write "budget_reached" "Token budget reached." "$@"
+}
+
+auto_event_task_started() {
+  auto_event_write "task_started" "Started task ${SLICE:-unknown}/${TASK:-unknown}." "$@"
+}
+
+auto_event_task_completed() {
+  auto_event_write "task_completed" "Completed task ${SLICE:-unknown}/${TASK:-unknown}." "$@"
+}
+
+auto_event_approval_required() {
+  auto_event_write "approval_required" "Approval required for ${SLICE:-unknown}/${TASK:-unknown}." "$@"
+}
+
+auto_event_approval_found() {
+  auto_event_write "approval_found" "Approval found for ${SLICE:-unknown}/${TASK:-unknown}." "$@"
+}
+
+auto_event_recovery_written() {
+  auto_event_write "recovery_written" "Recovery report written." "$@"
+}
+
+auto_event_fallback_commit_started() {
+  auto_event_write "fallback_commit_started" "Fallback commit started for ${SLICE:-unknown}/${TASK:-unknown}." "$@"
+}
+
+auto_event_fallback_commit_completed() {
+  auto_event_write "fallback_commit_completed" "Fallback commit completed for ${SLICE:-unknown}/${TASK:-unknown}." "$@"
 }
