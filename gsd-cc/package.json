@@ -10,6 +10,7 @@
   "files": [
     "bin/",
     "checklists/",
+    "dashboard/",
     "hooks/",
     "scripts/",
     "skills/",

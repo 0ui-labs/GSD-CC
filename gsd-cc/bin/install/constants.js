@@ -25,6 +25,7 @@ const COMMIT_LANGUAGE_LINE_REGEX = /^GSD-CC commit language:\s*(.+?)\s*$/m;
 const DEFAULT_COMMIT_LANGUAGE = 'English';
 
 const INSTALL_LAYOUT = [
+  { sourceDir: 'dashboard', targetDir: 'dashboard' },
   { sourceDir: 'skills', targetDir: 'skills' },
   { sourceDir: 'hooks', targetDir: CURRENT_HOOK_DIR },
   { sourceDir: 'checklists', targetDir: 'checklists' },

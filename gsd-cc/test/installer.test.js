@@ -48,6 +48,9 @@ function assertInstalledAssets(claudeBase) {
   assertPathExists(path.join(claudeBase, 'templates', 'STATE_MACHINE.json'));
   assertPathExists(path.join(claudeBase, 'checklists', 'planning-ready.md'));
   assertPathExists(path.join(claudeBase, 'scripts', 'validate-plan.js'));
+  assertPathExists(path.join(claudeBase, 'dashboard', 'index.html'));
+  assertPathExists(path.join(claudeBase, 'dashboard', 'app.js'));
+  assertPathExists(path.join(claudeBase, 'dashboard', 'styles.css'));
   assertPathExists(path.join(claudeBase, 'gsd-cc', 'install-manifest.json'));
 }
 
@@ -61,7 +64,11 @@ function assertManifest(claudeBase, installMode) {
   assert.ok(manifest.files.includes(path.join('scripts', 'validate-plan.js')));
   assert.ok(manifest.files.includes(path.join('templates', 'STATE.md')));
   assert.ok(manifest.files.includes(path.join('templates', 'STATE_MACHINE.json')));
+  assert.ok(manifest.files.includes(path.join('dashboard', 'index.html')));
+  assert.ok(manifest.files.includes(path.join('dashboard', 'app.js')));
+  assert.ok(manifest.files.includes(path.join('dashboard', 'styles.css')));
   assert.ok(manifest.directories.includes('gsd-cc'));
+  assert.ok(manifest.directories.includes('dashboard'));
   assert.strictEqual(manifest.readiness.hooks.ready, true);
   assert.strictEqual(manifest.dependencies.jq.available, true);
   assert.ok(manifest.managedHooks.length > 0);

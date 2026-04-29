@@ -105,6 +105,7 @@ function testGlobalUninstallKeepsUserFiles(fixtureRoot, binDir) {
   assertPathMissing(path.join(claudeBase, 'gsd-cc', 'install-manifest.json'));
   assertPathMissing(path.join(claudeBase, 'skills', 'gsd-cc', 'SKILL.md'));
   assertPathMissing(path.join(claudeBase, 'hooks', 'gsd-cc', 'gsd-boundary-guard.sh'));
+  assertPathMissing(path.join(claudeBase, 'dashboard', 'index.html'));
   assertPathExists(unrelatedHook);
   assertPathExists(managedDirUserHook);
   assertPathExists(unrelatedSkill);
