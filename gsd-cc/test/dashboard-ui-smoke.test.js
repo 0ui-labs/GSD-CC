@@ -352,6 +352,132 @@ function createWhyTaskModel() {
   };
 }
 
+function createActivityFeedModel() {
+  return {
+    project: {
+      name: 'Activity Feed Fixture',
+      project_type: 'application'
+    },
+    current: {
+      milestone: 'M003',
+      slice: 'S05',
+      task: 'T06',
+      phase: 'applying',
+      task_name: 'Render activity feed',
+      next_action: 'Watch auto-mode progress.'
+    },
+    automation: {
+      status: 'active',
+      scope: 'task',
+      unit: 'S05/T06',
+      pid: 5150,
+      started_at: '2026-04-29T08:00:00.000Z'
+    },
+    progress: {
+      slices: [],
+      acceptance_criteria: {
+        total: 0,
+        passed: 0,
+        pending: 0
+      }
+    },
+    current_task: {
+      id: 'S05-T06',
+      name: 'Render activity feed',
+      risk: {
+        level: 'medium'
+      },
+      acceptance_criteria: []
+    },
+    attention: [],
+    activity: [
+      {
+        timestamp: '2026-04-29T08:06:00.000Z',
+        type: 'state_validation_failed',
+        category: 'error',
+        severity: 'warning',
+        message: 'State validation failed.',
+        source: '.gsd/events.jsonl',
+        line: 6,
+        details: {
+          reason: 'phase missing',
+          attempts: 2
+        },
+        artifacts: [
+          '.gsd/STATE.md'
+        ]
+      },
+      {
+        timestamp: '2026-04-29T08:05:00.000Z',
+        type: 'approval_required',
+        category: 'approval',
+        severity: 'critical',
+        message: 'Approval required for S05/T06.',
+        unit: 'S05/T06',
+        phase: 'applying',
+        source: '.gsd/events.jsonl',
+        line: 5,
+        artifact: '.gsd/APPROVAL-REQUEST.json',
+        artifacts: [
+          '.gsd/APPROVAL-REQUEST.json',
+          '.gsd/S05-T06-PLAN.xml'
+        ],
+        details: {
+          risk_level: 'high'
+        }
+      },
+      {
+        timestamp: '2026-04-29T08:04:00.000Z',
+        type: 'recovery_written',
+        category: 'recovery',
+        severity: 'warning',
+        message: 'Recovery report written.',
+        unit: 'S05/T06',
+        phase: 'applying',
+        source: '.gsd/events.jsonl',
+        line: 4,
+        artifact: '.gsd/AUTO-RECOVERY.md',
+        details: {
+          exit_code: '42'
+        }
+      },
+      {
+        timestamp: '2026-04-29T08:03:00.000Z',
+        type: 'task_started',
+        category: 'task',
+        severity: 'info',
+        message: 'Task S05/T06 started.',
+        unit: 'S05/T06',
+        phase: 'applying',
+        source: '.gsd/events.jsonl',
+        line: 3,
+        artifact: '.gsd/S05-T06-PLAN.xml'
+      },
+      {
+        timestamp: '2026-04-29T08:02:00.000Z',
+        type: 'dispatch_started',
+        category: 'dispatch',
+        severity: 'info',
+        message: 'Apply dispatch started.',
+        unit: 'S05/T06',
+        phase: 'applying',
+        dispatch_phase: 'apply',
+        source: '.gsd/events.jsonl',
+        line: 2
+      },
+      {
+        timestamp: '2026-04-29T08:01:00.000Z',
+        type: 'auto_started',
+        category: 'lifecycle',
+        severity: 'info',
+        message: 'Auto-mode started.',
+        source: '.gsd/events.jsonl',
+        line: 1
+      }
+    ]
+  };
+}
+
 function flushPromises() {
   return new Promise((resolve) => {
     setImmediate(resolve);
@@ -395,6 +521,10 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /dashboard-attention-panel/);
   assert.match(source, /dashboard-current-run-panel/);
   assert.match(source, /dashboard-why-task-panel/);
+  assert.match(source, /dashboard-activity-feed/);
+  assert.match(source, /dashboard-activity-summary/);
+  assert.match(source, /dashboard-activity-pill/);
+  assert.match(source, /formatActivityTimestamp/);
   assert.match(source, /Action summary/);
   assert.match(source, /Acceptance criteria covered/);
   assert.match(source, /Verify command/);
@@ -402,6 +532,7 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /Dispatch phase/);
   assert.match(source, /Latest event/);
   assert.match(source, /Latest pointer/);
+  assert.match(source, /Activity event groups/);
   assert.match(source, /\/api\/artifact\?path=/);
   assert.match(source, /dashboard-sidebar/);
   assert.match(source, /dashboard-main/);
@@ -701,6 +832,70 @@ async function testAttentionPanelRendersRequiredActionDetails() {
   );
 }
 
+async function testActivityFeedRendersExecutionHistory() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: ''
+  };
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(createActivityFeedModel());
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  assert.match(root.innerHTML, /dashboard-activity-feed/);
+  assert.match(root.innerHTML, /dashboard-activity-summary/);
+  assert.match(root.innerHTML, /Activity event groups/);
+  assert.match(root.innerHTML, /Lifecycle/);
+  assert.match(root.innerHTML, /Task/);
+  assert.match(root.innerHTML, /Approval/);
+  assert.match(root.innerHTML, /Recovery/);
+  assert.match(root.innerHTML, /Error/);
+  assert.match(root.innerHTML, /dashboard-activity--category-lifecycle/);
+  assert.match(root.innerHTML, /dashboard-activity--category-task/);
+  assert.match(root.innerHTML, /dashboard-activity--category-approval/);
+  assert.match(root.innerHTML, /dashboard-activity--category-recovery/);
+  assert.match(root.innerHTML, /dashboard-activity--category-error/);
+  assert.match(root.innerHTML, /datetime="2026-04-29T08:06:00\.000Z"/);
+  assert.match(root.innerHTML, /State validation failed/);
+  assert.match(root.innerHTML, /state_validation_failed/);
+  assert.match(root.innerHTML, /phase missing/);
+  assert.match(root.innerHTML, /risk_level/);
+  assert.match(root.innerHTML, /high/);
+  assert.match(root.innerHTML, /Recovery report written/);
+  assert.match(root.innerHTML, /exit_code/);
+  assert.match(root.innerHTML, /42/);
+  assert.match(root.innerHTML, /Apply dispatch started/);
+  assert.match(root.innerHTML, /apply/);
+  assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FAPPROVAL-REQUEST\.json/);
+  assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FAUTO-RECOVERY\.md/);
+}
+
 async function testStylesExposeConnectionStates() {
   const styles = fs.readFileSync(stylesPath, 'utf8');
 
@@ -721,6 +916,13 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-why-task-grid/);
   assert.match(styles, /\.dashboard-why-task-risk-badge--high/);
   assert.match(styles, /\.dashboard-why-task-criterion--passed/);
+  assert.match(styles, /\.dashboard-activity-feed/);
+  assert.match(styles, /\.dashboard-activity-summary/);
+  assert.match(styles, /\.dashboard-activity-count--approval/);
+  assert.match(styles, /\.dashboard-activity-pill--recovery/);
+  assert.match(styles, /\.dashboard-activity-details/);
+  assert.match(styles, /max-height:\s*min\(680px,\s*72vh\)/);
+  assert.match(styles, /overflow-y:\s*auto/);
   assert.match(styles, /\.dashboard-artifact-link/);
   assert.match(styles, /\.dashboard-workspace/);
   assert.match(styles, /grid-template-columns:\s*minmax\(180px,\s*220px\)\s*minmax\(0,\s*1fr\)\s*minmax\(260px,\s*320px\)/);
@@ -737,6 +939,7 @@ async function run() {
   await testCurrentRunPanelRendersActiveOperationDetails();
   await testWhyThisTaskPanelRendersTaskPlanEvidence();
   await testAttentionPanelRendersRequiredActionDetails();
+  await testActivityFeedRendersExecutionHistory();
   await testStylesExposeConnectionStates();
 }
 

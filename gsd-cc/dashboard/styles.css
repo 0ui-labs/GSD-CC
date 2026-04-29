@@ -80,7 +80,16 @@ body {
 .dashboard-attention-details,
 .dashboard-attention-detail,
 .dashboard-artifact-link,
-.dashboard-activity {
+.dashboard-activity,
+.dashboard-activity-feed,
+.dashboard-activity-summary,
+.dashboard-activity-count,
+.dashboard-activity-time,
+.dashboard-activity-body,
+.dashboard-activity-title-row,
+.dashboard-activity-meta,
+.dashboard-activity-details,
+.dashboard-activity-artifacts {
   min-width: 0;
 }
 
@@ -618,12 +627,99 @@ h3 {
   list-style: none;
 }
 
-.dashboard-attention-list,
-.dashboard-activity-list {
+.dashboard-attention-list {
   display: grid;
   gap: 10px;
   margin: 14px 0 0;
   padding: 0;
+  list-style: none;
+}
+
+.dashboard-activity-feed {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-activity-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dashboard-activity-count {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 5px 8px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-muted);
+  background: var(--dashboard-quiet);
+}
+
+.dashboard-activity-count strong,
+.dashboard-activity-count span {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-activity-count strong {
+  color: var(--dashboard-text);
+}
+
+.dashboard-activity-count span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dashboard-activity-count--approval,
+.dashboard-activity-pill--approval {
+  border-color: rgba(180, 83, 9, 0.38);
+  color: var(--dashboard-warning);
+}
+
+.dashboard-activity-count--recovery,
+.dashboard-activity-count--error,
+.dashboard-activity-pill--recovery,
+.dashboard-activity-pill--error {
+  border-color: rgba(185, 28, 28, 0.36);
+  color: var(--dashboard-danger);
+}
+
+.dashboard-activity-count--task,
+.dashboard-activity-pill--task {
+  border-color: rgba(15, 118, 110, 0.34);
+  color: var(--dashboard-accent);
+}
+
+.dashboard-activity-count--lifecycle,
+.dashboard-activity-count--dispatch,
+.dashboard-activity-pill--lifecycle,
+.dashboard-activity-pill--dispatch {
+  border-color: rgba(37, 99, 235, 0.3);
+  color: var(--dashboard-info);
+}
+
+.dashboard-activity-count--commit,
+.dashboard-activity-pill--commit {
+  border-color: rgba(21, 128, 61, 0.32);
+  color: var(--dashboard-success);
+}
+
+.dashboard-activity-count--budget,
+.dashboard-activity-pill--budget {
+  border-color: rgba(180, 83, 9, 0.32);
+  color: var(--dashboard-warning);
+}
+
+.dashboard-activity-list {
+  display: grid;
+  gap: 10px;
+  max-height: min(680px, 72vh);
+  margin: 0;
+  padding: 0 4px 0 0;
+  overflow-y: auto;
   list-style: none;
 }
 
@@ -734,12 +830,6 @@ h3 {
   line-height: 1.45;
 }
 
-.dashboard-activity {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-}
-
 .dashboard-attention-panel {
   padding-top: 2px;
 }
@@ -819,6 +909,116 @@ h3 {
   font-weight: 700;
 }
 
+.dashboard-activity {
+  display: grid;
+  grid-template-columns: minmax(96px, 122px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.dashboard-activity-time,
+.dashboard-activity-body,
+.dashboard-activity-details {
+  display: grid;
+  gap: 6px;
+}
+
+.dashboard-activity-time small {
+  color: var(--dashboard-muted);
+  font-size: 0.74rem;
+}
+
+.dashboard-activity-title-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dashboard-activity-title-row code {
+  max-width: 45%;
+  flex: 0 1 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--dashboard-soft-border);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-muted);
+  background: var(--dashboard-quiet);
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-activity-meta,
+.dashboard-activity-artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.dashboard-activity-pill {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-muted);
+  background: var(--dashboard-surface);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.dashboard-activity-pill--critical {
+  border-color: rgba(185, 28, 28, 0.36);
+  color: var(--dashboard-danger);
+}
+
+.dashboard-activity-pill--warning {
+  border-color: rgba(180, 83, 9, 0.34);
+  color: var(--dashboard-warning);
+}
+
+.dashboard-activity-pill--info {
+  border-color: rgba(37, 99, 235, 0.28);
+  color: var(--dashboard-info);
+}
+
+.dashboard-activity-pill--unit,
+.dashboard-activity-pill--phase,
+.dashboard-activity-pill--dispatch-phase {
+  border-color: var(--dashboard-soft-border);
+}
+
+.dashboard-activity-details {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 2px;
+}
+
+.dashboard-activity-details div {
+  min-width: 0;
+}
+
+.dashboard-activity-details dt {
+  margin-bottom: 2px;
+  color: var(--dashboard-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-activity-details dd,
+.dashboard-activity-details p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .dashboard-attention-item p,
 .dashboard-attention-action,
 .dashboard-activity strong,
@@ -827,9 +1027,8 @@ h3 {
   overflow-wrap: anywhere;
 }
 
-.dashboard-activity span,
-.dashboard-activity strong,
-.dashboard-activity small {
+.dashboard-activity-title-row strong,
+.dashboard-activity-time small {
   display: block;
 }
 
@@ -979,6 +1178,8 @@ h3 {
   .dashboard-fields,
   .dashboard-metrics,
   .dashboard-attention-details,
+  .dashboard-activity,
+  .dashboard-activity-details,
   .dashboard-current-run-panel,
   .dashboard-current-run-details,
   .dashboard-why-task-grid {
@@ -987,6 +1188,15 @@ h3 {
 
   .dashboard-why-task-header {
     flex-direction: column;
+  }
+
+  .dashboard-activity-title-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dashboard-activity-title-row code {
+    max-width: none;
   }
 }
 

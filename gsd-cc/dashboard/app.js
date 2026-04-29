@@ -21,6 +21,28 @@
     }
   };
   const ATTENTION_SEVERITY_ORDER = ['critical', 'warning', 'info'];
+  const ACTIVITY_CATEGORY_LABELS = {
+    approval: 'Approval',
+    budget: 'Budget',
+    commit: 'Commit',
+    dispatch: 'Dispatch',
+    error: 'Error',
+    lifecycle: 'Lifecycle',
+    other: 'Other',
+    recovery: 'Recovery',
+    task: 'Task'
+  };
+  const ACTIVITY_CATEGORY_ORDER = [
+    'error',
+    'approval',
+    'recovery',
+    'task',
+    'dispatch',
+    'lifecycle',
+    'commit',
+    'budget',
+    'other'
+  ];
   const root = document.querySelector('[data-dashboard-root]');
 
   if (!root) {
@@ -95,6 +117,32 @@
     });
   }
 
+  function formatActivityTimestamp(value) {
+    const date = value ? new Date(value) : null;
+
+    if (!date || Number.isNaN(date.getTime())) {
+      return 'No timestamp';
+    }
+
+    return date.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  }
+
+  function formatTimestampAttribute(value) {
+    const date = value ? new Date(value) : null;
+
+    if (!date || Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    return ` datetime="${escapeHtml(date.toISOString())}"`;
+  }
+
   function formatModelTime(value) {
     const date = value ? new Date(value) : null;
 
@@ -140,6 +188,12 @@
     const severity = toClassName(value);
 
     return ATTENTION_SEVERITY_ORDER.includes(severity) ? severity : 'info';
+  }
+
+  function normalizeActivityCategory(value) {
+    const category = toClassName(value);
+
+    return ACTIVITY_CATEGORY_LABELS[category] ? category : 'other';
   }
 
   function sortAttentionItems(attention) {
@@ -977,27 +1031,144 @@
     ].join('');
   }
 
-  function renderActivityItem(item) {
-    const severity = toClassName(item && item.severity);
-    const message = displayValue(item && item.message, 'Activity recorded.');
-    const meta = [
-      displayValue(item && item.category, 'event'),
-      displayValue(item && item.type, 'unknown')
-    ].join(' - ');
+  function renderActivityPill(value, tone) {
+    const text = displayValue(value, '');
+
+    if (!text) {
+      return '';
+    }
 
     return [
-      `<li class="dashboard-activity dashboard-activity--${severity}">`,
-      `  <time>${escapeHtml(formatActivityTime(item && item.timestamp))}</time>`,
-      '  <span>',
-      `    <strong>${escapeHtml(message)}</strong>`,
-      `    <small>${escapeHtml(meta)}</small>`,
-      '  </span>',
+      `<span class="dashboard-activity-pill dashboard-activity-pill--${toClassName(tone || text)}">`,
+      escapeHtml(text),
+      '</span>'
+    ].join('');
+  }
+
+  function renderActivitySummary(items) {
+    const counts = items.reduce((summary, item) => {
+      const category = normalizeActivityCategory(item && item.category);
+      summary[category] = (summary[category] || 0) + 1;
+      return summary;
+    }, {});
+    const categories = ACTIVITY_CATEGORY_ORDER
+      .filter((category) => counts[category] > 0);
+
+    if (categories.length === 0) {
+      return '';
+    }
+
+    return [
+      '<div class="dashboard-activity-summary" aria-label="Activity event groups">',
+      ...categories.map((category) => [
+        `<span class="dashboard-activity-count dashboard-activity-count--${category}">`,
+        `  <strong>${counts[category]}</strong>`,
+        `  <span>${escapeHtml(ACTIVITY_CATEGORY_LABELS[category])}</span>`,
+        '</span>'
+      ].join('')),
+      '</div>'
+    ].join('');
+  }
+
+  function activityDetailText(value) {
+    if (Array.isArray(value)) {
+      return uniqueValues(value).join(', ');
+    }
+
+    if (value && typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+
+    return displayValue(value, '');
+  }
+
+  function renderActivityDetails(details) {
+    const entries = details && typeof details === 'object' && !Array.isArray(details)
+      ? Object.entries(details)
+      : [];
+    const normalized = entries
+      .map(([key, value]) => ({
+        key,
+        value: activityDetailText(value)
+      }))
+      .filter((entry) => entry.key && entry.value);
+
+    if (normalized.length === 0) {
+      return '';
+    }
+
+    return [
+      '<dl class="dashboard-activity-details">',
+      ...normalized.slice(0, 4).map((entry) => [
+        '  <div>',
+        `    <dt>${escapeHtml(entry.key)}</dt>`,
+        `    <dd>${escapeHtml(entry.value)}</dd>`,
+        '  </div>'
+      ].join('')),
+      normalized.length > 4
+        ? `  <p>${normalized.length - 4} more details</p>`
+        : '',
+      '</dl>'
+    ].join('');
+  }
+
+  function renderActivityArtifacts(item) {
+    const artifacts = uniqueValues([
+      item && item.artifact,
+      ...(Array.isArray(item && item.artifacts) ? item.artifacts : [])
+    ]);
+    const links = artifacts
+      .map((artifact) => renderArtifactLink(artifact))
+      .filter(Boolean);
+
+    if (links.length === 0) {
+      return '';
+    }
+
+    return [
+      '<div class="dashboard-activity-artifacts" aria-label="Activity artifacts">',
+      ...links,
+      '</div>'
+    ].join('');
+  }
+
+  function renderActivityItem(item) {
+    const severity = normalizeSeverity(item && item.severity);
+    const category = normalizeActivityCategory(item && item.category);
+    const message = displayValue(item && item.message, 'Activity recorded.');
+    const type = displayValue(item && item.type, 'unknown');
+    const unit = displayValue(item && item.unit, '');
+    const phase = displayValue(item && item.phase, '');
+    const dispatchPhase = displayValue(item && item.dispatch_phase, '');
+    const line = item && item.line ? `line ${item.line}` : '';
+
+    return [
+      `<li class="dashboard-activity dashboard-activity--${severity} dashboard-activity--category-${category}">`,
+      '  <div class="dashboard-activity-time">',
+      `    <time${formatTimestampAttribute(item && item.timestamp)}>${escapeHtml(formatActivityTimestamp(item && item.timestamp))}</time>`,
+      line ? `    <small>${escapeHtml(line)}</small>` : '',
+      '  </div>',
+      '  <div class="dashboard-activity-body">',
+      '    <div class="dashboard-activity-title-row">',
+      `      <strong>${escapeHtml(message)}</strong>`,
+      `      <code>${escapeHtml(type)}</code>`,
+      '    </div>',
+      '    <div class="dashboard-activity-meta">',
+      renderActivityPill(ACTIVITY_CATEGORY_LABELS[category], category),
+      renderActivityPill(severity, severity),
+      unit ? renderActivityPill(unit, 'unit') : '',
+      phase ? renderActivityPill(phase, 'phase') : '',
+      dispatchPhase ? renderActivityPill(dispatchPhase, 'dispatch-phase') : '',
+      '    </div>',
+      renderActivityDetails(item && item.details),
+      renderActivityArtifacts(item),
+      '  </div>',
       '</li>'
     ].join('');
   }
 
   function renderActivity(activity) {
-    const items = Array.isArray(activity) ? activity.slice(0, 6) : [];
+    const items = Array.isArray(activity) ? activity : [];
 
     if (items.length === 0) {
       return renderEmptyState(
@@ -1007,9 +1178,12 @@
     }
 
     return [
-      '<ol class="dashboard-activity-list">',
+      '<div class="dashboard-activity-feed">',
+      renderActivitySummary(items),
+      '<ol class="dashboard-activity-list" aria-label="Recent automation events">',
       ...items.map(renderActivityItem),
-      '</ol>'
+      '</ol>',
+      '</div>'
     ].join('');
   }
 
