@@ -371,6 +371,241 @@ function normalizeStatusToken(value) {
   return UNKNOWN;
 }
 
+function normalizeMarkdownHeader(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[`*_~]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function cleanMarkdownCell(value) {
+  return String(value || '')
+    .trim()
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\\\|/g, '|')
+    .replace(/[`*_~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseMarkdownTableLine(line) {
+  const trimmed = String(line || '').trim();
+
+  if (!trimmed.includes('|')) {
+    return null;
+  }
+
+  const cells = trimmed
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+
+  return cells.length > 1 ? cells : null;
+}
+
+function isMarkdownTableSeparator(cells) {
+  return cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s+/g, '')));
+}
+
+function parseMarkdownTableRows(content) {
+  const rows = [];
+  let headers = null;
+
+  for (const line of String(content || '').split(/\r?\n/)) {
+    const cells = parseMarkdownTableLine(line);
+
+    if (!cells) {
+      headers = null;
+      continue;
+    }
+
+    if (isMarkdownTableSeparator(cells)) {
+      continue;
+    }
+
+    if (!headers) {
+      headers = cells.map(normalizeMarkdownHeader);
+      continue;
+    }
+
+    const row = {};
+
+    for (let index = 0; index < headers.length; index += 1) {
+      row[headers[index]] = cleanMarkdownCell(cells[index] || '');
+    }
+
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function firstMarkdownRowValue(row, candidates) {
+  for (const candidate of candidates) {
+    const key = normalizeMarkdownHeader(candidate);
+
+    if (Object.prototype.hasOwnProperty.call(row, key)) {
+      return row[key];
+    }
+  }
+
+  return null;
+}
+
+function normalizeAcceptanceId(value) {
+  const match = String(value || '').toUpperCase().match(/\bAC-[0-9]+\b/);
+  return match ? match[0] : null;
+}
+
+function normalizeTaskId(value) {
+  const match = String(value || '').toUpperCase().match(/\b(?:S[0-9]+[-/])?(T[0-9]+)\b/);
+  return match ? match[1] : null;
+}
+
+function normalizeAcceptanceStatus(value) {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[✓✔✅]/g, ' pass ')
+    .replace(/[✗✕❌]/g, ' fail ')
+    .replace(/[`*_~{}]/g, ' ')
+    .replace(/[^a-z0-9\s-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return UNKNOWN;
+  }
+
+  const hasPass = /\b(pass|passed|complete|completed|success|successful)\b/.test(normalized);
+  const hasPartial = /\b(partial|partially)\b/.test(normalized);
+  const hasFail = /\b(fail|failed|failure|blocked)\b/.test(normalized);
+  const matchedKinds = [hasPass, hasPartial, hasFail].filter(Boolean).length;
+
+  if (matchedKinds !== 1) {
+    return UNKNOWN;
+  }
+
+  if (hasFail) {
+    return 'failed';
+  }
+
+  if (hasPartial) {
+    return 'partial';
+  }
+
+  return 'passed';
+}
+
+function createAcceptanceEvidenceEntry(options) {
+  return {
+    ac: options.ac,
+    task: options.task,
+    status: options.status,
+    evidence: options.evidence || '',
+    source: options.source,
+    source_type: options.sourceType
+  };
+}
+
+function parseAcceptanceEvidenceRows(content, options = {}) {
+  const entries = [];
+
+  for (const row of parseMarkdownTableRows(content)) {
+    const ac = normalizeAcceptanceId(firstMarkdownRowValue(row, [
+      'ac',
+      'acceptance criterion',
+      'acceptance criteria',
+      'criterion'
+    ]));
+    const status = normalizeAcceptanceStatus(firstMarkdownRowValue(row, [
+      'status',
+      'result'
+    ]));
+
+    if (!ac || status === UNKNOWN) {
+      continue;
+    }
+
+    const task = normalizeTaskId(firstMarkdownRowValue(row, [
+      'task',
+      'task id'
+    ])) || normalizeTaskId(options.defaultTask);
+
+    if (!task) {
+      continue;
+    }
+
+    entries.push(createAcceptanceEvidenceEntry({
+      ac,
+      task,
+      status,
+      evidence: firstMarkdownRowValue(row, [
+        'evidence',
+        'notes',
+        'details'
+      ]) || '',
+      source: options.source,
+      sourceType: options.sourceType
+    }));
+  }
+
+  return entries;
+}
+
+function parseAcceptanceEvidenceLines(content, options = {}) {
+  const entries = [];
+
+  for (const line of String(content || '').split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:[-*]\s*)?(AC-[0-9]+)\s*[:|-]\s*(.+?)\s*$/i);
+
+    if (!match) {
+      continue;
+    }
+
+    const status = normalizeAcceptanceStatus(match[2]);
+
+    if (status === UNKNOWN) {
+      continue;
+    }
+
+    const task = normalizeTaskId(options.defaultTask);
+
+    if (!task) {
+      continue;
+    }
+
+    entries.push(createAcceptanceEvidenceEntry({
+      ac: match[1].toUpperCase(),
+      task,
+      status,
+      evidence: cleanMarkdownCell(match[2]),
+      source: options.source,
+      sourceType: options.sourceType
+    }));
+  }
+
+  return entries;
+}
+
+function parseAcceptanceEvidence(content, options = {}) {
+  return [
+    ...parseAcceptanceEvidenceRows(content, options),
+    ...parseAcceptanceEvidenceLines(content, options)
+  ];
+}
+
+function acceptanceEvidenceKey(slice, task, ac) {
+  return [
+    String(slice || '').toUpperCase(),
+    String(task || '').toUpperCase(),
+    String(ac || '').toUpperCase()
+  ].join(':');
+}
+
 function summarizeTaskStatus(statuses) {
   const summary = {
     complete: 0,
@@ -589,6 +824,163 @@ function buildSliceProgress(model, gsdDir) {
   }
 
   model.progress.slices = sortById([...slices.values()]);
+}
+
+function parseTaskPlanFromArtifact(gsdDir, taskPlan) {
+  return parseTaskPlanXml(
+    readOptionalTextFile(path.join(gsdDir, taskPlan.fileName)),
+    {
+      expectedTaskId: taskPlan.taskId,
+      planPath: path.join(gsdDir, taskPlan.fileName)
+    }
+  );
+}
+
+function buildAcceptanceEvidenceMap(gsdDir, artifacts) {
+  const evidenceByKey = new Map();
+
+  for (const summaries of artifacts.summariesBySlice.values()) {
+    for (const summary of summaries) {
+      const entries = parseAcceptanceEvidence(
+        readOptionalTextFile(path.join(gsdDir, summary.fileName)),
+        {
+          defaultTask: summary.task,
+          source: summary.displayPath,
+          sourceType: 'summary'
+        }
+      );
+
+      for (const entry of entries) {
+        evidenceByKey.set(
+          acceptanceEvidenceKey(summary.slice, entry.task, entry.ac),
+          entry
+        );
+      }
+    }
+  }
+
+  for (const [slice, unify] of artifacts.unifiesBySlice.entries()) {
+    const entries = parseAcceptanceEvidence(
+      readOptionalTextFile(path.join(gsdDir, unify.fileName)),
+      {
+        source: unify.displayPath,
+        sourceType: 'unify'
+      }
+    );
+
+    for (const entry of entries) {
+      evidenceByKey.set(
+        acceptanceEvidenceKey(slice, entry.task, entry.ac),
+        entry
+      );
+    }
+  }
+
+  return evidenceByKey;
+}
+
+function collectAcceptanceCriteria(gsdDir, artifacts) {
+  const criteria = [];
+  const sliceIds = sortById([...artifacts.taskPlansBySlice.keys()].map((id) => ({ id })))
+    .map((item) => item.id);
+
+  for (const slice of sliceIds) {
+    const taskPlans = artifacts.taskPlansBySlice.get(slice) || [];
+
+    for (const taskPlan of taskPlans) {
+      const parsed = parseTaskPlanFromArtifact(gsdDir, taskPlan);
+
+      parsed.acceptance_criteria.forEach((criterion, index) => {
+        criteria.push({
+          slice,
+          task: taskPlan.task,
+          ac: criterion.id,
+          text: criterion.text,
+          index,
+          plan: taskPlan.displayPath
+        });
+      });
+    }
+  }
+
+  return criteria;
+}
+
+function evidenceForCriterion(evidenceByKey, criterion) {
+  return evidenceByKey.get(
+    acceptanceEvidenceKey(criterion.slice, criterion.task, criterion.ac)
+  ) || null;
+}
+
+function countAcceptanceCriteria(criteria, evidenceByKey) {
+  const counts = {
+    total: criteria.length,
+    passed: 0,
+    partial: 0,
+    failed: 0,
+    pending: 0
+  };
+
+  for (const criterion of criteria) {
+    const evidence = evidenceForCriterion(evidenceByKey, criterion);
+    const status = evidence ? evidence.status : 'pending';
+
+    if (Object.prototype.hasOwnProperty.call(counts, status)) {
+      counts[status] += 1;
+    } else {
+      counts.pending += 1;
+    }
+  }
+
+  return counts;
+}
+
+function resolveCurrentTaskContext(current) {
+  const taskPlanId = resolveCurrentTaskPlanId(current);
+  const match = String(taskPlanId || '').toUpperCase().match(/^(S[0-9]+)-(T[0-9]+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    slice: match[1],
+    task: match[2]
+  };
+}
+
+function annotateCurrentTaskAcceptanceCriteria(model, evidenceByKey) {
+  const context = resolveCurrentTaskContext(model.current);
+
+  if (!context) {
+    return;
+  }
+
+  model.current_task.acceptance_criteria = model.current_task.acceptance_criteria
+    .map((criterion) => {
+      const evidence = evidenceForCriterion(evidenceByKey, {
+        slice: context.slice,
+        task: context.task,
+        ac: criterion.id
+      });
+
+      return {
+        ...criterion,
+        status: evidence ? evidence.status : 'pending',
+        evidence: evidence ? evidence.evidence : '',
+        source: evidence ? evidence.source : null,
+        source_type: evidence ? evidence.source_type : null
+      };
+    });
+}
+
+function populateAcceptanceCriteriaProgress(model, gsdDir) {
+  const artifacts = discoverGsdArtifacts(gsdDir);
+  const evidenceByKey = buildAcceptanceEvidenceMap(gsdDir, artifacts);
+  const criteria = collectAcceptanceCriteria(gsdDir, artifacts);
+
+  model.progress.acceptance_criteria = countAcceptanceCriteria(criteria, evidenceByKey);
+  annotateCurrentTaskAcceptanceCriteria(model, evidenceByKey);
 }
 
 function describeCurrentUnit(current, includeTask = true) {
@@ -816,6 +1208,7 @@ function buildDashboardModel(projectRoot) {
   model.current.next_action = resolveNextAction(model);
   buildSliceProgress(model, gsdDir);
   populateCurrentTaskFromPlan(model, gsdDir);
+  populateAcceptanceCriteriaProgress(model, gsdDir);
 
   return model;
 }

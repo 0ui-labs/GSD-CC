@@ -328,6 +328,27 @@ function currentTaskPlanXml(options = {}) {
   const slice = options.slice || 'S01';
   const task = options.task || 'T01';
   const name = options.name || 'Dashboard parser task';
+  const acceptanceCriteria = options.acceptanceCriteria || [
+    {
+      id: 'AC-1',
+      lines: [
+        'Given a current task plan exists',
+        'When the dashboard model is built',
+        'Then current task details are populated'
+      ]
+    }
+  ];
+  const criteriaLines = [];
+
+  for (const criterion of acceptanceCriteria) {
+    criteriaLines.push(`    <ac id="${criterion.id}">`);
+
+    for (const line of criterion.lines) {
+      criteriaLines.push(`      ${line}`);
+    }
+
+    criteriaLines.push('    </ac>');
+  }
 
   return [
     `<task id="${slice}-${task}" type="auto">`,
@@ -340,11 +361,7 @@ function currentTaskPlanXml(options = {}) {
     '    Parser output is read-only dashboard data.',
     '  </risk>',
     '  <acceptance_criteria>',
-    '    <ac id="AC-1">',
-    '      Given a current task plan exists',
-    '      When the dashboard model is built',
-    '      Then current task details are populated',
-    '    </ac>',
+    ...criteriaLines,
     '  </acceptance_criteria>',
     '  <action>',
     '    1. Parse task plan XML',
@@ -396,12 +413,46 @@ function writeTaskSummary(projectRoot, slice, task, status = 'complete') {
   ].join('\n'));
 }
 
+function writeTaskSummaryWithAcResults(projectRoot, slice, task, rows, status = 'complete') {
+  writeProjectFile(projectRoot, `.gsd/${slice}-${task}-SUMMARY.md`, [
+    `# ${slice}/${task} — Summary`,
+    '',
+    '## Status',
+    status,
+    '',
+    '## Acceptance Criteria Results',
+    '',
+    '| AC | Status | Evidence |',
+    '|----|--------|----------|',
+    ...rows.map((row) => `| ${row.ac} | ${row.status} | ${row.evidence} |`),
+    ''
+  ].join('\n'));
+}
+
 function writeUnify(projectRoot, slice, status = 'complete') {
   writeProjectFile(projectRoot, `.gsd/${slice}-UNIFY.md`, [
     `# ${slice} UNIFY`,
     '',
     '## Status',
     status,
+    ''
+  ].join('\n'));
+}
+
+function writeUnifyWithAcResults(projectRoot, slice, rows, status = 'complete') {
+  writeProjectFile(projectRoot, `.gsd/${slice}-UNIFY.md`, [
+    `# ${slice} UNIFY`,
+    '',
+    '## Status',
+    status,
+    '',
+    '## Acceptance Criteria',
+    '',
+    '| AC | Task | Status | Evidence |',
+    '|----|------|--------|----------|',
+    ...rows.map((row) => (
+      `| ${row.ac} | ${row.task} | ${row.status} | ${row.evidence} |`
+    )),
     ''
   ].join('\n'));
 }
@@ -441,7 +492,11 @@ function testCurrentTaskPlanPopulatesCurrentTask() {
         'Given a current task plan exists',
         'When the dashboard model is built',
         'Then current task details are populated'
-      ].join('\n')
+      ].join('\n'),
+      status: 'pending',
+      evidence: '',
+      source: null,
+      source_type: null
     }
   ]);
   assert.deepStrictEqual(model.current_task.action, [
@@ -606,6 +661,149 @@ function testArtifactOnlySlicesAreIncludedWhenRoadmapIsMissing() {
   assert.strictEqual(model.progress.slices[0].artifacts.roadmap, null);
 }
 
+function testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: applying',
+    ''
+  ].join('\n'));
+
+  writeProjectFile(projectRoot, '.gsd/S01-T01-PLAN.xml', currentTaskPlanXml({
+    slice: 'S01',
+    task: 'T01',
+    name: 'Completed task with summary evidence',
+    acceptanceCriteria: [
+      {
+        id: 'AC-1',
+        lines: [
+          'Given summary evidence exists',
+          'When the read model parses it',
+          'Then the AC is marked passed'
+        ]
+      },
+      {
+        id: 'AC-2',
+        lines: [
+          'Given summary evidence is later reconciled',
+          'When UNIFY reports a stronger result',
+          'Then UNIFY evidence wins'
+        ]
+      }
+    ]
+  }));
+  writeProjectFile(projectRoot, '.gsd/S01-T02-PLAN.xml', currentTaskPlanXml({
+    slice: 'S01',
+    task: 'T02',
+    name: 'Current task with mixed AC evidence',
+    acceptanceCriteria: [
+      {
+        id: 'AC-3',
+        lines: [
+          'Given UNIFY evidence exists',
+          'When summary evidence is unavailable',
+          'Then the AC can be partial'
+        ]
+      },
+      {
+        id: 'AC-4',
+        lines: [
+          'Given failed task evidence exists',
+          'When the read model parses it',
+          'Then the AC is marked failed'
+        ]
+      },
+      {
+        id: 'AC-5',
+        lines: [
+          'Given only unknown evidence exists',
+          'When the read model cannot classify it',
+          'Then the AC remains pending'
+        ]
+      }
+    ]
+  }));
+
+  writeTaskSummaryWithAcResults(projectRoot, 'S01', 'T01', [
+    {
+      ac: 'AC-1',
+      status: 'Pass ✓',
+      evidence: 'dashboard-read-model.test.js passed'
+    },
+    {
+      ac: 'AC-2',
+      status: 'Partial',
+      evidence: 'summary was superseded by UNIFY'
+    }
+  ]);
+  writeTaskSummaryWithAcResults(projectRoot, 'S01', 'T02', [
+    {
+      ac: 'AC-4',
+      status: 'Fail ✗',
+      evidence: 'verification reported a regression'
+    },
+    {
+      ac: 'AC-5',
+      status: '{{PASS/PARTIAL/FAIL}}',
+      evidence: 'template placeholder is not evidence'
+    }
+  ]);
+  writeUnifyWithAcResults(projectRoot, 'S01', [
+    {
+      ac: 'AC-2',
+      task: 'T01',
+      status: 'Pass',
+      evidence: 'UNIFY confirmed the criterion'
+    },
+    {
+      ac: 'AC-3',
+      task: 'T02',
+      status: 'Partial',
+      evidence: 'UNIFY found follow-up work'
+    }
+  ]);
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.deepStrictEqual(model.progress.acceptance_criteria, {
+    total: 5,
+    passed: 2,
+    partial: 1,
+    failed: 1,
+    pending: 1
+  });
+  assert.deepStrictEqual(model.current_task.acceptance_criteria.map((criterion) => [
+    criterion.id,
+    criterion.status,
+    criterion.evidence,
+    criterion.source,
+    criterion.source_type
+  ]), [
+    [
+      'AC-3',
+      'partial',
+      'UNIFY found follow-up work',
+      '.gsd/S01-UNIFY.md',
+      'unify'
+    ],
+    [
+      'AC-4',
+      'failed',
+      'verification reported a regression',
+      '.gsd/S01-T02-SUMMARY.md',
+      'summary'
+    ],
+    [
+      'AC-5',
+      'pending',
+      '',
+      null,
+      null
+    ]
+  ]);
+}
+
 function testMalformedCurrentTaskPlanProducesWarning() {
   const projectRoot = createProjectWithState([
     'milestone: M001',
@@ -658,6 +856,7 @@ function run() {
   testCurrentTaskPlanPopulatesCurrentTask();
   testProgressDiscoversRoadmapSlicesAndArtifacts();
   testArtifactOnlySlicesAreIncludedWhenRoadmapIsMissing();
+  testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence();
   testMalformedCurrentTaskPlanProducesWarning();
   testRelativeProjectRootIsResolved();
 }
