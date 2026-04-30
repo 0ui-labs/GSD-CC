@@ -980,6 +980,82 @@ function createEvidenceModel() {
   };
 }
 
+function createAutomationCostModel() {
+  return {
+    project: {
+      name: 'Automation Cost Fixture',
+      project_type: 'application'
+    },
+    current: {
+      milestone: 'M007',
+      slice: 'S09',
+      task: 'T01',
+      phase: 'applying',
+      task_name: 'Build automation panel',
+      next_action: 'Review stopped automation state.'
+    },
+    automation: {
+      status: 'recovery-needed',
+      state: 'stopped',
+      scope: 'milestone',
+      unit: 'S09/T01',
+      pid: null,
+      started_at: '2026-04-29T08:00:00.000Z',
+      last_stopped_at: '2026-04-29T08:09:00.000Z',
+      last_stop_reason: 'budget_reached'
+    },
+    progress: {
+      acceptance_criteria: {
+        total: 0,
+        passed: 0,
+        pending: 0
+      },
+      slices: []
+    },
+    current_task: {
+      id: 'S09-T01',
+      name: 'Build automation panel',
+      risk: {
+        level: 'medium'
+      },
+      acceptance_criteria: []
+    },
+    attention: [],
+    activity: [],
+    costs: {
+      available: true,
+      source: '.gsd/COSTS.jsonl',
+      entries: 2,
+      total_tokens: 1500,
+      input_tokens: 1000,
+      output_tokens: 500,
+      cache_creation_input_tokens: 250,
+      cache_read_input_tokens: 900,
+      by_phase: [
+        {
+          phase: 'apply',
+          entries: 2,
+          total_tokens: 1500
+        }
+      ],
+      by_unit: [
+        {
+          unit: 'S09-T01',
+          entries: 2,
+          total_tokens: 1500
+        }
+      ],
+      latest: {
+        unit: 'S09-T01',
+        phase: 'apply',
+        model: 'claude-sonnet',
+        timestamp: '2026-04-29T08:08:00.000Z',
+        total_tokens: 700
+      }
+    }
+  };
+}
+
 function flushPromises() {
   return new Promise((resolve) => {
     setImmediate(resolve);
@@ -1043,6 +1119,11 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /Loading artifact/);
   assert.match(source, /Artifact missing/);
   assert.match(source, /Artifact request rejected/);
+  assert.match(source, /dashboard-automation-panel/);
+  assert.match(source, /dashboard-cost-panel/);
+  assert.match(source, /formatTokenCount/);
+  assert.match(source, /Cost and token usage/);
+  assert.match(source, /By phase/);
   assert.match(source, /Summary status/);
   assert.match(source, /Source artifacts/);
   assert.match(source, /Risk distribution/);
@@ -1174,6 +1255,7 @@ async function testEmptyModelRendersEmptyShellStates() {
   assert.match(root.innerHTML, /No log pointer yet/);
   assert.match(root.innerHTML, /No recent activity yet/);
   assert.match(root.innerHTML, /No attention items/);
+  assert.match(root.innerHTML, /No token data yet/);
 }
 
 async function testCurrentRunPanelRendersActiveOperationDetails() {
@@ -1657,6 +1739,68 @@ async function testEvidencePanelRendersReconciliationOutput() {
   assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FS08-UNIFY\.md/);
 }
 
+async function testAutomationAndCostPanelRendersDiagnostics() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: ''
+  };
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(createAutomationCostModel());
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  assert.match(root.innerHTML, /dashboard-automation-panel/);
+  assert.match(root.innerHTML, /Automation/);
+  assert.match(root.innerHTML, /State/);
+  assert.match(root.innerHTML, /stopped/);
+  assert.match(root.innerHTML, /recovery-needed/);
+  assert.match(root.innerHTML, /milestone/);
+  assert.match(root.innerHTML, /S09\/T01/);
+  assert.match(root.innerHTML, /Last stop/);
+  assert.match(root.innerHTML, /Stop reason/);
+  assert.match(root.innerHTML, /budget_reached/);
+  assert.match(root.innerHTML, /dashboard-cost-panel/);
+  assert.match(root.innerHTML, /Costs/);
+  assert.match(root.innerHTML, /total tokens/);
+  assert.match(root.innerHTML, /1\.5k/);
+  assert.match(root.innerHTML, /input tokens/);
+  assert.match(root.innerHTML, /output tokens/);
+  assert.match(root.innerHTML, /cache write/);
+  assert.match(root.innerHTML, /cache read/);
+  assert.match(root.innerHTML, /By phase/);
+  assert.match(root.innerHTML, /apply/);
+  assert.match(root.innerHTML, /By unit/);
+  assert.match(root.innerHTML, /S09-T01/);
+  assert.match(root.innerHTML, /claude-sonnet/);
+  assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FCOSTS\.jsonl/);
+}
+
 function dispatchArtifactClick(root, artifactPath, label) {
   let prevented = false;
   const artifactNode = {
@@ -1880,6 +2024,13 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-current-run-details/);
   assert.match(styles, /\.dashboard-current-run-activity--warning/);
   assert.match(styles, /\.dashboard-current-run-pointer-links/);
+  assert.match(styles, /\.dashboard-automation-panel/);
+  assert.match(styles, /\.dashboard-automation-summary/);
+  assert.match(styles, /\.dashboard-status-badge--stopped/);
+  assert.match(styles, /\.dashboard-cost-panel/);
+  assert.match(styles, /\.dashboard-cost-summary/);
+  assert.match(styles, /\.dashboard-cost-breakdown/);
+  assert.match(styles, /\.dashboard-cost-latest/);
   assert.match(styles, /\.dashboard-why-task-panel/);
   assert.match(styles, /\.dashboard-why-task-grid/);
   assert.match(styles, /\.dashboard-why-task-risk-badge--high/);
@@ -1933,6 +2084,7 @@ async function run() {
   await testSliceRoadmapRendersSelectableProgress();
   await testTaskDetailRendersSelectedTaskPlanData();
   await testEvidencePanelRendersReconciliationOutput();
+  await testAutomationAndCostPanelRendersDiagnostics();
   await testArtifactViewerFetchesAndRendersStates();
   await testStylesExposeConnectionStates();
 }

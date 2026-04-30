@@ -43,10 +43,13 @@ function assertStableEmptyShape(model) {
   ]);
   assert.deepStrictEqual(Object.keys(model.automation), [
     'status',
+    'state',
     'scope',
     'unit',
     'pid',
-    'started_at'
+    'started_at',
+    'last_stopped_at',
+    'last_stop_reason'
   ]);
   assert.deepStrictEqual(Object.keys(model.progress), [
     'slices',
@@ -71,7 +74,19 @@ function assertStableEmptyShape(model) {
     'approval_request',
     'recent_decisions'
   ]);
-  assert.deepStrictEqual(Object.keys(model.costs), ['available']);
+  assert.deepStrictEqual(Object.keys(model.costs), [
+    'available',
+    'source',
+    'entries',
+    'total_tokens',
+    'input_tokens',
+    'output_tokens',
+    'cache_creation_input_tokens',
+    'cache_read_input_tokens',
+    'by_phase',
+    'by_unit',
+    'latest'
+  ]);
 }
 
 function testMissingGsdReturnsFriendlyNoProjectModel() {
@@ -973,6 +988,7 @@ function testLiveAutoLockPopulatesAutomationState() {
   const model = buildDashboardModel(projectRoot);
 
   assert.strictEqual(model.automation.status, 'active');
+  assert.strictEqual(model.automation.state, 'active');
   assert.strictEqual(model.automation.scope, 'slice');
   assert.strictEqual(model.automation.unit, 'S01/T01');
   assert.strictEqual(model.automation.pid, process.pid);
@@ -998,6 +1014,7 @@ function testStaleAutoLockProducesTopAttentionItem() {
   const model = buildDashboardModel(projectRoot);
 
   assert.strictEqual(model.automation.status, 'stale');
+  assert.strictEqual(model.automation.state, 'stale');
   assert.strictEqual(model.automation.unit, 'S01/T01');
   assert.strictEqual(model.automation.pid, 99999999);
   assertTopAttention(model, 'auto-lock-stale', 'critical');
@@ -1028,6 +1045,7 @@ function testApprovalRequestProducesTopAttentionItem() {
   const model = buildDashboardModel(projectRoot);
 
   assert.strictEqual(model.automation.status, 'approval-required');
+  assert.strictEqual(model.automation.state, 'stopped');
   assert.strictEqual(model.automation.unit, 'S01/T02');
   assert.deepStrictEqual(model.evidence.approval_request, {
     slice: 'S01',
@@ -1100,7 +1118,10 @@ function testRecoveryProducesTopAttentionItem() {
   const model = buildDashboardModel(projectRoot);
 
   assert.strictEqual(model.automation.status, 'recovery-needed');
+  assert.strictEqual(model.automation.state, 'stopped');
   assert.strictEqual(model.automation.unit, 'S01/T01');
+  assert.strictEqual(model.automation.last_stopped_at, '2026-04-29T08:02:00Z');
+  assert.strictEqual(model.automation.last_stop_reason, 'dispatch_failed');
   assert.strictEqual(model.evidence.latest_recovery.reason, 'dispatch_failed');
   assert.strictEqual(model.evidence.latest_recovery.report, '.gsd/AUTO-RECOVERY.md');
   assert.deepStrictEqual(model.evidence.latest_recovery.uncommitted_files, [
@@ -1108,6 +1129,131 @@ function testRecoveryProducesTopAttentionItem() {
   ]);
   assertTopAttention(model, 'auto-recovery', 'critical');
   assert.match(model.attention[0].recommended_action, /Inspect the log/);
+}
+
+function testCostJournalPopulatesDashboardTotals() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: applying',
+    ''
+  ].join('\n'));
+  writeGsdJsonLines(projectRoot, 'COSTS.jsonl', [
+    JSON.stringify({
+      unit: 'S01-T01',
+      phase: 'plan',
+      model: 'claude-sonnet',
+      ts: '2026-04-29T08:00:00Z',
+      usage: {
+        input_tokens: 1000,
+        output_tokens: 200,
+        cache_creation_input_tokens: 50,
+        cache_read_input_tokens: 500
+      }
+    }),
+    JSON.stringify({
+      unit: 'S01-T02',
+      phase: 'apply',
+      model: 'claude-sonnet',
+      ts: '2026-04-29T08:05:00Z',
+      usage: {
+        input_tokens: 400,
+        output_tokens: 300
+      }
+    }),
+    JSON.stringify({
+      unit: 'S01-T02',
+      phase: 'apply',
+      model: 'claude-sonnet',
+      ts: '2026-04-29T08:06:00Z',
+      usage: {
+        input_tokens: '50',
+        output_tokens: '25',
+        cache_read_input_tokens: '100'
+      }
+    })
+  ]);
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.costs.available, true);
+  assert.strictEqual(model.costs.source, '.gsd/COSTS.jsonl');
+  assert.strictEqual(model.costs.entries, 3);
+  assert.strictEqual(model.costs.total_tokens, 1975);
+  assert.strictEqual(model.costs.input_tokens, 1450);
+  assert.strictEqual(model.costs.output_tokens, 525);
+  assert.strictEqual(model.costs.cache_creation_input_tokens, 50);
+  assert.strictEqual(model.costs.cache_read_input_tokens, 600);
+  assert.deepStrictEqual(model.costs.by_phase.map((item) => ({
+    phase: item.phase,
+    total_tokens: item.total_tokens,
+    entries: item.entries
+  })), [
+    {
+      phase: 'plan',
+      total_tokens: 1200,
+      entries: 1
+    },
+    {
+      phase: 'apply',
+      total_tokens: 775,
+      entries: 2
+    }
+  ]);
+  assert.deepStrictEqual(model.costs.by_unit.map((item) => ({
+    unit: item.unit,
+    total_tokens: item.total_tokens,
+    entries: item.entries
+  })), [
+    {
+      unit: 'S01-T01',
+      total_tokens: 1200,
+      entries: 1
+    },
+    {
+      unit: 'S01-T02',
+      total_tokens: 775,
+      entries: 2
+    }
+  ]);
+  assert.strictEqual(model.costs.latest.unit, 'S01-T02');
+  assert.strictEqual(model.costs.latest.phase, 'apply');
+  assert.strictEqual(model.costs.latest.total_tokens, 75);
+}
+
+function testMalformedCostJournalLinesProduceWarning() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T02',
+    'phase: applying',
+    ''
+  ].join('\n'));
+  writeGsdJsonLines(projectRoot, 'COSTS.jsonl', [
+    '{not-json',
+    JSON.stringify(['not', 'a', 'cost']),
+    JSON.stringify({
+      unit: 'S01-T02',
+      phase: 'apply',
+      usage: {
+        input_tokens: 10,
+        output_tokens: 5
+      }
+    })
+  ]);
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.strictEqual(model.costs.available, true);
+  assert.strictEqual(model.costs.total_tokens, 15);
+
+  const warning = model.attention.find((item) => item.id === 'costs-jsonl-invalid');
+  assert.ok(warning, 'expected malformed cost journal warning');
+  assert.strictEqual(warning.severity, 'warning');
+  assert.strictEqual(warning.source, '.gsd/COSTS.jsonl');
+  assert.match(warning.message, /Ignored 2 malformed cost lines/);
+  assert.match(warning.recommended_action, /line 1/);
 }
 
 function testBlockedAndFailedPhasesProduceAttentionItems() {
@@ -1334,6 +1480,8 @@ function run() {
   testApprovalRequestProducesTopAttentionItem();
   testAttentionItemsSortBySeverity();
   testRecoveryProducesTopAttentionItem();
+  testCostJournalPopulatesDashboardTotals();
+  testMalformedCostJournalLinesProduceWarning();
   testBlockedAndFailedPhasesProduceAttentionItems();
   testApplyCompleteWithoutUnifyProducesTopAttentionItem();
   testEventJournalPopulatesRecentActivity();

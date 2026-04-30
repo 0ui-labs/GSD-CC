@@ -61,6 +61,13 @@ body {
 .dashboard-current-run-details,
 .dashboard-current-run-activity,
 .dashboard-current-run-pointer,
+.dashboard-automation-panel,
+.dashboard-automation-summary,
+.dashboard-cost-panel,
+.dashboard-cost-summary,
+.dashboard-cost-breakdown,
+.dashboard-cost-latest,
+.dashboard-cost-artifact,
 .dashboard-why-task-panel,
 .dashboard-why-task-header,
 .dashboard-why-task-block,
@@ -396,6 +403,7 @@ h3 {
 
 .dashboard-status-badge--approval-required,
 .dashboard-status-badge--recovery-needed,
+.dashboard-status-badge--stopped,
 .dashboard-status-badge--stale,
 .dashboard-status-badge--blocked {
   border-left-color: var(--dashboard-warning);
@@ -540,6 +548,91 @@ h3 {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+}
+
+.dashboard-automation-panel,
+.dashboard-cost-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-automation-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dashboard-cost-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dashboard-cost-summary .dashboard-metric {
+  padding: 10px;
+  background: var(--dashboard-surface);
+}
+
+.dashboard-cost-summary .dashboard-metric strong {
+  font-size: 1.05rem;
+}
+
+.dashboard-cost-latest {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--dashboard-soft-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-quiet);
+}
+
+.dashboard-cost-breakdown {
+  display: grid;
+  gap: 8px;
+}
+
+.dashboard-cost-breakdown h4 {
+  margin: 0;
+  color: var(--dashboard-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-cost-breakdown ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-cost-breakdown li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 7px 8px;
+  border: 1px solid var(--dashboard-soft-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-cost-breakdown span,
+.dashboard-cost-breakdown strong {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-cost-breakdown span {
+  color: var(--dashboard-muted);
+  font-size: 0.82rem;
+}
+
+.dashboard-cost-artifact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .dashboard-metrics {
@@ -2181,6 +2274,8 @@ h3 {
   .dashboard-artifact-meta,
   .dashboard-current-run-panel,
   .dashboard-current-run-details,
+  .dashboard-automation-summary,
+  .dashboard-cost-summary,
   .dashboard-why-task-grid {
     grid-template-columns: 1fr;
   }

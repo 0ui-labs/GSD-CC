@@ -215,6 +215,24 @@
     return `${seconds}s`;
   }
 
+  function formatTokenCount(value) {
+    const count = Number(value);
+
+    if (!Number.isFinite(count) || count <= 0) {
+      return '0';
+    }
+
+    if (count >= 1000000) {
+      return `${(count / 1000000).toFixed(1)}M`;
+    }
+
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1)}k`;
+    }
+
+    return String(Math.floor(count));
+  }
+
   function normalizeSeverity(value) {
     const severity = toClassName(value);
 
@@ -2355,13 +2373,127 @@
     ].join('');
   }
 
+  function resolveAutomationState(automation) {
+    const state = displayValue(automation && automation.state, '');
+
+    if (['active', 'stale', 'stopped', 'inactive'].includes(state)) {
+      return state;
+    }
+
+    const status = displayValue(automation && automation.status, 'inactive');
+
+    if (status === 'active' || status === 'stale') {
+      return status;
+    }
+
+    if (status === 'approval-required' || status === 'recovery-needed') {
+      return 'stopped';
+    }
+
+    return 'inactive';
+  }
+
   function renderAutomation(automation) {
+    const safeAutomation = automation || {};
+    const state = resolveAutomationState(safeAutomation);
+
     return [
-      '<dl class="dashboard-fields dashboard-fields--stacked">',
-      renderField('Status', automation.status),
-      renderField('Scope', automation.scope),
-      renderField('Unit', automation.unit || 'none'),
-      '  </dl>'
+      '<section class="dashboard-automation-panel" aria-label="Automation state">',
+      '  <div class="dashboard-automation-summary">',
+      renderStatusBadge('State', state, {
+        tone: state
+      }),
+      renderStatusBadge('Status', safeAutomation.status, {
+        fallback: 'inactive',
+        tone: safeAutomation.status
+      }),
+      '  </div>',
+      '  <dl class="dashboard-fields dashboard-fields--stacked">',
+      renderField('Scope', safeAutomation.scope),
+      renderField('Unit', safeAutomation.unit || 'none'),
+      renderField('PID', safeAutomation.pid || 'none'),
+      renderField(
+        'Started',
+        formatModelTime(safeAutomation.started_at) || 'not running'
+      ),
+      renderField(
+        'Last stop',
+        formatModelTime(safeAutomation.last_stopped_at) || 'none'
+      ),
+      renderField('Stop reason', safeAutomation.last_stop_reason || 'none'),
+      '  </dl>',
+      '</section>'
+    ].join('');
+  }
+
+  function renderCostGroupList(title, groups, key) {
+    const items = Array.isArray(groups) ? groups : [];
+
+    if (items.length === 0) {
+      return '';
+    }
+
+    return [
+      '<div class="dashboard-cost-breakdown">',
+      `  <h4>${escapeHtml(title)}</h4>`,
+      '  <ol>',
+      ...items.slice(0, 4).map((item) => [
+        '    <li>',
+        `      <span>${escapeHtml(displayValue(item && item[key], 'unknown'))}</span>`,
+        `      <strong>${escapeHtml(formatTokenCount(item && item.total_tokens))}</strong>`,
+        '    </li>'
+      ].join('')),
+      '  </ol>',
+      '</div>'
+    ].join('');
+  }
+
+  function renderCostLatest(latest) {
+    if (!latest) {
+      return '';
+    }
+
+    return [
+      '<dl class="dashboard-cost-latest">',
+      renderDetail('Latest unit', latest.unit),
+      renderDetail('Latest phase', latest.phase),
+      renderDetail('Latest model', latest.model),
+      renderDetail('Latest at', formatModelTime(latest.timestamp)),
+      '</dl>'
+    ].join('');
+  }
+
+  function renderCosts(costs) {
+    const safeCosts = costs || {};
+
+    if (!safeCosts.available) {
+      return [
+        '<section class="dashboard-cost-panel" aria-label="Cost and token usage">',
+        renderEmptyState('No token data yet', 'COSTS.jsonl has no dashboard data.'),
+        '</section>'
+      ].join('');
+    }
+
+    return [
+      '<section class="dashboard-cost-panel" aria-label="Cost and token usage">',
+      '  <div class="dashboard-cost-summary">',
+      renderMetric('total tokens', formatTokenCount(safeCosts.total_tokens)),
+      renderMetric('input tokens', formatTokenCount(safeCosts.input_tokens)),
+      renderMetric('output tokens', formatTokenCount(safeCosts.output_tokens)),
+      renderMetric(
+        'cache write',
+        formatTokenCount(safeCosts.cache_creation_input_tokens)
+      ),
+      renderMetric('cache read', formatTokenCount(safeCosts.cache_read_input_tokens)),
+      renderMetric('entries', safeCosts.entries),
+      '  </div>',
+      renderCostLatest(safeCosts.latest),
+      renderCostGroupList('By phase', safeCosts.by_phase, 'phase'),
+      renderCostGroupList('By unit', safeCosts.by_unit, 'unit'),
+      '  <div class="dashboard-cost-artifact">',
+      renderArtifactLink(safeCosts.source, 'COSTS.jsonl'),
+      '  </div>',
+      '</section>'
     ].join('');
   }
 
@@ -2411,6 +2543,10 @@
       '  <section class="dashboard-context-section">',
       renderRegionHeader('Automation', ''),
       renderAutomation(automation),
+      '  </section>',
+      '  <section class="dashboard-context-section">',
+      renderRegionHeader('Costs', ''),
+      renderCosts(model.costs),
       '  </section>',
       '  <section class="dashboard-context-section">',
       renderRegionHeader('Project', ''),

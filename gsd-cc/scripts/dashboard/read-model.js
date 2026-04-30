@@ -31,7 +31,9 @@ const ATTENTION_SEVERITY_RANK = new Map([
   ['info', 2]
 ]);
 const EVENT_SOURCE_PATH = '.gsd/events.jsonl';
+const COST_SOURCE_PATH = '.gsd/COSTS.jsonl';
 const DEFAULT_ACTIVITY_LIMIT = 50;
+const COST_GROUP_LIMIT = 8;
 const EVENT_CATEGORY_BY_TYPE = new Map([
   ['auto_started', 'lifecycle'],
   ['auto_finished', 'lifecycle'],
@@ -84,6 +86,12 @@ const EVENT_DETAIL_EXCLUDE_KEYS = new Set([
   'message',
   ...EVENT_ARTIFACT_KEYS
 ]);
+const COST_TOKEN_FIELDS = [
+  'input_tokens',
+  'output_tokens',
+  'cache_creation_input_tokens',
+  'cache_read_input_tokens'
+];
 const RISK_LEVELS = ['low', 'medium', 'high'];
 
 function normalizeProjectRoot(projectRoot) {
@@ -1719,6 +1727,244 @@ function createEventJournalAttention(warnings) {
   };
 }
 
+function createEmptyCostsModel() {
+  return {
+    available: false,
+    source: null,
+    entries: 0,
+    total_tokens: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+    by_phase: [],
+    by_unit: [],
+    latest: null
+  };
+}
+
+function normalizeTokenCount(value) {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+
+  return Math.floor(parsed);
+}
+
+function costUsageTotals(usage) {
+  const totals = {};
+
+  for (const field of COST_TOKEN_FIELDS) {
+    totals[field] = normalizeTokenCount(usage && usage[field]);
+  }
+
+  totals.total_tokens = totals.input_tokens + totals.output_tokens;
+
+  return totals;
+}
+
+function addCostTotals(target, usage) {
+  for (const field of COST_TOKEN_FIELDS) {
+    target[field] += usage[field];
+  }
+
+  target.total_tokens += usage.total_tokens;
+}
+
+function normalizeCostRecord(data, lineNumber, order) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return {
+      warning: {
+        line: lineNumber,
+        reason: 'Expected a JSON object.'
+      }
+    };
+  }
+
+  const usage = costUsageTotals(data.usage || {});
+  const record = {
+    id: `COSTS.jsonl:${lineNumber}`,
+    unit: eventStringValue(data.unit) || UNKNOWN,
+    phase: eventStringValue(data.phase) || UNKNOWN,
+    model: eventStringValue(data.model),
+    timestamp: eventStringValue(data.ts) || eventStringValue(data.timestamp),
+    line: lineNumber,
+    source: COST_SOURCE_PATH,
+    ...usage
+  };
+
+  return {
+    entry: {
+      record,
+      order,
+      sortTime: eventTimestampMs(record.timestamp)
+    }
+  };
+}
+
+function compareCostEntries(left, right) {
+  const leftTime = left.sortTime === null ? -Infinity : left.sortTime;
+  const rightTime = right.sortTime === null ? -Infinity : right.sortTime;
+
+  if (leftTime !== rightTime) {
+    return rightTime - leftTime;
+  }
+
+  return right.order - left.order;
+}
+
+function ensureCostGroup(groups, key, label) {
+  if (!groups.has(key)) {
+    groups.set(key, {
+      [label]: key,
+      entries: 0,
+      total_tokens: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0
+    });
+  }
+
+  return groups.get(key);
+}
+
+function sortedCostGroups(groups) {
+  return [...groups.values()]
+    .sort((left, right) => {
+      if (left.total_tokens !== right.total_tokens) {
+        return right.total_tokens - left.total_tokens;
+      }
+
+      return compareIds(left.phase || left.unit, right.phase || right.unit);
+    })
+    .slice(0, COST_GROUP_LIMIT);
+}
+
+function summarizeCostRecords(records) {
+  const costs = createEmptyCostsModel();
+  const phaseGroups = new Map();
+  const unitGroups = new Map();
+
+  if (records.length === 0) {
+    return costs;
+  }
+
+  costs.available = true;
+  costs.source = COST_SOURCE_PATH;
+  costs.entries = records.length;
+
+  for (const record of records) {
+    addCostTotals(costs, record);
+
+    const phase = ensureCostGroup(phaseGroups, record.phase, 'phase');
+    phase.entries += 1;
+    addCostTotals(phase, record);
+
+    const unit = ensureCostGroup(unitGroups, record.unit, 'unit');
+    unit.entries += 1;
+    addCostTotals(unit, record);
+  }
+
+  costs.by_phase = sortedCostGroups(phaseGroups);
+  costs.by_unit = sortedCostGroups(unitGroups);
+  costs.latest = records
+    .map((record, order) => ({
+      record,
+      order,
+      sortTime: eventTimestampMs(record.timestamp)
+    }))
+    .sort(compareCostEntries)[0].record;
+
+  return costs;
+}
+
+function parseCostJournal(gsdDir) {
+  const costsPath = path.join(gsdDir, 'COSTS.jsonl');
+  const warnings = [];
+  const entries = [];
+
+  if (!hasFile(costsPath)) {
+    return {
+      costs: createEmptyCostsModel(),
+      warnings
+    };
+  }
+
+  let content = '';
+
+  try {
+    content = fs.readFileSync(costsPath, 'utf8');
+  } catch (error) {
+    return {
+      costs: createEmptyCostsModel(),
+      warnings: [{
+        line: null,
+        reason: error && error.message ? error.message : 'Could not read costs journal.'
+      }]
+    };
+  }
+
+  String(content).split(/\r?\n/).forEach((line, index) => {
+    const lineNumber = index + 1;
+
+    if (!line.trim()) {
+      return;
+    }
+
+    let data;
+
+    try {
+      data = JSON.parse(line);
+    } catch (error) {
+      warnings.push({
+        line: lineNumber,
+        reason: error && error.message ? error.message : 'Could not parse JSON.'
+      });
+      return;
+    }
+
+    const result = normalizeCostRecord(data, lineNumber, index);
+
+    if (result.warning) {
+      warnings.push(result.warning);
+      return;
+    }
+
+    entries.push(result.entry);
+  });
+
+  return {
+    costs: summarizeCostRecords(entries.map((entry) => entry.record)),
+    warnings
+  };
+}
+
+function createCostJournalAttention(warnings) {
+  const count = warnings.length;
+  const firstWarning = warnings[0] || {};
+  const lineSuffix = firstWarning.line ? ` line ${firstWarning.line}` : '';
+  const plural = count === 1 ? 'line' : 'lines';
+
+  return {
+    id: 'costs-jsonl-invalid',
+    severity: 'warning',
+    title: 'Cost journal has unreadable lines',
+    message: `Ignored ${count} malformed cost ${plural} in ${COST_SOURCE_PATH}.`,
+    source: COST_SOURCE_PATH,
+    recommended_action: [
+      `Repair ${COST_SOURCE_PATH}${lineSuffix}:`,
+      firstWarning.reason || 'invalid cost data'
+    ].join(' ')
+  };
+}
+
 function populateActivity(model, gsdDir) {
   const journal = parseEventJournal(gsdDir);
 
@@ -1727,6 +1973,16 @@ function populateActivity(model, gsdDir) {
 
   if (journal.warnings.length > 0) {
     addAttentionItem(model, createEventJournalAttention(journal.warnings));
+  }
+}
+
+function populateCosts(model, gsdDir) {
+  const journal = parseCostJournal(gsdDir);
+
+  model.costs = journal.costs;
+
+  if (journal.warnings.length > 0) {
+    addAttentionItem(model, createCostJournalAttention(journal.warnings));
   }
 }
 
@@ -1867,6 +2123,7 @@ function applyLockAutomationState(model, lock) {
   const live = Boolean(lock.data && isPidRunning(pid));
 
   model.automation.status = live ? 'active' : 'stale';
+  model.automation.state = live ? 'active' : 'stale';
   model.automation.unit = lock.data
     ? nullableKnownValue(lock.data.unit)
     : null;
@@ -1892,6 +2149,7 @@ function applyApprovalAutomationState(model, approvalRequest, hasLock) {
 
   if (!hasLock) {
     model.automation.status = 'approval-required';
+    model.automation.state = 'stopped';
     model.automation.unit = approvalRequest.unit;
   }
 
@@ -1911,9 +2169,12 @@ function applyApprovalAutomationState(model, approvalRequest, hasLock) {
 
 function applyRecoveryAutomationState(model, recovery, hasLiveLock, hasLock, hasApproval) {
   model.evidence.latest_recovery = recovery;
+  model.automation.last_stopped_at = recovery.stopped_at;
+  model.automation.last_stop_reason = recovery.reason;
 
   if (!hasLock && !hasApproval) {
     model.automation.status = 'recovery-needed';
+    model.automation.state = 'stopped';
     model.automation.unit = recovery.unit;
     model.automation.started_at = recovery.started_at;
   }
@@ -1940,6 +2201,7 @@ function populateAutomationAndEvidence(model, gsdDir) {
   if (lock.exists) {
     if (lock.error) {
       model.automation.status = 'stale';
+      model.automation.state = 'stale';
       addAttentionItem(model, createJsonParseAttention('auto.lock', lock.error));
     } else {
       applyLockAutomationState(model, lock);
@@ -2059,10 +2321,13 @@ function createEmptyDashboardModel(projectRoot, options = {}) {
     attention: gsdExists ? [] : [createNoProjectAttentionItem()],
     automation: {
       status: 'inactive',
+      state: 'inactive',
       scope: UNKNOWN,
       unit: null,
       pid: null,
-      started_at: null
+      started_at: null,
+      last_stopped_at: null,
+      last_stop_reason: null
     },
     progress: {
       slices: [],
@@ -2082,9 +2347,7 @@ function createEmptyDashboardModel(projectRoot, options = {}) {
       approval_request: null,
       recent_decisions: []
     },
-    costs: {
-      available: false
-    }
+    costs: createEmptyCostsModel()
   };
 }
 
@@ -2144,6 +2407,7 @@ function buildDashboardModel(projectRoot) {
   );
   populateAutomationAndEvidence(model, gsdDir);
   populateActivity(model, gsdDir);
+  populateCosts(model, gsdDir);
   model.current.next_action = resolveNextAction(model);
   buildSliceProgress(model, gsdDir);
   populateLatestUnify(model, gsdDir);
