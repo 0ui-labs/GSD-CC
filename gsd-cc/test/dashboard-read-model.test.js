@@ -511,7 +511,7 @@ function writeUnifyWithEvidence(projectRoot, slice) {
     '',
     '| Risk | Source | Impact | Mitigation |',
     '|------|--------|--------|------------|',
-    '| Parser misses unusual markdown | UNIFY parser | Some rows may be hidden | Leave raw artifact link visible |',
+    '| Parser misses unusual markdown | UNIFY parser | Some rows may be hidden | Leave raw artifact \\| link visible |',
     '',
     '## Risk and Approval',
     '',
@@ -948,7 +948,7 @@ function testLatestUnifyEvidencePopulatesModel() {
       risk: 'Parser misses unusual markdown',
       source: 'UNIFY parser',
       impact: 'Some rows may be hidden',
-      mitigation: 'Leave raw artifact link visible'
+      mitigation: 'Leave raw artifact | link visible'
     }
   ]);
   assert.deepStrictEqual(latestUnify.high_risk_approvals, [

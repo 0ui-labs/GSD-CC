@@ -2782,10 +2782,9 @@
 
   function handleEventState(event) {
     try {
+      app.connection = 'connected';
       setModel(JSON.parse(event.data));
       stopPolling();
-      app.connection = 'connected';
-      render();
     } catch (_error) {
       app.error = 'Live dashboard event could not be read.';
       render();

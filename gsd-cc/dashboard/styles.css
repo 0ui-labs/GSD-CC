@@ -12,6 +12,7 @@
   --dashboard-danger: #b91c1c;
   --dashboard-info: #2563eb;
   --dashboard-radius: 8px;
+
   color-scheme: light;
 }
 
@@ -1178,7 +1179,7 @@ h3 {
 
 .dashboard-task-detail-badge--pending,
 .dashboard-task-detail-badge--medium {
-  border-left-color: var(--dashboard-info);
+  border-left-color: var(--dashboard-warning);
 }
 
 .dashboard-task-detail-badge--blocked {
@@ -1258,7 +1259,7 @@ h3 {
 
 .dashboard-task-detail-list code {
   font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.82rem;
 }
 
@@ -1684,7 +1685,7 @@ h3 {
 
 .dashboard-why-task-list code {
   font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.82rem;
 }
 
@@ -1875,7 +1876,7 @@ h3 {
   color: var(--dashboard-muted);
   background: var(--dashboard-quiet);
   font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.72rem;
   overflow-wrap: anywhere;
 }
@@ -2115,7 +2116,7 @@ h3 {
   margin-top: 6px;
   color: var(--dashboard-muted);
   font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.78rem;
   overflow-wrap: anywhere;
 }
@@ -2171,7 +2172,7 @@ h3 {
 
 .dashboard-artifact-content code {
   font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.82rem;
   line-height: 1.5;
 }

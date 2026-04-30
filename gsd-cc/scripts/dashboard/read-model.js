@@ -533,13 +533,36 @@ function parseMarkdownTableLine(line) {
     return null;
   }
 
-  const cells = trimmed
-    .replace(/^\|/, '')
-    .replace(/\|$/, '')
-    .split('|')
-    .map((cell) => cell.trim());
+  const cells = [];
+  let cell = '';
+  let escaped = false;
 
-  return cells.length > 1 ? cells : null;
+  for (const char of trimmed) {
+    if (char === '|' && !escaped) {
+      cells.push(cell);
+      cell = '';
+      continue;
+    }
+
+    cell += char;
+    escaped = char === '\\' && !escaped;
+    if (char !== '\\') {
+      escaped = false;
+    }
+  }
+
+  cells.push(cell);
+
+  if (cells[0] === '') {
+    cells.shift();
+  }
+  if (cells[cells.length - 1] === '') {
+    cells.pop();
+  }
+
+  const normalizedCells = cells.map((value) => value.trim());
+
+  return normalizedCells.length > 1 ? normalizedCells : null;
 }
 
 function isMarkdownTableSeparator(cells) {
