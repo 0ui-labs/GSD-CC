@@ -2049,11 +2049,14 @@ h3 {
   border-radius: var(--dashboard-radius);
   color: var(--dashboard-accent);
   background: var(--dashboard-surface);
+  font-family: inherit;
   font-size: 0.8rem;
   font-weight: 700;
   line-height: 1.3;
   overflow-wrap: anywhere;
+  text-align: left;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .dashboard-artifact-link:hover,
@@ -2063,6 +2066,11 @@ h3 {
 
 .dashboard-artifact-link--plain {
   color: var(--dashboard-muted);
+  cursor: default;
+}
+
+.dashboard-artifact-link--rejected {
+  color: var(--dashboard-warning);
 }
 
 .dashboard-artifact-backdrop {

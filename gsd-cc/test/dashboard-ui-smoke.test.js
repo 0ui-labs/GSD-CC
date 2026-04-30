@@ -1997,11 +1997,14 @@ async function testArtifactViewerFetchesAndRendersStates() {
   assert.match(root.innerHTML, /Artifact not found/);
   assert.match(root.innerHTML, /\.gsd\/MISSING\.md/);
 
+  const fetchCountBeforeRejectedArtifact = fetchCalls.length;
+
   dispatchArtifactClick(root, '.gsd/../SECRET.md', 'Rejected report');
   await flushPromises();
 
   assert.match(root.innerHTML, /Artifact request rejected/);
   assert.match(root.innerHTML, /Artifact path must stay inside \.gsd\//);
+  assert.strictEqual(fetchCalls.length, fetchCountBeforeRejectedArtifact);
 
   dispatchArtifactClose(root);
 
@@ -2062,6 +2065,7 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-artifact-backdrop/);
   assert.match(styles, /\.dashboard-artifact-content/);
   assert.match(styles, /\.dashboard-artifact-state--rejected/);
+  assert.match(styles, /\.dashboard-artifact-link--rejected/);
   assert.match(styles, /max-height:\s*min\(680px,\s*72vh\)/);
   assert.match(styles, /overflow-y:\s*auto/);
   assert.match(styles, /\.dashboard-artifact-link/);

@@ -270,14 +270,52 @@
       .map((entry) => entry.item);
   }
 
-  function artifactHref(source) {
+  function normalizeArtifactPath(source) {
     const path = displayValue(source, '');
 
-    if (!path || !path.startsWith('.gsd/')) {
+    if (!path) {
+      return {
+        error: 'Artifact path is required.'
+      };
+    }
+
+    const normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/');
+
+    if (
+      normalized.includes('\0')
+      || normalized.startsWith('/')
+      || /^[A-Za-z]:\//.test(normalized)
+    ) {
+      return {
+        error: 'Artifact path must stay inside .gsd/.'
+      };
+    }
+
+    if (!normalized.startsWith('.gsd/') || normalized === '.gsd/') {
+      return {
+        error: 'Artifact path must point to a file inside .gsd/.'
+      };
+    }
+
+    if (normalized.split('/').some((segment) => segment === '..')) {
+      return {
+        error: 'Artifact path must stay inside .gsd/.'
+      };
+    }
+
+    return {
+      path: normalized
+    };
+  }
+
+  function artifactHref(source) {
+    const normalized = normalizeArtifactPath(source);
+
+    if (normalized.error) {
       return '';
     }
 
-    return `/api/artifact?path=${encodeURIComponent(path)}`;
+    return `/api/artifact?path=${encodeURIComponent(normalized.path)}`;
   }
 
   function renderArtifactLink(source, label) {
@@ -289,8 +327,19 @@
 
     const text = label || path;
     const href = artifactHref(path);
+    const normalized = normalizeArtifactPath(path);
 
     if (!href) {
+      if (path.replace(/\\/g, '/').startsWith('.gsd/') && normalized.error) {
+        return [
+          '<button type="button" class="dashboard-artifact-link dashboard-artifact-link--rejected"',
+          ` data-dashboard-artifact-path="${escapeHtml(path)}"`,
+          ` data-dashboard-artifact-label="${escapeHtml(text)}">`,
+          escapeHtml(text),
+          '</button>'
+        ].join('');
+      }
+
       return [
         '<span class="dashboard-artifact-link dashboard-artifact-link--plain">',
         escapeHtml(text),
@@ -354,9 +403,9 @@
   }
 
   function openArtifactViewer(path, label) {
-    const href = artifactHref(path);
+    const normalized = normalizeArtifactPath(path);
 
-    if (!href) {
+    if (!path) {
       return Promise.resolve();
     }
 
@@ -377,6 +426,16 @@
       message: 'Loading artifact.'
     });
 
+    if (normalized.error) {
+      setArtifactViewer({
+        content: '',
+        errorCode: 'invalid_artifact_path',
+        status: 'rejected',
+        message: normalized.error
+      });
+      return Promise.resolve();
+    }
+
     if (typeof fetch !== 'function') {
       setArtifactViewer({
         status: 'error',
@@ -384,6 +443,8 @@
       });
       return Promise.resolve();
     }
+
+    const href = `/api/artifact?path=${encodeURIComponent(normalized.path)}`;
 
     return fetch(href, {
       cache: 'no-store',
