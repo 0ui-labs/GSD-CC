@@ -43,6 +43,7 @@ function makeEnv(homeDir, binDir) {
 
 function assertInstalledAssets(claudeBase) {
   assertPathExists(path.join(claudeBase, 'skills', 'gsd-cc', 'SKILL.md'));
+  assertPathExists(path.join(claudeBase, 'skills', 'dashboard', 'SKILL.md'));
   assertPathExists(path.join(claudeBase, 'hooks', 'gsd-cc', 'gsd-boundary-guard.sh'));
   assertPathExists(path.join(claudeBase, 'templates', 'STATE.md'));
   assertPathExists(path.join(claudeBase, 'templates', 'STATE_MACHINE.json'));
@@ -60,6 +61,7 @@ function assertManifest(claudeBase, installMode) {
   assert.strictEqual(manifest.source, 'gsd-cc');
   assert.strictEqual(manifest.installMode, installMode);
   assert.ok(manifest.files.includes(path.join('skills', 'gsd-cc', 'SKILL.md')));
+  assert.ok(manifest.files.includes(path.join('skills', 'dashboard', 'SKILL.md')));
   assert.ok(manifest.files.includes(path.join('hooks', 'gsd-cc', 'gsd-boundary-guard.sh')));
   assert.ok(manifest.files.includes(path.join('scripts', 'validate-plan.js')));
   assert.ok(manifest.files.includes(path.join('templates', 'STATE.md')));
