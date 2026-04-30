@@ -149,6 +149,47 @@ approval_grant_exists() {
   return 1
 }
 
+approval_record_exists_for_task() {
+  local slice="$1"
+  local task="$2"
+  local line
+  local slice_pattern
+  local task_pattern
+
+  [[ -f "$GSD_DIR/APPROVALS.jsonl" ]] || return 1
+
+  slice_pattern=$(json_value_pattern "$slice")
+  task_pattern=$(json_value_pattern "$task")
+
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    if printf '%s\n' "$line" | grep -Eq "\"slice\"[[:space:]]*:[[:space:]]*\"$slice_pattern\"" &&
+       printf '%s\n' "$line" | grep -Eq "\"task\"[[:space:]]*:[[:space:]]*\"$task_pattern\""; then
+      return 0
+    fi
+  done < "$GSD_DIR/APPROVALS.jsonl"
+
+  return 1
+}
+
+approval_status_for_task() {
+  local slice="$1"
+  local task="$2"
+  local fingerprint="$3"
+
+  if approval_grant_exists "$slice" "$task" "$fingerprint"; then
+    printf '%s\n' "approved"
+    return 0
+  fi
+
+  if approval_record_exists_for_task "$slice" "$task"; then
+    printf '%s\n' "stale"
+    return 0
+  fi
+
+  printf '%s\n' "missing"
+}
+
 json_escape() {
   printf '%s' "$1" | sed -E 's/\\/\\\\/g; s/"/\\"/g'
 }

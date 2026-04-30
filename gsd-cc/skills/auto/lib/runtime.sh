@@ -35,17 +35,18 @@ resolve_claude_bin() {
 }
 
 resolve_skills_dir() {
-  # Resolve skills directory (global or local)
-  if [[ -d ".claude/skills/auto" ]]; then
-    SKILLS_DIR=".claude/skills"
-  elif [[ -d "$HOME/.claude/skills/auto" ]]; then
-    SKILLS_DIR="$HOME/.claude/skills"
+  if [[ -n "${GSD_CC_AUTO_PROMPTS_DIR:-}" ]]; then
+    PROMPTS_DIR="$GSD_CC_AUTO_PROMPTS_DIR"
+    SKILLS_DIR="$(cd "$PROMPTS_DIR/.." && pwd)"
   else
+    SKILLS_DIR="$(cd "$AUTO_SCRIPT_DIR/.." && pwd)"
+    PROMPTS_DIR="$AUTO_SCRIPT_DIR"
+  fi
+
+  if [[ ! -d "$PROMPTS_DIR" ]]; then
     echo "❌ GSD-CC skills not found. Run 'npx gsd-cc' to install."
     exit 1
   fi
-
-  PROMPTS_DIR="${SKILLS_DIR}/auto"
 }
 
 require_auto_dependencies() {

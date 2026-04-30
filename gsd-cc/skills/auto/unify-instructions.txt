@@ -6,7 +6,7 @@ The context files are inlined above in XML tags:
 - <task-plans> — all XML task plans for this slice (`.gsd/S{nn}-T{nn}-PLAN.xml`)
 - <summaries> — all task summaries for this slice
 - <decisions> — DECISIONS.md
-- <approvals> — APPROVALS.jsonl when approval grants exist
+- <risk-and-approval> — per-task approval status resolved against current fingerprints
 
 ## Your Task
 

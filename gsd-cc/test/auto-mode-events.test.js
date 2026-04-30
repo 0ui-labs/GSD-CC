@@ -413,6 +413,7 @@ console.log(JSON.stringify({
   assert.strictEqual(approval.artifact, '.gsd/APPROVAL-REQUEST.json');
   assert.strictEqual(approval.risk_level, 'high');
   assert.match(approval.reasons, /risk high/);
+  assert.ok(!events.some((event) => event.type === 'task_started'));
   assert.ok(!events.some((event) => event.type === 'dispatch_started'));
 }
 

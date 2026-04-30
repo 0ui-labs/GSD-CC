@@ -144,6 +144,7 @@ auto_recovery_write() {
   local unit
   local phase
   local dispatch_phase
+  local log_file
   local current_branch
   local current_head
   local commits
@@ -160,10 +161,9 @@ auto_recovery_write() {
     return 0
   fi
 
-  AUTO_RECOVERY_WRITTEN=1
-
   markdown_path="$(auto_recovery_markdown_path)"
   json_path="$(auto_recovery_json_path)"
+  log_file="${LOG_FILE:-}"
   stopped_at="$(iso_now)"
   scope="${AUTO_SCOPE:-$(auto_recovery_read_state_field "auto_mode_scope")}"
   milestone="${MILESTONE:-$(auto_recovery_read_state_field "milestone")}"
@@ -197,7 +197,7 @@ auto_recovery_write() {
       --arg current_head "$current_head" \
       --argjson commits_since_start "$commits_json" \
       --argjson uncommitted_files "$uncommitted_json" \
-      --arg log_file "$LOG_FILE" \
+      --arg log_file "$log_file" \
       --arg safe_next_action "$safe_next_action" \
       '{
         status: $status,
@@ -217,10 +217,10 @@ auto_recovery_write() {
         uncommitted_files: $uncommitted_files,
         log_file: $log_file,
         safe_next_action: $safe_next_action
-      }' > "$json_path" 2>/dev/null || true
+      }' > "$json_path" 2>/dev/null || rm -f "$json_path"
   fi
 
-  {
+  if ! {
     printf '%s\n\n' '# Auto-Mode Recovery'
     printf '%s\n\n' 'Auto-mode stopped before completing normally.'
     printf '%s\n' '## What Was Running'
@@ -253,11 +253,16 @@ auto_recovery_write() {
     printf '\n'
 
     printf '%s\n' '## Logs'
-    printf '%s\n\n' "- Detailed log: \`$LOG_FILE\`"
+    printf '%s\n\n' "- Detailed log: \`${log_file:-unknown}\`"
 
     printf '%s\n' '## Safest Next Action'
     printf '%s\n' "$safe_next_action"
-  } > "$markdown_path" 2>/dev/null || true
+  } > "$markdown_path" 2>/dev/null; then
+    rm -f "$markdown_path" "$json_path"
+    return 0
+  fi
+
+  AUTO_RECOVERY_WRITTEN=1
 
   if declare -F auto_event_recovery_written >/dev/null 2>&1; then
     auto_event_recovery_written \
@@ -265,7 +270,7 @@ auto_recovery_write() {
       "artifact=$markdown_path" \
       "markdown=$markdown_path" \
       "json=$json_path" \
-      "log_file=$LOG_FILE" \
+      "log_file=$log_file" \
       "safe_next_action=$safe_next_action"
   fi
 }

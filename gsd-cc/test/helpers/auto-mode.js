@@ -135,7 +135,10 @@ function runAutoLoop(projectDir, env) {
     [path.join(packageRoot, 'skills', 'auto', 'auto-loop.sh')],
     {
       cwd: projectDir,
-      env,
+      env: {
+        ...env,
+        GSD_CC_AUTO_PROMPTS_DIR: path.join(projectDir, '.claude', 'skills', 'auto')
+      },
       encoding: 'utf8',
       timeout: 30000
     }

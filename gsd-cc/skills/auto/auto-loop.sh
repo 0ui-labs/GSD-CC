@@ -65,6 +65,41 @@ record_auto_problem_stop() {
   auto_recovery_write "$reason" "$message" "$safe_next_action"
 }
 
+append_risk_and_approval_summary() {
+  local prompt_file="$1"
+  shift
+
+  local fingerprint
+  local plan_path
+  local risk_level
+  local status
+  local task
+  local task_id
+  local task_slice
+
+  echo "<risk-and-approval>" >> "$prompt_file"
+  echo "## Risk and Approval" >> "$prompt_file"
+
+  if [[ "$#" -eq 0 ]]; then
+    echo "- No task plans found." >> "$prompt_file"
+    echo "</risk-and-approval>" >> "$prompt_file"
+    return 0
+  fi
+
+  for plan_path in "$@"; do
+    [[ -f "$plan_path" ]] || continue
+    task_id=$(task_plan_expected_id "$plan_path")
+    task_slice="${task_id%%-*}"
+    task="${task_id#*-}"
+    risk_level=$(extract_xml_attr "$plan_path" "risk" "level")
+    fingerprint=$(task_plan_fingerprint "$plan_path")
+    status=$(approval_status_for_task "$task_slice" "$task" "$fingerprint")
+    printf '%s\n' "- ${task_slice}/${task}: ${status} (risk: ${risk_level:-unknown}, fingerprint: ${fingerprint})" >> "$prompt_file"
+  done
+
+  echo "</risk-and-approval>" >> "$prompt_file"
+}
+
 # ── Main loop ──────────────────────────────────────────────────────────────────
 
 if ! STATE_MACHINE_FILE=$(state_machine_path); then
@@ -200,11 +235,7 @@ while true; do
         echo "</decisions>" >> "$PROMPT_FILE"
       fi
 
-      if [[ -f "$GSD_DIR/APPROVALS.jsonl" ]]; then
-        echo "<approvals>" >> "$PROMPT_FILE"
-        cat "$GSD_DIR/APPROVALS.jsonl" >> "$PROMPT_FILE"
-        echo "</approvals>" >> "$PROMPT_FILE"
-      fi
+      append_risk_and_approval_summary "$PROMPT_FILE" "${TASK_PLAN_FILES[@]}"
 
       cat "$PROMPTS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
 
@@ -414,14 +445,14 @@ while true; do
     ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git branch *),Bash(git add *),Bash(git commit *)"
   else
     TASK_ATTEMPT=$((RETRY_COUNT + 1))
+    if ! ensure_apply_approval "$SLICE" "$TASK" "$TASK_PLAN"; then
+      break
+    fi
     auto_event_task_started \
       "scope=$AUTO_SCOPE" \
       "attempt=$TASK_ATTEMPT" \
       "task_plan=$TASK_PLAN" \
       "artifact=$TASK_PLAN"
-    if ! ensure_apply_approval "$SLICE" "$TASK" "$TASK_PLAN"; then
-      break
-    fi
     build_apply_allowed_tools "$TASK_PLAN"
     ALLOWED_TOOLS="$APPLY_ALLOWED_TOOLS"
     log_apply_allowlist
