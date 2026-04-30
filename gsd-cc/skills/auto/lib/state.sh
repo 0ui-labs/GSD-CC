@@ -326,8 +326,16 @@ read_config_field() {
 }
 
 find_next_slice() {
+  local milestone
   local roadmap
-  roadmap=$(ls "$GSD_DIR"/M*-ROADMAP.md 2>/dev/null | head -1)
+
+  milestone=$(read_optional_state_field "milestone")
+  if [[ -n "$milestone" && -f "$GSD_DIR/${milestone}-ROADMAP.md" ]]; then
+    roadmap="$GSD_DIR/${milestone}-ROADMAP.md"
+  else
+    roadmap=$(find "$GSD_DIR" -maxdepth 1 -name 'M*-ROADMAP.md' | sort | head -1)
+  fi
+
   if [[ -z "$roadmap" ]]; then
     return
   fi

@@ -67,6 +67,7 @@ extract_first_verify_command() {
 add_verify_bash_patterns() {
   local plan_path="$1"
   local command
+  local parts=()
   local first
   local second
   local third
@@ -78,10 +79,10 @@ add_verify_bash_patterns() {
     *"&&"*|*"||"*|*";"*|*"|"*) return 0 ;;
   esac
 
-  set -- $command
-  first="${1:-}"
-  second="${2:-}"
-  third="${3:-}"
+  IFS=' ' read -r -a parts <<< "$command"
+  first="${parts[0]:-}"
+  second="${parts[1]:-}"
+  third="${parts[2]:-}"
 
   case "$first" in
     npm|pnpm|yarn)

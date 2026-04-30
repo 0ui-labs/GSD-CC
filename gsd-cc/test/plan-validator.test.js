@@ -244,6 +244,36 @@ function testDuplicateOwnershipPassesWithExplicitDependencies() {
   assertPass(result);
 }
 
+function testDuplicateOwnershipFailsWithUnrelatedDependencies() {
+  const projectDir = validProject({
+    dependencies: 'T01 -> T03\nT02 -> T04',
+    t01Files: ['src/shared.txt'],
+    t02Files: ['src/shared.txt']
+  });
+  const result = runValidator(projectDir, ['.gsd/S01-PLAN.md']);
+  assertFail(result, /slice\.files\.duplicate_ownership/);
+}
+
+function testUnsafeVerifyTokensFail() {
+  const projectDir = validProject({
+    t02Verify: 'npm test $(touch /tmp/pwned) (AC-2)'
+  });
+  const result = runValidator(projectDir, ['.gsd/S01-PLAN.md']);
+  assertFail(result, /task\.verify\.command_disallowed/);
+}
+
+function testWarningsPrintInHumanOutput() {
+  const projectDir = validProject({
+    dependencies: '',
+    t01Files: ['src/first.txt'],
+    t02Files: ['src/second.txt']
+  });
+  const result = runValidator(projectDir, ['.gsd/S01-PLAN.md']);
+  assertPass(result);
+  assert.match(result.stdout, /Plan has warnings/);
+  assert.match(result.stdout, /slice\.dependencies\.missing/);
+}
+
 function testJsonOutputHasStableErrors() {
   const projectDir = validProject({
     t01Files: ['src/*.js']
@@ -273,4 +303,7 @@ testInvalidFileEntriesFail();
 testTooBroadTaskFails();
 testDuplicateOwnershipFailsWithoutDependencies();
 testDuplicateOwnershipPassesWithExplicitDependencies();
+testDuplicateOwnershipFailsWithUnrelatedDependencies();
+testUnsafeVerifyTokensFail();
+testWarningsPrintInHumanOutput();
 testJsonOutputHasStableErrors();

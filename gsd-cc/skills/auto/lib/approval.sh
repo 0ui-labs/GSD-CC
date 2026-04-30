@@ -81,14 +81,27 @@ task_plan_fingerprint() {
   cksum "$plan_path" | awk '{ print $1 ":" $2 }'
 }
 
+regex_escape_ere() {
+  printf '%s' "$1" | sed -E 's/[][(){}.^$*+?|\\]/\\&/g'
+}
+
+json_value_pattern() {
+  regex_escape_ere "$(json_escape "$1")"
+}
+
 approval_request_matches_current_task() {
   local slice="$1"
   local task="$2"
   local request="$GSD_DIR/APPROVAL-REQUEST.json"
+  local slice_pattern
+  local task_pattern
 
   [[ -f "$request" ]] || return 1
-  grep -Eq "\"slice\"[[:space:]]*:[[:space:]]*\"$slice\"" "$request" &&
-    grep -Eq "\"task\"[[:space:]]*:[[:space:]]*\"$task\"" "$request"
+
+  slice_pattern=$(json_value_pattern "$slice")
+  task_pattern=$(json_value_pattern "$task")
+  grep -Eq "\"slice\"[[:space:]]*:[[:space:]]*\"$slice_pattern\"" "$request" &&
+    grep -Eq "\"task\"[[:space:]]*:[[:space:]]*\"$task_pattern\"" "$request"
 }
 
 clear_current_approval_request() {
@@ -105,18 +118,25 @@ approval_grant_exists() {
   local task="$2"
   local fingerprint="$3"
   local line
+  local fingerprint_pattern
+  local slice_pattern
+  local task_pattern
 
   [[ -f "$GSD_DIR/APPROVALS.jsonl" ]] || return 1
 
+  slice_pattern=$(json_value_pattern "$slice")
+  task_pattern=$(json_value_pattern "$task")
+  fingerprint_pattern=$(json_value_pattern "$fingerprint")
+
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    if ! printf '%s\n' "$line" | grep -Eq "\"slice\"[[:space:]]*:[[:space:]]*\"$slice\""; then
+    if ! printf '%s\n' "$line" | grep -Eq "\"slice\"[[:space:]]*:[[:space:]]*\"$slice_pattern\""; then
       continue
     fi
-    if ! printf '%s\n' "$line" | grep -Eq "\"task\"[[:space:]]*:[[:space:]]*\"$task\""; then
+    if ! printf '%s\n' "$line" | grep -Eq "\"task\"[[:space:]]*:[[:space:]]*\"$task_pattern\""; then
       continue
     fi
-    if ! printf '%s\n' "$line" | grep -Eq "\"fingerprint\"[[:space:]]*:[[:space:]]*\"$fingerprint\""; then
+    if ! printf '%s\n' "$line" | grep -Eq "\"fingerprint\"[[:space:]]*:[[:space:]]*\"$fingerprint_pattern\""; then
       continue
     fi
     if printf '%s\n' "$line" | grep -Eq "\"status\"[[:space:]]*:" &&

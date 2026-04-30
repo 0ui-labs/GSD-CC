@@ -223,6 +223,35 @@ function testMilestoneModeAdvances(binDir) {
   assert.match(result.stdout, /Moving to next slice: S02/);
 }
 
+function testMilestoneModeUsesActiveRoadmap(binDir) {
+  const projectDir = createAutoModeProject({
+    unified: true,
+    state: {
+      milestone: 'M002',
+      current_slice: 'S03',
+      phase: 'unified',
+      auto_mode_scope: 'milestone'
+    }
+  });
+  writeFile(path.join(projectDir, '.gsd', 'M002-ROADMAP.md'), [
+    '# M002',
+    '',
+    '### S03',
+    'Already finished active milestone slice.',
+    '',
+    '### S04',
+    'Next active milestone slice.',
+    ''
+  ].join('\n'));
+  writeFile(path.join(projectDir, '.gsd', 'S03-UNIFY.md'), '# Unified\n');
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assertRan(result);
+  assert.strictEqual(readStateField(projectDir, 'current_slice'), 'S04');
+  assert.match(result.stdout, /Moving to next slice: S04/);
+}
+
 function testIllegalPostDispatchTransitionStops() {
   const binDir = setupIllegalTransitionBin();
   const projectDir = createAutoModeProject({
@@ -248,4 +277,5 @@ testMissingScopeDefaultsToSlice(binDir);
 testInvalidScopeStopsBeforeWork(binDir);
 testValidEarlyStateStopsWithAutoHint(binDir);
 testMilestoneModeAdvances(binDir);
+testMilestoneModeUsesActiveRoadmap(binDir);
 testIllegalPostDispatchTransitionStops();

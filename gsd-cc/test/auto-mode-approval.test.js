@@ -119,7 +119,10 @@ function runProject(binDir, options = {}) {
 }
 
 function taskPlanFingerprint(projectDir) {
-  const planPath = path.join(projectDir, '.gsd', 'S01-T01-PLAN.xml');
+  return taskPlanFingerprintForPath(path.join(projectDir, '.gsd', 'S01-T01-PLAN.xml'));
+}
+
+function taskPlanFingerprintForPath(planPath) {
   const result = spawnSync('cksum', [planPath], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0, result.stderr);
   const [sum, size] = result.stdout.trim().split(/\s+/);
@@ -133,6 +136,10 @@ function writeApproval(projectDir, fingerprint) {
     fingerprint,
     status: 'approved'
   }) + '\n');
+}
+
+function writeApprovalRecord(projectDir, record) {
+  writeFile(path.join(projectDir, '.gsd', 'APPROVALS.jsonl'), `${JSON.stringify(record)}\n`);
 }
 
 function assertAutoLoopSucceeded(result) {
@@ -150,7 +157,7 @@ function assertDispatched(projectDir, result) {
   assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'APPROVAL-REQUEST.json')));
 }
 
-function assertApprovalRequired(projectDir, result, pattern) {
+function assertApprovalRequired(projectDir, result, pattern, expectedTask = 'T01') {
   assertAutoLoopSucceeded(result);
   assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'apply-dispatched.marker')));
   assert.match(result.stdout, /Approval required/);
@@ -158,7 +165,7 @@ function assertApprovalRequired(projectDir, result, pattern) {
   assert.ok(fs.existsSync(requestPath), 'approval request should be written');
   const request = JSON.parse(fs.readFileSync(requestPath, 'utf8'));
   assert.strictEqual(request.slice, 'S01');
-  assert.strictEqual(request.task, 'T01');
+  assert.strictEqual(request.task, expectedTask);
   assert.ok(request.reasons.some((reason) => pattern.test(reason)));
 }
 
@@ -221,6 +228,38 @@ function testStaleGrantDoesNotAllowDispatch(binDir) {
   assertApprovalRequired(projectDir, result, /risk high/);
 }
 
+function testRegexLikeTaskDoesNotMatchDifferentApproval(binDir) {
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'plan-complete',
+      current_task: 'T.1',
+      auto_mode_scope: 'slice'
+    }
+  });
+  writeTaskPlan(projectDir, {
+    riskLevel: 'high',
+    riskText: 'Touches shared deployment behavior.'
+  });
+  fs.renameSync(
+    path.join(projectDir, '.gsd', 'S01-T01-PLAN.xml'),
+    path.join(projectDir, '.gsd', 'S01-T.1-PLAN.xml')
+  );
+  const planPath = path.join(projectDir, '.gsd', 'S01-T.1-PLAN.xml');
+  fs.writeFileSync(
+    planPath,
+    fs.readFileSync(planPath, 'utf8').replace('id="S01-T01"', 'id="S01-T.1"')
+  );
+  writeApprovalRecord(projectDir, {
+    slice: 'S01',
+    task: 'T01',
+    fingerprint: taskPlanFingerprintForPath(planPath),
+    status: 'approved'
+  });
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+  assertApprovalRequired(projectDir, result, /risk high/, 'T.1');
+}
+
 const binDir = setupBin();
 
 testLowRiskTaskDispatches(binDir);
@@ -229,3 +268,4 @@ testPathRuleRequiresApproval(binDir);
 testTermRuleRequiresApproval(binDir);
 testMatchingGrantAllowsDispatch(binDir);
 testStaleGrantDoesNotAllowDispatch(binDir);
+testRegexLikeTaskDoesNotMatchDifferentApproval(binDir);

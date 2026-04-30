@@ -179,6 +179,23 @@ function testConfigAllowedVerifyDoesNotAddBroadBash(binDir) {
   assert.doesNotMatch(allowedTools, /Bash\(python3 \*\)/);
 }
 
+function testVerifyTokenizationDoesNotExpandGlobs(binDir) {
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'plan-complete',
+      auto_mode_scope: 'slice'
+    }
+  });
+  writeTaskPlan(projectDir, 'npm * (AC-1)');
+  writeFile(path.join(projectDir, 'test'), 'fixture\n');
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.ifError(result.error);
+  assert.notStrictEqual(result.status, 0, 'glob verify command should be rejected');
+  assert.match(result.stdout, /verify command is not allowed/);
+}
+
 function testPlanAllowlistIsUnchanged(binDir) {
   const projectDir = createAutoModeProject({
     unified: true,
@@ -201,4 +218,5 @@ const binDir = setupBin();
 
 testApplyAllowlistUsesVerifyAndConfig(binDir);
 testConfigAllowedVerifyDoesNotAddBroadBash(binDir);
+testVerifyTokenizationDoesNotExpandGlobs(binDir);
 testPlanAllowlistIsUnchanged(binDir);

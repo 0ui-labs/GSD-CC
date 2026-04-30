@@ -198,12 +198,17 @@ function recognizedVerifyCommand(command) {
     return false;
   }
 
-  const [first = '', second = '', third = ''] = command.split(/\s+/);
+  const parts = command.split(/\s+/);
+  if (!parts.every((token) => safeCommandToken(token))) {
+    return false;
+  }
+
+  const [first = '', second = '', third = ''] = parts;
   if (['npm', 'pnpm', 'yarn'].includes(first)) {
-    return second === 'test' || (second === 'run' && safeCommandToken(third));
+    return second === 'test' || (second === 'run' && Boolean(third));
   }
   if (['node', 'python3'].includes(first)) {
-    return safeCommandToken(second) && !second.startsWith('-');
+    return Boolean(second) && !second.startsWith('-');
   }
   if (first === 'pytest') {
     return true;
@@ -411,15 +416,28 @@ function extractDependenciesSection(content) {
   return trimWhitespace(collected.join('\n'));
 }
 
+function escapeRegExp(value) {
+  return String(value || '').replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+}
+
 function dependenciesSequenceTasks(dependenciesText, leftTask, rightTask) {
   if (!dependenciesText) {
     return false;
   }
 
-  const hasLeft = new RegExp(`\\b${leftTask}\\b`).test(dependenciesText);
-  const hasRight = new RegExp(`\\b${rightTask}\\b`).test(dependenciesText);
-  const hasSequencing = /→|->|=>|\bbefore\b|\bafter\b|\bdepends(?:\s+on)?\b|\bthen\b/i.test(dependenciesText);
-  return hasLeft && hasRight && hasSequencing;
+  const left = escapeRegExp(leftTask);
+  const right = escapeRegExp(rightTask);
+  const token = '(?:→|->|=>|\\bbefore\\b|\\bafter\\b|\\bdepends(?:\\s+on)?\\b|\\bthen\\b)';
+  const leftBoundary = `(?:^|[^A-Za-z0-9_])${left}(?:[^A-Za-z0-9_]|$)`;
+  const rightBoundary = `(?:^|[^A-Za-z0-9_])${right}(?:[^A-Za-z0-9_]|$)`;
+  const linked = [
+    new RegExp(`${leftBoundary}.*${token}.*${rightBoundary}`, 'i'),
+    new RegExp(`${rightBoundary}.*${token}.*${leftBoundary}`, 'i')
+  ];
+
+  return String(dependenciesText)
+    .split(/\r?\n/)
+    .some((line) => linked.some((pattern) => pattern.test(line)));
 }
 
 function validateDuplicateOwnership(context, slicePlanPath, taskResults, dependenciesText) {
@@ -544,13 +562,20 @@ function validateTarget(targetPath) {
 function printHumanResult(context) {
   const target = displayPath(context.targetPath);
   if (context.errors.length === 0) {
-    console.log(`Plan valid: ${target}`);
-    return;
+    if (context.warnings.length > 0) {
+      console.log(`Plan has warnings: ${target}`);
+    } else {
+      console.log(`Plan valid: ${target}`);
+    }
+  } else {
+    console.log(`Plan validation failed: ${target}`);
+    for (const error of context.errors) {
+      console.log(`- [${error.code}] ${error.file}: ${error.message}`);
+    }
   }
 
-  console.log(`Plan validation failed: ${target}`);
-  for (const error of context.errors) {
-    console.log(`- [${error.code}] ${error.file}: ${error.message}`);
+  for (const warning of context.warnings) {
+    console.log(`- [${warning.code}] ${warning.file}: ${warning.message}`);
   }
 }
 

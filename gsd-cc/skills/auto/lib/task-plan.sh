@@ -439,22 +439,32 @@ task_id_from_plan_path() {
   task_plan_expected_id "$plan_path" | sed -E 's/^S[0-9]+-//'
 }
 
+grep_ere_escape() {
+  printf '%s' "$1" | sed -E 's/[][(){}.^$*+?|\\]/\\&/g'
+}
+
 dependencies_sequence_tasks() {
   local dependencies_text="$1"
   local left_task="$2"
   local right_task="$3"
+  local left_pattern
+  local line
+  local right_pattern
+  local sequencing_pattern="(->|=>|before|after|depends( on)?|then)"
 
   [[ -n "$dependencies_text" ]] || return 1
 
-  if ! printf '%s\n' "$dependencies_text" | grep -Eq "(^|[^[:alnum:]_])${left_task}([^[:alnum:]_]|$)"; then
-    return 1
-  fi
+  left_pattern=$(grep_ere_escape "$left_task")
+  right_pattern=$(grep_ere_escape "$right_task")
 
-  if ! printf '%s\n' "$dependencies_text" | grep -Eq "(^|[^[:alnum:]_])${right_task}([^[:alnum:]_]|$)"; then
-    return 1
-  fi
+  while IFS= read -r line; do
+    if printf '%s\n' "$line" | grep -Eiq "(^|[^[:alnum:]_])${left_pattern}([^[:alnum:]_]|$).*${sequencing_pattern}.*(^|[^[:alnum:]_])${right_pattern}([^[:alnum:]_]|$)" ||
+       printf '%s\n' "$line" | grep -Eiq "(^|[^[:alnum:]_])${right_pattern}([^[:alnum:]_]|$).*${sequencing_pattern}.*(^|[^[:alnum:]_])${left_pattern}([^[:alnum:]_]|$)"; then
+      return 0
+    fi
+  done <<< "$dependencies_text"
 
-  printf '%s\n' "$dependencies_text" | grep -Eiq -- '->|=>|before|after|depends( on)?|then'
+  return 1
 }
 
 validate_duplicate_task_file_ownership() {
