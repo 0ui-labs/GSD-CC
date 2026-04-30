@@ -91,7 +91,7 @@ position context whenever branch actions are next.
 Follow this decision tree **top to bottom**. Take the FIRST match:
 
 ### Approval Required
-```
+```text
 IF .gsd/APPROVAL-REQUEST.json exists:
   → Read the request.
   → Show:
@@ -124,7 +124,7 @@ IF .gsd/APPROVAL-REQUEST.json exists:
 ```
 
 ### Crash Recovery
-```
+```text
 IF .gsd/auto.lock exists:
   → Read the lock file.
   → Check if the task's SUMMARY.md exists.
@@ -134,7 +134,7 @@ IF .gsd/auto.lock exists:
 ```
 
 ### Last Auto-Mode Problem Stop
-```
+```text
 IF .gsd/auto-recovery.json exists AND no live .gsd/auto.lock exists:
   → Read .gsd/auto-recovery.json.
   → Summarize:

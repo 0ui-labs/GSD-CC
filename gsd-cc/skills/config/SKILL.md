@@ -35,7 +35,7 @@ If no marker block exists, read the legacy unmarked `# GSD-CC Config` section.
 Missing language values default to English.
 
 Show:
-```
+```text
 GSD-CC Settings
 
   Language:         {current UI language or "English (default)"}
@@ -60,8 +60,8 @@ If the user wants to change the language:
    - If only a legacy unmarked config section exists, replace it with the
      managed marker block.
    - If no config section exists, append the managed marker block at the end:
-     ```
-     <!-- gsd-cc:config:start -->
+    ```markdown
+    <!-- gsd-cc:config:start -->
      # GSD-CC Config
      GSD-CC language: {language}
      GSD-CC commit language: English

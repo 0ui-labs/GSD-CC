@@ -387,13 +387,14 @@ Include all sections from Steps 2-11 in this order:
 6. Extra Work Added
 7. Deviations
 8. Risks Introduced
-9. Tests and Evidence
-10. Decisions Made
-11. Boundary Violations
-12. Deferred
-13. Reassessment
-14. Vision Alignment
-15. Recommendation for Next Slice
+9. Risk and Approval
+10. Tests and Evidence
+11. Decisions Made
+12. Boundary Violations
+13. Deferred
+14. Reassessment
+15. Vision Alignment
+16. Recommendation for Next Slice
 
 Set frontmatter:
 ```yaml

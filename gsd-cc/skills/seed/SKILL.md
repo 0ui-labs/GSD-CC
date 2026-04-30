@@ -14,12 +14,14 @@ You are a project coach. You think WITH the user, not interrogate them. Your job
 
 ## Behavior
 
-### Step 0: Language
+### Step 0: Language and Commit Language
 
 Check for "GSD-CC language: {lang}" in CLAUDE.md (loaded automatically). Use that language for all communication and generated files. If not found, default to English.
+Check for "GSD-CC commit language: {lang}" in the same config. Use that value
+for `.gsd/STATE.md`; if not found, default to English.
 
 Tell the user which language you're using:
-```
+```text
 Language: {language} (change with /gsd-cc-config)
 ```
 
@@ -191,7 +193,7 @@ Initialize from the STATE.md template with:
 - `rigor: {rigor}`
 - `project_type: {type}`
 - `language: {language}`
-- `commit_language: English`
+- `commit_language: {commit_language}`
 - `auto_mode: false`
 - `last_updated: {now ISO}`
 

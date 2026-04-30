@@ -292,7 +292,7 @@ is not, warn the user and stop so the branch ancestry can be inspected.
 
 ## Step 8: Update STATE.md
 
-```
+```yaml
 current_slice: S{nn}
 current_task: T01
 phase: plan-complete

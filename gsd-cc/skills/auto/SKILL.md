@@ -76,10 +76,11 @@ Note: The auto-loop.sh script resolves the full path to claude automatically, so
 
 ### Apply Bash allowlist
 
-During apply, auto-mode only grants Bash commands derived from the current
-task's `<verify>` command plus explicit project overrides. To allow additional
-project-specific verification commands, add comma-separated command patterns to
-`.gsd/CONFIG.md`:
+During apply, auto-mode always grants the Git commands needed for atomic
+commits (`git add *` and `git commit *`). Other Bash commands are limited to
+patterns derived from the current task's `<verify>` command plus explicit
+project overrides. To allow additional project-specific verification commands,
+add comma-separated command patterns to `.gsd/CONFIG.md`:
 
 ```yaml
 auto_apply_allowed_bash: pnpm lint *, npm run typecheck *, playwright test *
