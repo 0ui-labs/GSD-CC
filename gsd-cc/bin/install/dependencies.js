@@ -7,19 +7,27 @@ const { green, yellow, reset } = COLORS;
 
 function findExecutable(command) {
   const searchPath = process.env.PATH || '';
+  const extensions = process.platform === 'win32'
+    ? ['', ...(process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD')
+      .split(';')
+      .filter(Boolean)
+      .map((extension) => extension.toLowerCase())]
+    : [''];
 
   for (const directory of searchPath.split(path.delimiter)) {
     if (!directory) {
       continue;
     }
 
-    const candidate = path.join(directory, command);
+    for (const extension of extensions) {
+      const candidate = path.join(directory, `${command}${extension}`);
 
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
-    } catch (error) {
-      continue;
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return candidate;
+      } catch (error) {
+        continue;
+      }
     }
   }
 
@@ -102,7 +110,13 @@ function getRecoverySteps(probe, isGlobal) {
   const reinstallCommand = isGlobal ? 'npx gsd-cc' : 'npx gsd-cc --local';
 
   if (!probe.dependencies.jq.available) {
-    steps.push('Install jq: brew install jq');
+    if (process.platform === 'darwin') {
+      steps.push('Install jq: brew install jq');
+    } else if (process.platform === 'linux') {
+      steps.push('Install jq with your distro package manager, such as apt, yum, or pacman');
+    } else {
+      steps.push('Install jq with your system package manager or from https://jqlang.github.io/jq/download/');
+    }
     steps.push(`Rerun ${reinstallCommand} to enable hooks after jq is available`);
   }
 

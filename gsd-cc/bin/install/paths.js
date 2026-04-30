@@ -36,7 +36,23 @@ function getManifestPath(claudeBase) {
 }
 
 function formatPath(targetPath) {
-  return targetPath.replace(os.homedir(), '~').replace(process.cwd(), '.');
+  const cwd = process.cwd();
+  const home = os.homedir();
+
+  if (targetPath === home) {
+    return '~';
+  }
+  if (targetPath.startsWith(`${home}${path.sep}`)) {
+    return `~${targetPath.slice(home.length)}`;
+  }
+  if (targetPath === cwd) {
+    return '.';
+  }
+  if (targetPath.startsWith(`${cwd}${path.sep}`)) {
+    return `.${targetPath.slice(cwd.length)}`;
+  }
+
+  return targetPath;
 }
 
 module.exports = {
