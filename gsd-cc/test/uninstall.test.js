@@ -82,6 +82,13 @@ function assertOnlyUnrelatedHookRemains(settingsPath, hookPath) {
   assert.deepStrictEqual(commands, [hookPath]);
 }
 
+function assertDashboardAssetsRemoved(claudeBase) {
+  assertPathMissing(path.join(claudeBase, 'dashboard', 'index.html'));
+  assertPathMissing(path.join(claudeBase, 'dashboard', 'app.js'));
+  assertPathMissing(path.join(claudeBase, 'dashboard', 'styles.css'));
+  assertPathMissing(path.join(claudeBase, 'dashboard'));
+}
+
 function testGlobalUninstallKeepsUserFiles(fixtureRoot, binDir) {
   const homeDir = makeIsolatedHome('gsd-cc-uninstall-home-');
   const env = makeEnv(homeDir, binDir);
@@ -105,7 +112,7 @@ function testGlobalUninstallKeepsUserFiles(fixtureRoot, binDir) {
   assertPathMissing(path.join(claudeBase, 'gsd-cc', 'install-manifest.json'));
   assertPathMissing(path.join(claudeBase, 'skills', 'gsd-cc', 'SKILL.md'));
   assertPathMissing(path.join(claudeBase, 'hooks', 'gsd-cc', 'gsd-boundary-guard.sh'));
-  assertPathMissing(path.join(claudeBase, 'dashboard', 'index.html'));
+  assertDashboardAssetsRemoved(claudeBase);
   assertPathExists(unrelatedHook);
   assertPathExists(managedDirUserHook);
   assertPathExists(unrelatedSkill);
