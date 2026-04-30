@@ -2,14 +2,22 @@
 # Sourced by auto-loop.sh; every function must be safe under strict Bash.
 
 auto_event_now() {
+  local now=""
+
   if declare -F iso_now >/dev/null 2>&1; then
-    iso_now 2>/dev/null || true
-    return 0
+    now="$(iso_now 2>/dev/null || true)"
+    if [[ -n "$now" ]]; then
+      printf '%s\n' "$now"
+      return 0
+    fi
   fi
 
   if date -Iseconds >/dev/null 2>&1; then
-    date -Iseconds 2>/dev/null || true
-    return 0
+    now="$(date -Iseconds 2>/dev/null || true)"
+    if [[ -n "$now" ]]; then
+      printf '%s\n' "$now"
+      return 0
+    fi
   fi
 
   date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || true

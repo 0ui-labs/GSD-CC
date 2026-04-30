@@ -3,7 +3,8 @@
 log_cost() {
   local unit="$1" phase="$2" result_file="$3"
   if [[ -f "$result_file" ]]; then
-    jq -c "{unit: \"$unit\", phase: \"$phase\", model: .model, usage: .usage, ts: \"$(iso_now)\"}" \
+    jq -c --arg unit "$unit" --arg phase "$phase" --arg ts "$(iso_now)" \
+      '{unit: $unit, phase: $phase, model: .model, usage: .usage, ts: $ts}' \
       "$result_file" >> "$COSTS_FILE" 2>/dev/null || true
   fi
 }

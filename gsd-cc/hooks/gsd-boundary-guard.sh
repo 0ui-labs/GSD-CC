@@ -46,10 +46,12 @@ normalize_path() {
 
   path=$(printf '%s\n' "$path" | trim_value)
   path="${path//$'\r'/}"
-  path="${path//\/\//\/}"
+  while [[ "$path" == *'//'* ]]; do
+    path="${path//\/\//\/}"
+  done
 
   if [[ "$path" == "$CWD/"* ]]; then
-    path="${path#$CWD/}"
+    path="${path#"$CWD"/}"
   fi
 
   while [[ "$path" == ./* ]]; do
