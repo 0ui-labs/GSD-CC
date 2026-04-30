@@ -571,6 +571,57 @@ function parseMarkdownTableRows(content) {
   return rows;
 }
 
+function extractMarkdownSection(content, heading) {
+  const target = normalizeMarkdownHeader(heading);
+  const lines = String(content || '').split(/\r?\n/);
+  const collected = [];
+  let inSection = false;
+  let sectionLevel = 0;
+
+  for (const line of lines) {
+    const match = line.match(/^\s{0,3}(#{2,6})\s+(.+?)\s*#*\s*$/);
+
+    if (match) {
+      const level = match[1].length;
+      const title = normalizeMarkdownHeader(match[2]);
+
+      if (inSection && level <= sectionLevel) {
+        break;
+      }
+
+      if (!inSection && title === target) {
+        inSection = true;
+        sectionLevel = level;
+        continue;
+      }
+    }
+
+    if (inSection) {
+      collected.push(line);
+    }
+  }
+
+  return collected.join('\n').trim();
+}
+
+function cleanReportValue(value) {
+  const cleaned = cleanMarkdownCell(value);
+
+  if (!cleaned || /\{\{.*?\}\}/.test(cleaned)) {
+    return '';
+  }
+
+  return cleaned;
+}
+
+function sectionHasNone(section) {
+  return String(section || '')
+    .split(/\r?\n/)
+    .map((line) => cleanReportValue(line.replace(/^\s*[-*]\s*/, '')))
+    .filter(Boolean)
+    .some((line) => /^none\.?$/i.test(line));
+}
+
 function firstMarkdownRowValue(row, candidates) {
   for (const candidate of candidates) {
     const key = normalizeMarkdownHeader(candidate);
@@ -581,6 +632,99 @@ function firstMarkdownRowValue(row, candidates) {
   }
 
   return null;
+}
+
+function parseSectionTableRows(content, heading) {
+  const section = extractMarkdownSection(content, heading);
+
+  if (!section || sectionHasNone(section)) {
+    return [];
+  }
+
+  return parseMarkdownTableRows(section);
+}
+
+function parseReportListItems(content, heading) {
+  const section = extractMarkdownSection(content, heading);
+
+  if (!section || sectionHasNone(section)) {
+    return [];
+  }
+
+  return section
+    .split(/\r?\n/)
+    .map((line) => {
+      const match = line.match(/^\s*[-*]\s*(?:\[[ xX]\]\s*)?(.+?)\s*$/);
+      return match ? cleanReportValue(match[1]) : '';
+    })
+    .filter((item) => (
+      item
+      && !/^no additional decisions made during execution\.?$/i.test(item)
+      && !/^no high-risk tasks in this slice\.?$/i.test(item)
+    ));
+}
+
+function parseUnifySummary(content) {
+  const summary = {};
+  const section = extractMarkdownSection(content, 'Summary');
+
+  for (const line of section.split(/\r?\n/)) {
+    const match = line.match(/^\s*[-*]\s*([^:]+):\s*(.+?)\s*$/);
+
+    if (!match) {
+      continue;
+    }
+
+    summary[normalizeMarkdownHeader(match[1])] = cleanReportValue(match[2]);
+  }
+
+  return {
+    status: summary.status || '',
+    outcome: summary.outcome || '',
+    acceptance_criteria: summary.acceptance_criteria || '',
+    boundary_violations: summary.boundary_violations || '',
+    recommendation: summary.recommendation || ''
+  };
+}
+
+function parsePlanVsActual(content) {
+  return parseSectionTableRows(content, 'Plan vs. Actual')
+    .map((row) => ({
+      task: cleanReportValue(firstMarkdownRowValue(row, ['task'])),
+      planned: cleanReportValue(firstMarkdownRowValue(row, ['planned'])),
+      actual: cleanReportValue(firstMarkdownRowValue(row, ['actual'])),
+      status: cleanReportValue(firstMarkdownRowValue(row, ['status'])),
+      notes: cleanReportValue(firstMarkdownRowValue(row, ['notes']))
+    }))
+    .filter((row) => row.task || row.planned || row.actual || row.status || row.notes);
+}
+
+function parseRisksIntroduced(content) {
+  return parseSectionTableRows(content, 'Risks Introduced')
+    .map((row) => ({
+      risk: cleanReportValue(firstMarkdownRowValue(row, ['risk'])),
+      source: cleanReportValue(firstMarkdownRowValue(row, ['source'])),
+      impact: cleanReportValue(firstMarkdownRowValue(row, ['impact'])),
+      mitigation: cleanReportValue(firstMarkdownRowValue(row, ['mitigation']))
+    }))
+    .filter((row) => row.risk || row.source || row.impact || row.mitigation);
+}
+
+function parseHighRiskApprovals(content) {
+  return parseSectionTableRows(content, 'Risk and Approval')
+    .map((row) => ({
+      task: cleanReportValue(firstMarkdownRowValue(row, ['task'])),
+      risk: cleanReportValue(firstMarkdownRowValue(row, ['risk'])),
+      approval: cleanReportValue(firstMarkdownRowValue(row, ['approval'])),
+      reason: cleanReportValue(firstMarkdownRowValue(row, ['reason']))
+    }))
+    .filter((row) => row.task || row.risk || row.approval || row.reason);
+}
+
+function sectionIncludesNoHighRisk(content) {
+  return /no high-risk tasks in this slice\.?/i.test(
+    extractMarkdownSection(content, 'Risk and Approval')
+  );
 }
 
 function normalizeAcceptanceId(value) {
@@ -1586,6 +1730,75 @@ function populateActivity(model, gsdDir) {
   }
 }
 
+function fileUpdatedAt(filePath) {
+  try {
+    return fs.statSync(filePath).mtime.toISOString();
+  } catch (error) {
+    return null;
+  }
+}
+
+function compareUnifyArtifacts(gsdDir, left, right) {
+  const leftTime = fileUpdatedAt(path.join(gsdDir, left.fileName)) || '';
+  const rightTime = fileUpdatedAt(path.join(gsdDir, right.fileName)) || '';
+
+  if (leftTime !== rightTime) {
+    return rightTime.localeCompare(leftTime);
+  }
+
+  return compareIds(right.slice, left.slice);
+}
+
+function selectLatestUnifyArtifact(model, gsdDir, artifacts) {
+  if (isKnown(model.current.slice)) {
+    const currentUnify = artifacts.unifiesBySlice.get(model.current.slice);
+
+    if (currentUnify) {
+      return currentUnify;
+    }
+  }
+
+  return [...artifacts.unifiesBySlice.values()]
+    .sort((left, right) => compareUnifyArtifacts(gsdDir, left, right))[0]
+    || null;
+}
+
+function parseUnifyReport(gsdDir, artifact) {
+  const filePath = path.join(gsdDir, artifact.fileName);
+  const content = readOptionalTextFile(filePath);
+  const summary = parseUnifySummary(content);
+  const summaryStatus = normalizeStatusToken(summary.status);
+  const reportStatus = extractMarkdownStatus(content);
+
+  return {
+    slice: artifact.slice,
+    status: summaryStatus !== UNKNOWN ? summaryStatus : reportStatus,
+    source: artifact.displayPath,
+    updated_at: fileUpdatedAt(filePath),
+    summary,
+    plan_vs_actual: parsePlanVsActual(content),
+    risks_introduced: parseRisksIntroduced(content),
+    high_risk_approvals: parseHighRiskApprovals(content),
+    no_high_risk_tasks: sectionIncludesNoHighRisk(content),
+    decisions: parseReportListItems(content, 'Decisions Made'),
+    deferred: parseReportListItems(content, 'Deferred')
+  };
+}
+
+function populateLatestUnify(model, gsdDir) {
+  const artifacts = discoverGsdArtifacts(gsdDir);
+  const artifact = selectLatestUnifyArtifact(model, gsdDir, artifacts);
+
+  if (!artifact) {
+    return;
+  }
+
+  const latestUnify = parseUnifyReport(gsdDir, artifact);
+
+  model.evidence.latest_unify = latestUnify;
+  model.evidence.recent_decisions = latestUnify.decisions;
+}
+
 function createJsonParseAttention(fileName, error) {
   return {
     id: `${fileName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-invalid`,
@@ -1933,6 +2146,7 @@ function buildDashboardModel(projectRoot) {
   populateActivity(model, gsdDir);
   model.current.next_action = resolveNextAction(model);
   buildSliceProgress(model, gsdDir);
+  populateLatestUnify(model, gsdDir);
   populateCurrentTaskFromPlan(model, gsdDir);
   populateAcceptanceCriteriaProgress(model, gsdDir);
   populatePhaseAttention(model, stateFields);

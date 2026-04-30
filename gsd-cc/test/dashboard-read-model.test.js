@@ -467,6 +467,54 @@ function writeUnifyWithAcResults(projectRoot, slice, rows, status = 'complete') 
   ].join('\n'));
 }
 
+function writeUnifyWithEvidence(projectRoot, slice) {
+  writeProjectFile(projectRoot, `.gsd/${slice}-UNIFY.md`, [
+    '---',
+    `slice: ${slice}`,
+    'date: 2026-04-29T10:00:00.000Z',
+    'status: partial',
+    '---',
+    '',
+    `# ${slice} UNIFY`,
+    '',
+    '## Summary',
+    '',
+    '- Status: partial',
+    `- Slice: ${slice} — Evidence slice`,
+    '- Outcome: Reconciled most dashboard evidence.',
+    '- Acceptance Criteria: 2/3 passed, 1 partial, 0 failed',
+    '- Boundary Violations: none',
+    '- Recommendation: Continue, but address deferred fixture coverage.',
+    '',
+    '## Plan vs. Actual',
+    '',
+    '| Task | Planned | Actual | Status | Notes |',
+    '|------|---------|--------|--------|-------|',
+    '| T01 | Render evidence shell | Rendered parser and UI | expanded | Added dashboard summary fields |',
+    '',
+    '## Risks Introduced',
+    '',
+    '| Risk | Source | Impact | Mitigation |',
+    '|------|--------|--------|------------|',
+    '| Parser misses unusual markdown | UNIFY parser | Some rows may be hidden | Leave raw artifact link visible |',
+    '',
+    '## Risk and Approval',
+    '',
+    '| Task | Risk | Approval | Reason |',
+    '|------|------|----------|--------|',
+    '| T02 | high | approved | Approval grant matched fingerprint |',
+    '',
+    '## Decisions Made',
+    '',
+    '- Keep UNIFY parsing dependency-free (reason: dashboard install has no build step)',
+    '',
+    '## Deferred',
+    '',
+    '- [ ] Add browser screenshot coverage → later',
+    ''
+  ].join('\n'));
+}
+
 function warningCodes(model) {
   return model.current_task.warnings.map((warning) => warning.code);
 }
@@ -846,6 +894,66 @@ function testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence() {
   ]);
 }
 
+function testLatestUnifyEvidencePopulatesModel() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S03',
+    'current_task: T02',
+    'phase: unified',
+    ''
+  ].join('\n'));
+  writeUnifyWithEvidence(projectRoot, 'S03');
+
+  const model = buildDashboardModel(projectRoot);
+  const latestUnify = model.evidence.latest_unify;
+
+  assert.ok(latestUnify, 'expected latest UNIFY evidence');
+  assert.strictEqual(latestUnify.slice, 'S03');
+  assert.strictEqual(latestUnify.status, 'partial');
+  assert.strictEqual(latestUnify.source, '.gsd/S03-UNIFY.md');
+  assert.ok(latestUnify.updated_at, 'expected updated_at timestamp');
+  assert.deepStrictEqual(latestUnify.summary, {
+    status: 'partial',
+    outcome: 'Reconciled most dashboard evidence.',
+    acceptance_criteria: '2/3 passed, 1 partial, 0 failed',
+    boundary_violations: 'none',
+    recommendation: 'Continue, but address deferred fixture coverage.'
+  });
+  assert.deepStrictEqual(latestUnify.plan_vs_actual, [
+    {
+      task: 'T01',
+      planned: 'Render evidence shell',
+      actual: 'Rendered parser and UI',
+      status: 'expanded',
+      notes: 'Added dashboard summary fields'
+    }
+  ]);
+  assert.deepStrictEqual(latestUnify.risks_introduced, [
+    {
+      risk: 'Parser misses unusual markdown',
+      source: 'UNIFY parser',
+      impact: 'Some rows may be hidden',
+      mitigation: 'Leave raw artifact link visible'
+    }
+  ]);
+  assert.deepStrictEqual(latestUnify.high_risk_approvals, [
+    {
+      task: 'T02',
+      risk: 'high',
+      approval: 'approved',
+      reason: 'Approval grant matched fingerprint'
+    }
+  ]);
+  assert.strictEqual(latestUnify.no_high_risk_tasks, false);
+  assert.deepStrictEqual(latestUnify.decisions, [
+    'Keep UNIFY parsing dependency-free (reason: dashboard install has no build step)'
+  ]);
+  assert.deepStrictEqual(latestUnify.deferred, [
+    'Add browser screenshot coverage → later'
+  ]);
+  assert.deepStrictEqual(model.evidence.recent_decisions, latestUnify.decisions);
+}
+
 function testLiveAutoLockPopulatesAutomationState() {
   const projectRoot = createProjectWithState([
     'milestone: M001',
@@ -1220,6 +1328,7 @@ function run() {
   testProgressDiscoversRoadmapSlicesAndArtifacts();
   testArtifactOnlySlicesAreIncludedWhenRoadmapIsMissing();
   testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence();
+  testLatestUnifyEvidencePopulatesModel();
   testLiveAutoLockPopulatesAutomationState();
   testStaleAutoLockProducesTopAttentionItem();
   testApprovalRequestProducesTopAttentionItem();
