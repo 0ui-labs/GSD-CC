@@ -103,6 +103,17 @@ From this package directory:
 npm test
 ```
 
+For dashboard integration sweeps, also launch the read-only Web App from a
+project that has `.gsd/` state:
+
+```bash
+npx gsd-cc dashboard --no-open
+```
+
+The dashboard is optional for auto-mode. Auto-mode writes `.gsd/events.jsonl`
+and other artifacts directly, so it continues to work when the dashboard
+server is not running.
+
 The suite uses temporary homes, projects, fake `claude`/`jq` binaries, and
 temporary Git repositories. It must not touch the developer's real
 `~/.claude`, call the real `claude` CLI, or require network access.
