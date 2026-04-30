@@ -67,25 +67,29 @@ function readFileHash(filePath) {
   }
 }
 
-function createEntrySignature(entryPath, stats) {
-  const signature = [
+function createEntrySignature(entryPath, stats, previousSignature) {
+  const metadata = [
     stats.isDirectory() ? 'dir' : 'file',
     stats.size,
     stats.mtimeMs
-  ];
+  ].join(':');
+
+  if (previousSignature && previousSignature.startsWith(`${metadata}:`)) {
+    return previousSignature;
+  }
 
   if (stats.isFile()) {
     const hash = readFileHash(entryPath);
 
     if (hash) {
-      signature.push(hash);
+      return `${metadata}:${hash}`;
     }
   }
 
-  return signature.join(':');
+  return metadata;
 }
 
-function collectEntries(directoryPath, relativeRoot, entries) {
+function collectEntries(directoryPath, relativeRoot, entries, previousEntries) {
   const directoryEntries = readDirectoryEntries(directoryPath)
     .sort((left, right) => left.name.localeCompare(right.name));
 
@@ -103,25 +107,34 @@ function collectEntries(directoryPath, relativeRoot, entries) {
     if (stats.isDirectory()) {
       entries.set(
         toPosixPath(relativePath),
-        createEntrySignature(entryPath, stats)
+        createEntrySignature(
+          entryPath,
+          stats,
+          previousEntries && previousEntries.get(toPosixPath(relativePath))
+        )
       );
-      collectEntries(entryPath, relativePath, entries);
+      collectEntries(entryPath, relativePath, entries, previousEntries);
       continue;
     }
 
     if (stats.isFile() || stats.isSymbolicLink()) {
       entries.set(
         toPosixPath(relativePath),
-        createEntrySignature(entryPath, stats)
+        createEntrySignature(
+          entryPath,
+          stats,
+          previousEntries && previousEntries.get(toPosixPath(relativePath))
+        )
       );
     }
   }
 }
 
-function snapshotGsdDirectory(projectRoot) {
+function snapshotGsdDirectory(projectRoot, previousSnapshot = null) {
   const root = normalizeProjectRoot(projectRoot);
   const gsdDir = path.join(root, '.gsd');
   const entries = new Map();
+  const previousEntries = previousSnapshot ? previousSnapshot.entries : null;
   const stats = statEntry(gsdDir);
 
   if (!stats || !stats.isDirectory()) {
@@ -133,8 +146,8 @@ function snapshotGsdDirectory(projectRoot) {
     };
   }
 
-  entries.set('.', createEntrySignature(gsdDir, stats));
-  collectEntries(gsdDir, '', entries);
+  entries.set('.', createEntrySignature(gsdDir, stats, previousEntries && previousEntries.get('.')));
+  collectEntries(gsdDir, '', entries, previousEntries);
 
   return {
     projectRoot: root,
@@ -314,7 +327,7 @@ function watchDashboardFiles(projectRoot, onChange, options = {}) {
       return;
     }
 
-    const nextSnapshot = snapshotGsdDirectory(root);
+    const nextSnapshot = snapshotGsdDirectory(root, currentSnapshot);
     const diff = diffGsdSnapshots(currentSnapshot, nextSnapshot);
 
     currentSnapshot = nextSnapshot;

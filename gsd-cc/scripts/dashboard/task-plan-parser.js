@@ -180,7 +180,13 @@ function parseAcceptanceCriteria(criteriaBlock, warnings) {
     criteria.push({ id, text });
   }
 
-  if (/<ac\b/i.test(criteriaBlock) && criteria.length === 0) {
+  const openCount = (criteriaBlock.match(/<ac\b/gi) || []).length;
+  const closeCount = (criteriaBlock.match(/<\/ac\s*>/gi) || []).length;
+  if (openCount > closeCount) {
+    addWarning(warnings, 'task.ac.malformed', 'acceptance criteria contain an unclosed ac tag');
+  }
+
+  if (openCount <= closeCount && /<ac\b/i.test(criteriaBlock) && criteria.length === 0) {
     addWarning(warnings, 'task.ac.malformed', 'acceptance criteria contain an unclosed ac tag');
   }
 

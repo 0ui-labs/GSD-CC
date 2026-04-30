@@ -173,11 +173,42 @@ function testMalformedXmlWarnsInsteadOfThrowing() {
   assert.ok(codes.includes('task.name.unclosed'));
 }
 
+function testPartiallyMalformedAcceptanceCriteriaWarns() {
+  const taskPlan = parseTaskPlanXml([
+    '<task id="S01-T05" type="auto">',
+    '  <name>Partially malformed AC</name>',
+    '  <files>src/fixture.txt</files>',
+    '  <risk level="low">Small parser fixture.</risk>',
+    '  <acceptance_criteria>',
+    '    <ac id="AC-1">',
+    '      Given a valid criterion exists',
+    '      When it is parsed',
+    '      Then it is shown',
+    '    </ac>',
+    '    <ac id="AC-2">',
+    '      Given a second criterion starts',
+    '  </acceptance_criteria>',
+    '  <action>1. Update parser</action>',
+    '  <boundaries>No extra files.</boundaries>',
+    '  <verify>node test/dashboard-task-plan-parser.test.js (AC-1)</verify>',
+    '  <done>Parser warns.</done>',
+    '</task>',
+    ''
+  ].join('\n'), {
+    expectedTaskId: 'S01-T05'
+  });
+
+  const codes = warningCodes(taskPlan);
+  assert.deepStrictEqual(taskPlan.acceptance_criteria.map((criterion) => criterion.id), ['AC-1']);
+  assert.ok(codes.includes('task.ac.malformed'));
+}
+
 function run() {
   testEmptyTaskPlanShape();
   testValidXmlExtractsTaskDetails();
   testIncompleteXmlProducesWarnings();
   testMalformedXmlWarnsInsteadOfThrowing();
+  testPartiallyMalformedAcceptanceCriteriaWarns();
 }
 
 run();
