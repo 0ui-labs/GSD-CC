@@ -217,6 +217,49 @@ function testInvalidManifestDoesNotFallBackToLegacyCleanup(fixtureRoot, binDir) 
   assert.doesNotMatch(result.stdout, /No GSD-CC installation found/);
 }
 
+function testManifestIsKeptWhenConfigCleanupFails(fixtureRoot, binDir) {
+  const homeDir = makeIsolatedHome('gsd-cc-uninstall-partial-home-');
+  const env = makeEnv(homeDir, binDir);
+  const claudeBase = path.join(homeDir, '.claude');
+  const manifestPath = path.join(claudeBase, 'gsd-cc', 'install-manifest.json');
+  const claudeMdPath = path.join(claudeBase, 'CLAUDE.md');
+
+  runInstaller(fixtureRoot, ['--global'], { cwd: fixtureRoot, env });
+  fs.rmSync(claudeMdPath, { force: true });
+  fs.mkdirSync(claudeMdPath, { recursive: true });
+
+  const result = runInstaller(fixtureRoot, ['--uninstall', '--global'], {
+    cwd: fixtureRoot,
+    env
+  });
+
+  assertPathExists(manifestPath);
+  assertPathMissing(path.join(claudeBase, 'skills', 'gsd-cc', 'SKILL.md'));
+  assert.match(result.stdout, /Install manifest kept/);
+  assert.match(result.stdout, /Could not update/);
+}
+
+function testLegacyUninstallContinuesWhenClaudeMdCleanupFails(fixtureRoot, binDir) {
+  const homeDir = makeIsolatedHome('gsd-cc-uninstall-legacy-config-home-');
+  const env = makeEnv(homeDir, binDir);
+  const claudeBase = path.join(homeDir, '.claude');
+  const routerSkill = path.join(claudeBase, 'skills', 'gsd-cc', 'SKILL.md');
+  const claudeMdPath = path.join(claudeBase, 'CLAUDE.md');
+
+  writeFile(routerSkill, '---\nname: gsd-cc\n---\n');
+  fs.mkdirSync(claudeMdPath, { recursive: true });
+
+  const result = runInstaller(fixtureRoot, ['--uninstall', '--global'], {
+    cwd: fixtureRoot,
+    env
+  });
+
+  assertPathMissing(routerSkill);
+  assertPathExists(claudeMdPath);
+  assert.match(result.stdout, /Removed legacy GSD-CC assets/);
+  assert.match(result.stdout, /Could not update/);
+}
+
 const tempRoot = makeTempDir('gsd-cc-uninstall-');
 const fixtureRoot = copyPackageFixture(tempRoot);
 const binDir = ensureFakeBin(tempRoot);
@@ -227,3 +270,5 @@ testLocalUninstallDoesNotTouchGlobal(fixtureRoot, binDir);
 testUnsafeManifestFilePathBlocksGlobalUninstall(fixtureRoot, binDir);
 testUnsafeConfigBlockPathBlocksLocalUninstall(fixtureRoot, binDir);
 testInvalidManifestDoesNotFallBackToLegacyCleanup(fixtureRoot, binDir);
+testManifestIsKeptWhenConfigCleanupFails(fixtureRoot, binDir);
+testLegacyUninstallContinuesWhenClaudeMdCleanupFails(fixtureRoot, binDir);

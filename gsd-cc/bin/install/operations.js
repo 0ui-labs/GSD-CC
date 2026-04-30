@@ -89,12 +89,17 @@ function uninstallFromManifest(claudeBase, manifest, isGlobal) {
     }
   }
 
+  const cleanupWarningStart = warnings.length;
   const configClean = cleanupTrackedConfigBlocks(claudeBase, manifest, isGlobal, warnings);
   const removedFiles = removeTrackedFiles(claudeBase, manifest.files, warnings);
   const removedDirectories = removeTrackedDirectories(claudeBase, manifest.directories, warnings);
 
   let manifestRemoved = false;
-  if (hooksClean && configClean) {
+  const cleanupClean = hooksClean &&
+    configClean &&
+    warnings.length === cleanupWarningStart;
+
+  if (cleanupClean) {
     try {
       fs.rmSync(getManifestPath(claudeBase), { force: true });
       removeTrackedDirectories(claudeBase, [MANIFEST_DIR], warnings);
@@ -102,6 +107,8 @@ function uninstallFromManifest(claudeBase, manifest, isGlobal) {
     } catch (error) {
       warnings.push(`Could not remove install manifest: ${error.message}`);
     }
+  } else {
+    warnings.push('Install manifest kept because uninstall cleanup was incomplete.');
   }
 
   return {
@@ -138,8 +145,12 @@ function uninstallLegacy(claudeBase, isGlobal, assets) {
     }
   }
 
-  if (removeLanguageConfigBlock(getClaudeMdPath(isGlobal))) {
-    removedSomething = true;
+  try {
+    if (removeLanguageConfigBlock(getClaudeMdPath(isGlobal))) {
+      removedSomething = true;
+    }
+  } catch (error) {
+    warnings.push(`Could not update ${formatPath(getClaudeMdPath(isGlobal))}: ${error.message}`);
   }
 
   if (legacy.detected) {

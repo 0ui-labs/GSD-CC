@@ -229,7 +229,7 @@ function normalizeArtifactRequestPath(value) {
 function isMissingFileError(error) {
   return Boolean(
     error
-    && (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+    && (error.code === 'ENOENT' || error.code === 'ENOTDIR' || error.code === 'ELOOP')
   );
 }
 
@@ -291,18 +291,46 @@ async function buildArtifactPayload(projectRoot, requestedPath) {
     throw error;
   }
 
-  const content = await fs.promises.readFile(artifactPath, 'utf8');
-
-  return {
-    ok: true,
-    artifact: {
-      path: normalized.path,
-      name: path.basename(normalized.path),
-      size: artifactStats.size,
-      modifiedAt: artifactStats.mtime.toISOString(),
-      content
+  let artifactHandle;
+  try {
+    const noFollowFlag = fs.constants.O_NOFOLLOW || 0;
+    artifactHandle = await fs.promises.open(
+      realArtifactPath,
+      fs.constants.O_RDONLY | noFollowFlag
+    );
+    artifactStats = await artifactHandle.stat();
+    if (!artifactStats.isFile()) {
+      const notFound = new Error('Artifact not found.');
+      notFound.statusCode = 404;
+      notFound.artifactCode = 'artifact_not_found';
+      throw notFound;
     }
-  };
+    const content = await artifactHandle.readFile('utf8');
+
+    return {
+      ok: true,
+      artifact: {
+        path: normalized.path,
+        name: path.basename(realArtifactPath),
+        size: artifactStats.size,
+        modifiedAt: artifactStats.mtime.toISOString(),
+        content
+      }
+    };
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      const notFound = new Error('Artifact not found.');
+      notFound.statusCode = 404;
+      notFound.artifactCode = 'artifact_not_found';
+      throw notFound;
+    }
+
+    throw error;
+  } finally {
+    if (artifactHandle) {
+      await artifactHandle.close();
+    }
+  }
 }
 
 function writeArtifact(req, res, requestUrl, projectRoot) {
