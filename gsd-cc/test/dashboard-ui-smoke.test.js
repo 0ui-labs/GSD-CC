@@ -886,6 +886,100 @@ function createTaskDetailModel() {
   };
 }
 
+function createEvidenceModel() {
+  return {
+    project: {
+      name: 'Evidence Fixture',
+      project_type: 'application'
+    },
+    current: {
+      milestone: 'M006',
+      slice: 'S08',
+      task: 'T03',
+      phase: 'unified',
+      task_name: 'Build evidence panel',
+      next_action: 'Review the reconciliation output.'
+    },
+    automation: {
+      status: 'inactive',
+      scope: 'slice',
+      unit: 'S08'
+    },
+    progress: {
+      acceptance_criteria: {
+        total: 3,
+        passed: 2,
+        partial: 1,
+        failed: 0,
+        pending: 0
+      },
+      slices: []
+    },
+    current_task: {
+      id: 'S08-T03',
+      name: 'Build evidence panel',
+      risk: {
+        level: 'medium'
+      },
+      acceptance_criteria: []
+    },
+    attention: [],
+    activity: [],
+    evidence: {
+      latest_unify: {
+        slice: 'S08',
+        status: 'partial',
+        source: '.gsd/S08-UNIFY.md',
+        updated_at: '2026-04-29T10:00:00.000Z',
+        summary: {
+          status: 'partial',
+          outcome: 'Reconciled most dashboard evidence.',
+          acceptance_criteria: '2/3 passed, 1 partial, 0 failed',
+          boundary_violations: 'none',
+          recommendation: 'Continue, but address deferred fixture coverage.'
+        },
+        plan_vs_actual: [
+          {
+            task: 'T01',
+            planned: 'Render evidence shell',
+            actual: 'Rendered parser and UI',
+            status: 'expanded',
+            notes: 'Added dashboard summary fields'
+          }
+        ],
+        risks_introduced: [
+          {
+            risk: 'Parser misses unusual markdown',
+            source: 'UNIFY parser',
+            impact: 'Some rows may be hidden',
+            mitigation: 'Leave raw artifact link visible'
+          }
+        ],
+        high_risk_approvals: [
+          {
+            task: 'T02',
+            risk: 'high',
+            approval: 'approved',
+            reason: 'Approval grant matched fingerprint'
+          }
+        ],
+        no_high_risk_tasks: false,
+        decisions: [
+          'Keep UNIFY parsing dependency-free.'
+        ],
+        deferred: [
+          'Add browser screenshot coverage -> later'
+        ]
+      },
+      latest_recovery: null,
+      approval_request: null,
+      recent_decisions: [
+        'Keep UNIFY parsing dependency-free.'
+      ]
+    }
+  };
+}
+
 function flushPromises() {
   return new Promise((resolve) => {
     setImmediate(resolve);
@@ -937,6 +1031,12 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /data-dashboard-slice-id/);
   assert.match(source, /dashboard-task-detail/);
   assert.match(source, /data-dashboard-task-id/);
+  assert.match(source, /dashboard-evidence-panel/);
+  assert.match(source, /Plan vs actual/);
+  assert.match(source, /Risks introduced/);
+  assert.match(source, /High-risk approval/);
+  assert.match(source, /Decisions made/);
+  assert.match(source, /Deferred items/);
   assert.match(source, /Summary status/);
   assert.match(source, /Source artifacts/);
   assert.match(source, /Risk distribution/);
@@ -1492,6 +1592,65 @@ async function testTaskDetailRendersSelectedTaskPlanData() {
   assert.doesNotMatch(root.innerHTML, /Current task<\/strong>/);
 }
 
+async function testEvidencePanelRendersReconciliationOutput() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: ''
+  };
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(createEvidenceModel());
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  assert.match(root.innerHTML, /dashboard-evidence-panel/);
+  assert.match(root.innerHTML, /Evidence/);
+  assert.match(root.innerHTML, /UNIFY status/);
+  assert.match(root.innerHTML, /partial/);
+  assert.match(root.innerHTML, /AC result/);
+  assert.match(root.innerHTML, /2\/3 passed, 1 partial, 0 failed/);
+  assert.match(root.innerHTML, /Plan vs actual/);
+  assert.match(root.innerHTML, /Render evidence shell/);
+  assert.match(root.innerHTML, /Rendered parser and UI/);
+  assert.match(root.innerHTML, /expanded/);
+  assert.match(root.innerHTML, /Risks introduced/);
+  assert.match(root.innerHTML, /Parser misses unusual markdown/);
+  assert.match(root.innerHTML, /Leave raw artifact link visible/);
+  assert.match(root.innerHTML, /High-risk approval/);
+  assert.match(root.innerHTML, /approved/);
+  assert.match(root.innerHTML, /Approval grant matched fingerprint/);
+  assert.match(root.innerHTML, /Decisions made/);
+  assert.match(root.innerHTML, /Keep UNIFY parsing dependency-free/);
+  assert.match(root.innerHTML, /Deferred items/);
+  assert.match(root.innerHTML, /Add browser screenshot coverage/);
+  assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FS08-UNIFY\.md/);
+}
+
 async function testStylesExposeConnectionStates() {
   const styles = fs.readFileSync(stylesPath, 'utf8');
 
@@ -1529,6 +1688,12 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-task-detail--completed/);
   assert.match(styles, /\.dashboard-task-detail-grid/);
   assert.match(styles, /\.dashboard-task-detail-criterion--passed/);
+  assert.match(styles, /\.dashboard-evidence-panel/);
+  assert.match(styles, /\.dashboard-evidence-summary/);
+  assert.match(styles, /\.dashboard-evidence-grid/);
+  assert.match(styles, /\.dashboard-evidence-badge--partial/);
+  assert.match(styles, /\.dashboard-evidence-fields/);
+  assert.match(styles, /\.dashboard-activity-pill--expanded/);
   assert.match(styles, /max-height:\s*min\(680px,\s*72vh\)/);
   assert.match(styles, /overflow-y:\s*auto/);
   assert.match(styles, /\.dashboard-artifact-link/);
@@ -1550,6 +1715,7 @@ async function run() {
   await testActivityFeedRendersExecutionHistory();
   await testSliceRoadmapRendersSelectableProgress();
   await testTaskDetailRendersSelectedTaskPlanData();
+  await testEvidencePanelRendersReconciliationOutput();
   await testStylesExposeConnectionStates();
 }
 

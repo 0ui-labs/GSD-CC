@@ -716,6 +716,11 @@
         meta: displayValue(current.slice, 'no slice')
       },
       {
+        id: 'evidence',
+        label: 'Evidence',
+        meta: model.evidence && model.evidence.latest_unify ? 'UNIFY ready' : 'pending'
+      },
+      {
         id: 'activity',
         label: 'Activity',
         meta: activity.length > 0 ? `${activity.length} events` : 'empty'
@@ -1805,6 +1810,249 @@
     ].join('');
   }
 
+  function renderEvidenceBadge(label, value, tone) {
+    return [
+      `<span class="dashboard-evidence-badge dashboard-evidence-badge--${toClassName(tone || value)}">`,
+      `  <span>${escapeHtml(label)}</span>`,
+      `  <strong>${escapeHtml(displayValue(value, 'unknown'))}</strong>`,
+      '</span>'
+    ].join('');
+  }
+
+  function renderEvidenceBlock(title, body) {
+    return [
+      '<section class="dashboard-evidence-block">',
+      `  <h4>${escapeHtml(title)}</h4>`,
+      body,
+      '</section>'
+    ].join('');
+  }
+
+  function renderEvidenceFields(fields) {
+    const visible = fields.filter((field) => displayValue(field.value, ''));
+
+    if (visible.length === 0) {
+      return '';
+    }
+
+    return [
+      '<dl class="dashboard-evidence-fields">',
+      ...visible.map((field) => [
+        '  <div>',
+        `    <dt>${escapeHtml(field.label)}</dt>`,
+        `    <dd>${escapeHtml(field.value)}</dd>`,
+        '  </div>'
+      ].join('')),
+      '</dl>'
+    ].join('');
+  }
+
+  function renderEvidenceSummary(latestUnify) {
+    const summary = latestUnify.summary || {};
+    const updated = formatModelTime(latestUnify.updated_at);
+    const sourceLink = renderArtifactLink(latestUnify.source, 'UNIFY report');
+
+    return [
+      '<div class="dashboard-evidence-summary">',
+      '  <div class="dashboard-evidence-summary-main">',
+      renderEvidenceBadge('UNIFY status', latestUnify.status, latestUnify.status),
+      renderEvidenceBadge('Slice', latestUnify.slice, 'slice'),
+      summary.acceptance_criteria
+        ? renderEvidenceBadge('AC result', summary.acceptance_criteria, 'acceptance')
+        : '',
+      summary.boundary_violations
+        ? renderEvidenceBadge('Boundaries', summary.boundary_violations, 'boundary')
+        : '',
+      '  </div>',
+      '  <div class="dashboard-evidence-artifacts">',
+      sourceLink,
+      updated ? `<time${formatTimestampAttribute(latestUnify.updated_at)}>${escapeHtml(updated)}</time>` : '',
+      '  </div>',
+      summary.outcome
+        ? `  <p>${escapeHtml(summary.outcome)}</p>`
+        : '',
+      summary.recommendation
+        ? `  <p class="dashboard-evidence-recommendation">${escapeHtml(summary.recommendation)}</p>`
+        : '',
+      '</div>'
+    ].join('');
+  }
+
+  function renderPlanVsActual(rows) {
+    const items = Array.isArray(rows) ? rows : [];
+
+    if (items.length === 0) {
+      return '<p class="dashboard-evidence-empty">No plan-vs-actual rows parsed.</p>';
+    }
+
+    return [
+      '<ol class="dashboard-evidence-list dashboard-evidence-plan-list">',
+      ...items.slice(0, 5).map((row) => [
+        '  <li>',
+        '    <div class="dashboard-evidence-row-title">',
+        `      <strong>${escapeHtml(displayValue(row.task, 'Task'))}</strong>`,
+        row.status
+          ? renderActivityPill(row.status, row.status)
+          : '',
+        '    </div>',
+        renderEvidenceFields([
+          {
+            label: 'Planned',
+            value: row.planned
+          },
+          {
+            label: 'Actual',
+            value: row.actual
+          },
+          {
+            label: 'Notes',
+            value: row.notes
+          }
+        ]),
+        '  </li>'
+      ].join('')),
+      items.length > 5
+        ? `  <li class="dashboard-evidence-more">${items.length - 5} more rows</li>`
+        : '',
+      '</ol>'
+    ].join('');
+  }
+
+  function renderRisksIntroduced(risks) {
+    const items = Array.isArray(risks) ? risks : [];
+
+    if (items.length === 0) {
+      return '<p class="dashboard-evidence-empty">No introduced risks recorded.</p>';
+    }
+
+    return [
+      '<ol class="dashboard-evidence-list">',
+      ...items.slice(0, 5).map((risk) => [
+        '  <li>',
+        '    <div class="dashboard-evidence-row-title">',
+        `      <strong>${escapeHtml(displayValue(risk.risk, 'Risk'))}</strong>`,
+        '    </div>',
+        renderEvidenceFields([
+          {
+            label: 'Source',
+            value: risk.source
+          },
+          {
+            label: 'Impact',
+            value: risk.impact
+          },
+          {
+            label: 'Mitigation',
+            value: risk.mitigation
+          }
+        ]),
+        '  </li>'
+      ].join('')),
+      items.length > 5
+        ? `  <li class="dashboard-evidence-more">${items.length - 5} more risks</li>`
+        : '',
+      '</ol>'
+    ].join('');
+  }
+
+  function renderHighRiskApprovals(latestUnify) {
+    const approvals = Array.isArray(latestUnify.high_risk_approvals)
+      ? latestUnify.high_risk_approvals
+      : [];
+
+    if (approvals.length === 0) {
+      return latestUnify.no_high_risk_tasks
+        ? '<p class="dashboard-evidence-empty">No high-risk tasks in this slice.</p>'
+        : '<p class="dashboard-evidence-empty">No high-risk approval rows parsed.</p>';
+    }
+
+    return [
+      '<ol class="dashboard-evidence-list">',
+      ...approvals.slice(0, 5).map((approval) => [
+        '  <li>',
+        '    <div class="dashboard-evidence-row-title">',
+        `      <strong>${escapeHtml(displayValue(approval.task, 'Task'))}</strong>`,
+        renderActivityPill(approval.approval, approval.approval),
+        '    </div>',
+        renderEvidenceFields([
+          {
+            label: 'Risk',
+            value: approval.risk
+          },
+          {
+            label: 'Reason',
+            value: approval.reason
+          }
+        ]),
+        '  </li>'
+      ].join('')),
+      approvals.length > 5
+        ? `  <li class="dashboard-evidence-more">${approvals.length - 5} more approvals</li>`
+        : '',
+      '</ol>'
+    ].join('');
+  }
+
+  function renderEvidenceTextList(items, emptyText) {
+    const values = uniqueValues(Array.isArray(items) ? items : []);
+
+    if (values.length === 0) {
+      return `<p class="dashboard-evidence-empty">${escapeHtml(emptyText)}</p>`;
+    }
+
+    return [
+      '<ul class="dashboard-evidence-text-list">',
+      ...values.slice(0, 5).map((item) => `  <li>${escapeHtml(item)}</li>`),
+      values.length > 5
+        ? `  <li class="dashboard-evidence-more">${values.length - 5} more</li>`
+        : '',
+      '</ul>'
+    ].join('');
+  }
+
+  function renderEvidencePanel(evidence) {
+    const safeEvidence = evidence || {};
+    const latestUnify = safeEvidence.latest_unify || null;
+
+    if (!latestUnify) {
+      return renderEmptyState(
+        'No reconciliation evidence yet',
+        'UNIFY status, risks, decisions, and deferred items will appear after reconciliation.'
+      );
+    }
+
+    return [
+      '<section class="dashboard-evidence-panel" aria-label="Evidence panel">',
+      renderEvidenceSummary(latestUnify),
+      '  <div class="dashboard-evidence-grid">',
+      renderEvidenceBlock(
+        'Plan vs actual',
+        renderPlanVsActual(latestUnify.plan_vs_actual)
+      ),
+      renderEvidenceBlock(
+        'Risks introduced',
+        renderRisksIntroduced(latestUnify.risks_introduced)
+      ),
+      renderEvidenceBlock(
+        'High-risk approval',
+        renderHighRiskApprovals(latestUnify)
+      ),
+      renderEvidenceBlock(
+        'Decisions made',
+        renderEvidenceTextList(
+          latestUnify.decisions || safeEvidence.recent_decisions,
+          'No recent decisions recorded.'
+        )
+      ),
+      renderEvidenceBlock(
+        'Deferred items',
+        renderEvidenceTextList(latestUnify.deferred, 'No deferred items recorded.')
+      ),
+      '  </div>',
+      '</section>'
+    ].join('');
+  }
+
   function renderActivityPill(value, tone) {
     const text = displayValue(value, '');
 
@@ -1998,6 +2246,10 @@
       '  <section class="dashboard-region" id="progress">',
       renderRegionHeader('Progress', 'Slice and acceptance status.'),
       renderProgress(model.progress, current),
+      '  </section>',
+      '  <section class="dashboard-region" id="evidence">',
+      renderRegionHeader('Evidence', 'UNIFY and reconciliation output.'),
+      renderEvidencePanel(model.evidence),
       '  </section>',
       '  <section class="dashboard-region" id="activity">',
       renderRegionHeader('Recent activity', 'Latest automation events.'),
