@@ -1,4 +1,19 @@
 const path = require('path');
+const {
+  countClosingTags,
+  countOpeningTags,
+  decodeXmlEntities,
+  extractAttr,
+  findTag,
+  meaningfulText,
+  normalizeDisplayLines,
+  normalizeMultilineText,
+  normalizeSingleLineText,
+  parseRawAcceptanceCriteria,
+  stripXmlComments,
+  stripXmlTags,
+  trimWhitespace
+} = require('../task-plan-xml');
 
 const UNKNOWN = 'unknown';
 const RISK_LEVELS = new Set(['low', 'medium', 'high']);
@@ -24,82 +39,6 @@ function createEmptyTaskPlan() {
 
 function addWarning(warnings, code, message) {
   warnings.push({ code, message });
-}
-
-function trimWhitespace(value) {
-  return String(value || '').replace(/^\s+|\s+$/g, '');
-}
-
-function stripXmlComments(value) {
-  return String(value || '').replace(/<!--[\s\S]*?-->/g, '');
-}
-
-function decodeXmlEntities(value) {
-  return String(value || '')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
-}
-
-function stripXmlTags(value) {
-  return String(value || '').replace(/<[^>]+>/g, '');
-}
-
-function meaningfulText(value) {
-  return trimWhitespace(stripXmlTags(stripXmlComments(value))).length > 0;
-}
-
-function normalizeDisplayLines(value) {
-  return stripXmlComments(value)
-    .split(/\r?\n/)
-    .map((line) => trimWhitespace(decodeXmlEntities(stripXmlTags(line))))
-    .filter(Boolean);
-}
-
-function normalizeMultilineText(value) {
-  const lines = normalizeDisplayLines(value);
-  return lines.length > 0 ? lines.join('\n') : null;
-}
-
-function normalizeSingleLineText(value) {
-  const lines = normalizeDisplayLines(value);
-  return lines.length > 0 ? lines.join(' ') : null;
-}
-
-function findTag(content, tag) {
-  const openPattern = new RegExp(`<${tag}\\b[^>]*>`, 'i');
-  const openMatch = openPattern.exec(content);
-
-  if (!openMatch) {
-    return null;
-  }
-
-  const closePattern = new RegExp(`</${tag}\\s*>`, 'i');
-  closePattern.lastIndex = openMatch.index + openMatch[0].length;
-  const afterOpen = content.slice(openMatch.index + openMatch[0].length);
-  const closeMatch = closePattern.exec(afterOpen);
-
-  if (!closeMatch) {
-    return {
-      openTag: openMatch[0],
-      body: '',
-      closed: false
-    };
-  }
-
-  return {
-    openTag: openMatch[0],
-    body: afterOpen.slice(0, closeMatch.index),
-    closed: true
-  };
-}
-
-function extractAttr(openTag, attr) {
-  const pattern = new RegExp(`\\s${attr}\\s*=\\s*(["'])(.*?)\\1`, 'i');
-  const match = String(openTag || '').match(pattern);
-  return match ? decodeXmlEntities(match[2]) : null;
 }
 
 function expectedTaskIdFromPath(planPath) {
@@ -144,12 +83,10 @@ function parseTaskFiles(filesBlock) {
 function parseAcceptanceCriteria(criteriaBlock, warnings) {
   const criteria = [];
   const seenIds = new Set();
-  const acPattern = /<ac\b([^>]*)>([\s\S]*?)<\/ac>/gi;
-  let match;
 
-  while ((match = acPattern.exec(criteriaBlock)) !== null) {
-    const id = extractAttr(`<ac${match[1]}>`, 'id') || UNKNOWN;
-    const text = normalizeMultilineText(match[2]) || '';
+  for (const rawCriterion of parseRawAcceptanceCriteria(criteriaBlock)) {
+    const id = rawCriterion.id || UNKNOWN;
+    const text = normalizeMultilineText(rawCriterion.body) || '';
 
     if (id === UNKNOWN) {
       addWarning(warnings, 'task.ac.id_missing', 'acceptance criterion is missing an id');
@@ -180,8 +117,8 @@ function parseAcceptanceCriteria(criteriaBlock, warnings) {
     criteria.push({ id, text });
   }
 
-  const openCount = (criteriaBlock.match(/<ac\b/gi) || []).length;
-  const closeCount = (criteriaBlock.match(/<\/ac\s*>/gi) || []).length;
+  const openCount = countOpeningTags(criteriaBlock, 'ac');
+  const closeCount = countClosingTags(criteriaBlock, 'ac');
   if (openCount > closeCount) {
     addWarning(warnings, 'task.ac.malformed', 'acceptance criteria contain an unclosed ac tag');
   }

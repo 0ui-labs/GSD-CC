@@ -2,6 +2,15 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  extractTagAttr,
+  extractTaskAttr,
+  extractXmlBlock,
+  meaningfulText: textHasMeaning,
+  parseRawAcceptanceCriteria,
+  stripXmlComments,
+  trimWhitespace
+} = require('./task-plan-xml');
 
 const MAX_TASKS_PER_SLICE = 7;
 const MAX_FILES_PER_TASK = 15;
@@ -60,41 +69,6 @@ function readText(context, filePath) {
   }
 }
 
-function trimWhitespace(value) {
-  return String(value || '').replace(/^\s+|\s+$/g, '');
-}
-
-function stripXmlComments(value) {
-  return String(value || '').replace(/<!--[\s\S]*?-->/g, '');
-}
-
-function textHasMeaning(value) {
-  return trimWhitespace(stripXmlComments(value).replace(/<[^>]+>/g, '')).length > 0;
-}
-
-function extractXmlBlock(content, tag) {
-  const match = String(content || '').match(new RegExp(`<${tag}\\b[^>]*>\\s*([\\s\\S]*?)\\s*</${tag}>`, 'i'));
-  return match ? match[1] : '';
-}
-
-function extractTagAttr(content, tag, attr) {
-  const tagMatch = String(content || '').match(new RegExp(`<${tag}\\b[^>]*>`, 'i'));
-  if (!tagMatch) {
-    return '';
-  }
-  const attrMatch = tagMatch[0].match(new RegExp(`\\s${attr}=["']([^"']+)["']`, 'i'));
-  return attrMatch ? attrMatch[1] : '';
-}
-
-function extractTaskAttr(content, attr) {
-  const taskMatch = String(content || '').match(/<task\b[^>]*>/i);
-  if (!taskMatch) {
-    return '';
-  }
-  const attrMatch = taskMatch[0].match(new RegExp(`\\s${attr}=["']([^"']+)["']`, 'i'));
-  return attrMatch ? attrMatch[1] : '';
-}
-
 function expectedTaskId(planPath) {
   return path.basename(planPath).replace(/-PLAN\.xml$/i, '');
 }
@@ -144,8 +118,8 @@ function parseTaskFiles(content) {
   const filesBlock = extractXmlBlock(content, 'files');
   const files = [];
 
-  for (const rawLine of filesBlock.split(/\r?\n/)) {
-    let line = rawLine.replace(/<!--.*?-->/g, '');
+  for (const rawLine of stripXmlComments(filesBlock).split(/\r?\n/)) {
+    let line = rawLine;
     line = trimWhitespace(line);
 
     if (!line || line.startsWith('#') || line.startsWith('//') || line.endsWith(':')) {
@@ -161,22 +135,6 @@ function parseTaskFiles(content) {
   }
 
   return files;
-}
-
-function parseAcceptanceCriteria(content) {
-  const criteria = [];
-  const acPattern = /<ac\b([^>]*)>([\s\S]*?)<\/ac>/gi;
-  let match;
-
-  while ((match = acPattern.exec(content)) !== null) {
-    const idMatch = match[1].match(/\bid=["']([^"']+)["']/i);
-    criteria.push({
-      id: idMatch ? idMatch[1] : '',
-      body: match[2]
-    });
-  }
-
-  return criteria;
 }
 
 function extractVerifyAcReferences(verifyText) {
@@ -332,7 +290,7 @@ function validateTaskPlan(context, planPath, options = {}) {
     addError(context, planPath, 'task.too_broad', `task owns ${normalizedFiles.length} files; split tasks above ${MAX_FILES_PER_TASK} files`);
   }
 
-  const criteria = parseAcceptanceCriteria(content);
+  const criteria = parseRawAcceptanceCriteria(content);
   if (criteria.length === 0) {
     addError(context, planPath, 'task.ac.missing', 'acceptance_criteria must contain at least one AC');
   }
