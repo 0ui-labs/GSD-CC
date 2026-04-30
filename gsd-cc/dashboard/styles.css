@@ -115,6 +115,12 @@ body {
 .dashboard-attention-details,
 .dashboard-attention-detail,
 .dashboard-artifact-link,
+.dashboard-artifact-drawer,
+.dashboard-artifact-header,
+.dashboard-artifact-body,
+.dashboard-artifact-meta,
+.dashboard-artifact-state,
+.dashboard-artifact-content,
 .dashboard-activity,
 .dashboard-activity-feed,
 .dashboard-activity-summary,
@@ -1966,6 +1972,139 @@ h3 {
   color: var(--dashboard-muted);
 }
 
+.dashboard-artifact-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(31, 41, 55, 0.28);
+}
+
+.dashboard-artifact-drawer {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 31;
+  width: min(720px, calc(100vw - 32px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-surface);
+  box-shadow: 0 24px 80px rgba(31, 41, 55, 0.22);
+}
+
+.dashboard-artifact-header {
+  display: flex;
+  gap: 14px;
+  align-items: start;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--dashboard-border);
+}
+
+.dashboard-artifact-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.dashboard-artifact-header code,
+.dashboard-artifact-state code {
+  display: block;
+  margin-top: 6px;
+  color: var(--dashboard-muted);
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-artifact-close {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  color: var(--dashboard-text);
+  background: var(--dashboard-quiet);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dashboard-artifact-close:hover,
+.dashboard-artifact-close:focus-visible {
+  border-color: var(--dashboard-accent);
+  outline: none;
+}
+
+.dashboard-artifact-body {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px;
+}
+
+.dashboard-artifact-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--dashboard-soft-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-quiet);
+}
+
+.dashboard-artifact-content {
+  min-height: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  background: #111827;
+  color: #f9fafb;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.dashboard-artifact-content code {
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.dashboard-artifact-state {
+  align-self: start;
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--dashboard-border);
+  border-left: 4px solid var(--dashboard-info);
+  border-radius: var(--dashboard-radius);
+  background: var(--dashboard-quiet);
+}
+
+.dashboard-artifact-state strong,
+.dashboard-artifact-state p {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-artifact-state p {
+  color: var(--dashboard-muted);
+  line-height: 1.45;
+}
+
+.dashboard-artifact-state--missing,
+.dashboard-artifact-state--rejected {
+  border-left-color: var(--dashboard-warning);
+}
+
+.dashboard-artifact-state--error {
+  border-left-color: var(--dashboard-danger);
+}
+
 .dashboard-attention-item--critical,
 .dashboard-why-task-criterion--failed,
 .dashboard-activity--critical {
@@ -2039,6 +2178,7 @@ h3 {
   .dashboard-task-detail-grid,
   .dashboard-evidence-grid,
   .dashboard-evidence-fields,
+  .dashboard-artifact-meta,
   .dashboard-current-run-panel,
   .dashboard-current-run-details,
   .dashboard-why-task-grid {
@@ -2055,6 +2195,17 @@ h3 {
   }
 
   .dashboard-why-task-header {
+    flex-direction: column;
+  }
+
+  .dashboard-artifact-drawer {
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: calc(100vw - 24px);
+  }
+
+  .dashboard-artifact-header {
     flex-direction: column;
   }
 

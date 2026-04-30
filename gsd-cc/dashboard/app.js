@@ -66,6 +66,19 @@
   }
 
   const app = {
+    artifactRequestId: 0,
+    artifactViewer: {
+      content: '',
+      errorCode: '',
+      label: '',
+      modifiedAt: '',
+      name: '',
+      open: false,
+      path: '',
+      size: null,
+      status: 'idle',
+      message: ''
+    },
     connection: 'loading',
     error: '',
     eventSource: null,
@@ -268,10 +281,143 @@
     }
 
     return [
-      `<a class="dashboard-artifact-link" href="${escapeHtml(href)}" target="_blank" rel="noopener">`,
+      `<a class="dashboard-artifact-link" href="${escapeHtml(href)}" data-dashboard-artifact-path="${escapeHtml(path)}" data-dashboard-artifact-label="${escapeHtml(text)}">`,
       escapeHtml(text),
       '</a>'
     ].join('');
+  }
+
+  function resetArtifactViewer() {
+    app.artifactRequestId += 1;
+    app.artifactViewer = {
+      content: '',
+      errorCode: '',
+      label: '',
+      modifiedAt: '',
+      name: '',
+      open: false,
+      path: '',
+      size: null,
+      status: 'idle',
+      message: ''
+    };
+  }
+
+  function setArtifactViewer(nextState) {
+    app.artifactViewer = {
+      ...app.artifactViewer,
+      ...nextState
+    };
+    render();
+  }
+
+  function artifactErrorStatus(response, payload) {
+    const code = payload && payload.error ? payload.error.code : '';
+
+    if ((response && response.status === 404) || code === 'artifact_not_found') {
+      return 'missing';
+    }
+
+    if ((response && response.status === 400) || code === 'invalid_artifact_path') {
+      return 'rejected';
+    }
+
+    return 'error';
+  }
+
+  function artifactErrorMessage(payload, fallback) {
+    return payload && payload.error && payload.error.message
+      ? payload.error.message
+      : fallback;
+  }
+
+  function readArtifactResponseJson(response) {
+    return response.json().catch(() => ({}));
+  }
+
+  function openArtifactViewer(path, label) {
+    const href = artifactHref(path);
+
+    if (!href) {
+      return Promise.resolve();
+    }
+
+    app.artifactRequestId += 1;
+
+    const requestId = app.artifactRequestId;
+
+    setArtifactViewer({
+      content: '',
+      errorCode: '',
+      label: displayValue(label, path),
+      modifiedAt: '',
+      name: '',
+      open: true,
+      path,
+      size: null,
+      status: 'loading',
+      message: 'Loading artifact.'
+    });
+
+    if (typeof fetch !== 'function') {
+      setArtifactViewer({
+        status: 'error',
+        message: 'This browser cannot fetch artifact content.'
+      });
+      return Promise.resolve();
+    }
+
+    return fetch(href, {
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json'
+      }
+    }).then((response) => readArtifactResponseJson(response).then((payload) => {
+      if (requestId !== app.artifactRequestId) {
+        return;
+      }
+
+      if (response.ok && payload && payload.ok && payload.artifact) {
+        setArtifactViewer({
+          content: displayValue(payload.artifact.content, ''),
+          errorCode: '',
+          modifiedAt: payload.artifact.modifiedAt || '',
+          name: payload.artifact.name || '',
+          path: payload.artifact.path || path,
+          size: Number(payload.artifact.size),
+          status: 'ready',
+          message: ''
+        });
+        return;
+      }
+
+      const status = artifactErrorStatus(response, payload);
+
+      setArtifactViewer({
+        content: '',
+        errorCode: payload && payload.error ? payload.error.code : '',
+        status,
+        message: artifactErrorMessage(
+          payload,
+          status === 'missing'
+            ? 'Artifact not found.'
+            : 'Artifact request was rejected.'
+        )
+      });
+    })).catch((error) => {
+      if (requestId !== app.artifactRequestId) {
+        return;
+      }
+
+      setArtifactViewer({
+        content: '',
+        errorCode: '',
+        status: 'error',
+        message: error && error.message
+          ? error.message
+          : 'Artifact is temporarily unavailable.'
+      });
+    });
   }
 
   function currentTaskPlanPath(currentTask) {
@@ -2274,6 +2420,101 @@
     ].join('');
   }
 
+  function formatArtifactSize(size) {
+    const bytes = Number(size);
+
+    if (!Number.isFinite(bytes) || bytes < 0) {
+      return '';
+    }
+
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  function renderArtifactStatus(viewer, title, detail) {
+    return [
+      `<div class="dashboard-artifact-state dashboard-artifact-state--${toClassName(viewer.status)}">`,
+      `  <strong>${escapeHtml(title)}</strong>`,
+      `  <p>${escapeHtml(detail)}</p>`,
+      viewer.path ? `  <code>${escapeHtml(viewer.path)}</code>` : '',
+      '</div>'
+    ].join('');
+  }
+
+  function renderArtifactContent(viewer) {
+    if (viewer.status === 'loading') {
+      return renderArtifactStatus(viewer, 'Loading artifact', viewer.message);
+    }
+
+    if (viewer.status === 'missing') {
+      return renderArtifactStatus(
+        viewer,
+        'Artifact missing',
+        displayValue(viewer.message, 'Artifact not found.')
+      );
+    }
+
+    if (viewer.status === 'rejected') {
+      return renderArtifactStatus(
+        viewer,
+        'Artifact request rejected',
+        displayValue(viewer.message, 'Artifact path must stay inside .gsd/.')
+      );
+    }
+
+    if (viewer.status !== 'ready') {
+      return renderArtifactStatus(
+        viewer,
+        'Artifact unavailable',
+        displayValue(viewer.message, 'Artifact is temporarily unavailable.')
+      );
+    }
+
+    const size = formatArtifactSize(viewer.size);
+    const modified = formatModelTime(viewer.modifiedAt);
+
+    return [
+      '<div class="dashboard-artifact-meta">',
+      viewer.name ? renderField('Name', viewer.name) : '',
+      size ? renderField('Size', size) : '',
+      modified ? renderField('Modified', modified) : '',
+      viewer.path ? renderField('Path', viewer.path) : '',
+      '</div>',
+      '<pre class="dashboard-artifact-content"><code>',
+      escapeHtml(viewer.content),
+      '</code></pre>'
+    ].join('');
+  }
+
+  function renderArtifactDrawer(viewer) {
+    if (!viewer || !viewer.open) {
+      return '';
+    }
+
+    const title = displayValue(viewer.label || viewer.name, 'Artifact');
+    const busy = viewer.status === 'loading' ? ' aria-busy="true"' : '';
+
+    return [
+      '<div class="dashboard-artifact-backdrop" data-dashboard-artifact-close></div>',
+      `<aside class="dashboard-artifact-drawer dashboard-artifact-drawer--${toClassName(viewer.status)}" role="dialog" aria-modal="true" aria-label="Artifact viewer"${busy}>`,
+      '  <header class="dashboard-artifact-header">',
+      '    <div>',
+      '      <p class="dashboard-kicker">Artifact viewer</p>',
+      `      <h2>${escapeHtml(title)}</h2>`,
+      viewer.path ? `      <code>${escapeHtml(viewer.path)}</code>` : '',
+      '    </div>',
+      '    <button type="button" class="dashboard-artifact-close" data-dashboard-artifact-close>Close</button>',
+      '  </header>',
+      '  <div class="dashboard-artifact-body">',
+      renderArtifactContent(viewer),
+      '  </div>',
+      '</aside>'
+    ].join('');
+  }
+
   function render() {
     const model = app.model || {};
     const project = model.project || {};
@@ -2287,7 +2528,8 @@
       renderSidebar(model, current),
       renderMain(model, current),
       renderContext(model, project, automation),
-      '</div>'
+      '</div>',
+      renderArtifactDrawer(app.artifactViewer)
     ].join('');
   }
 
@@ -2416,21 +2658,59 @@
       ? event.target.closest('[data-dashboard-task-id]')
       : null;
 
-    if (!taskTarget) {
+    if (taskTarget) {
+      if (typeof root.contains === 'function' && !root.contains(taskTarget)) {
+        return;
+      }
+
+      const taskId = taskTarget.getAttribute('data-dashboard-task-id');
+
+      if (!taskId || taskId === app.selectedTaskId) {
+        return;
+      }
+
+      app.selectedTaskId = taskId;
+      render();
       return;
     }
 
-    if (typeof root.contains === 'function' && !root.contains(taskTarget)) {
+    const artifactTarget = event && event.target && typeof event.target.closest === 'function'
+      ? event.target.closest('[data-dashboard-artifact-path]')
+      : null;
+
+    if (artifactTarget) {
+      if (typeof root.contains === 'function' && !root.contains(artifactTarget)) {
+        return;
+      }
+
+      const path = artifactTarget.getAttribute('data-dashboard-artifact-path');
+      const label = artifactTarget.getAttribute('data-dashboard-artifact-label');
+
+      if (!path) {
+        return;
+      }
+
+      if (event && typeof event.preventDefault === 'function') {
+        event.preventDefault();
+      }
+
+      openArtifactViewer(path, label);
       return;
     }
 
-    const taskId = taskTarget.getAttribute('data-dashboard-task-id');
+    const closeTarget = event && event.target && typeof event.target.closest === 'function'
+      ? event.target.closest('[data-dashboard-artifact-close]')
+      : null;
 
-    if (!taskId || taskId === app.selectedTaskId) {
+    if (!closeTarget) {
       return;
     }
 
-    app.selectedTaskId = taskId;
+    if (typeof root.contains === 'function' && !root.contains(closeTarget)) {
+      return;
+    }
+
+    resetArtifactViewer();
     render();
   }
 

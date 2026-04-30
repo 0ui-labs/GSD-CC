@@ -263,8 +263,12 @@ async function testArtifactRejectsUnsafePaths() {
       serverInfo,
       `/api/artifact?path=${encodeURIComponent('package.json')}`
     );
+    const insideTraversal = await request(
+      serverInfo,
+      `/api/artifact?path=${encodeURIComponent('.gsd/../package.json')}`
+    );
 
-    for (const response of [traversal, absolute, outsideGsd]) {
+    for (const response of [traversal, absolute, outsideGsd, insideTraversal]) {
       assert.strictEqual(response.statusCode, 400);
       assert.match(contentType(response), /^application\/json\b/);
       assertNoCache(response);

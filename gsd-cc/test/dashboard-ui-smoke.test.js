@@ -1037,6 +1037,12 @@ async function testClientReferencesDashboardEndpoints() {
   assert.match(source, /High-risk approval/);
   assert.match(source, /Decisions made/);
   assert.match(source, /Deferred items/);
+  assert.match(source, /dashboard-artifact-drawer/);
+  assert.match(source, /data-dashboard-artifact-path/);
+  assert.match(source, /Artifact viewer/);
+  assert.match(source, /Loading artifact/);
+  assert.match(source, /Artifact missing/);
+  assert.match(source, /Artifact request rejected/);
   assert.match(source, /Summary status/);
   assert.match(source, /Source artifacts/);
   assert.match(source, /Risk distribution/);
@@ -1651,6 +1657,213 @@ async function testEvidencePanelRendersReconciliationOutput() {
   assert.match(root.innerHTML, /\/api\/artifact\?path=\.gsd%2FS08-UNIFY\.md/);
 }
 
+function dispatchArtifactClick(root, artifactPath, label) {
+  let prevented = false;
+  const artifactNode = {
+    getAttribute(name) {
+      if (name === 'data-dashboard-artifact-path') {
+        return artifactPath;
+      }
+
+      if (name === 'data-dashboard-artifact-label') {
+        return label;
+      }
+
+      return null;
+    }
+  };
+
+  root.clickListener({
+    preventDefault() {
+      prevented = true;
+    },
+    target: {
+      closest(selector) {
+        if (selector === '[data-dashboard-slice-id]') {
+          return null;
+        }
+
+        if (selector === '[data-dashboard-task-id]') {
+          return null;
+        }
+
+        if (selector === '[data-dashboard-artifact-path]') {
+          return artifactNode;
+        }
+
+        if (selector === '[data-dashboard-artifact-close]') {
+          return null;
+        }
+
+        return null;
+      }
+    }
+  });
+
+  assert.strictEqual(prevented, true);
+}
+
+function dispatchArtifactClose(root) {
+  const closeNode = {};
+
+  root.clickListener({
+    target: {
+      closest(selector) {
+        if (selector === '[data-dashboard-slice-id]') {
+          return null;
+        }
+
+        if (selector === '[data-dashboard-task-id]') {
+          return null;
+        }
+
+        if (selector === '[data-dashboard-artifact-path]') {
+          return null;
+        }
+
+        if (selector === '[data-dashboard-artifact-close]') {
+          return closeNode;
+        }
+
+        return null;
+      }
+    }
+  });
+}
+
+async function testArtifactViewerFetchesAndRendersStates() {
+  const source = fs.readFileSync(appPath, 'utf8');
+  const root = {
+    innerHTML: '',
+    clickListener: null,
+    addEventListener(name, listener) {
+      assert.strictEqual(name, 'click');
+      this.clickListener = listener;
+    },
+    contains() {
+      return true;
+    }
+  };
+  const fetchCalls = [];
+
+  FakeEventSource.instances = [];
+
+  const sandbox = {
+    clearInterval() {},
+    document: {
+      querySelector(selector) {
+        assert.strictEqual(selector, '[data-dashboard-root]');
+        return root;
+      }
+    },
+    EventSource: FakeEventSource,
+    fetch(url) {
+      fetchCalls.push(url);
+
+      if (url === '/api/state') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json() {
+            return Promise.resolve(createTaskDetailModel());
+          }
+        });
+      }
+
+      if (String(url).includes('MISSING')) {
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          json() {
+            return Promise.resolve({
+              ok: false,
+              error: {
+                code: 'artifact_not_found',
+                message: 'Artifact not found.'
+              }
+            });
+          }
+        });
+      }
+
+      if (String(url).includes('SECRET')) {
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          json() {
+            return Promise.resolve({
+              ok: false,
+              error: {
+                code: 'invalid_artifact_path',
+                message: 'Artifact path must stay inside .gsd/.'
+              }
+            });
+          }
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json() {
+          return Promise.resolve({
+            ok: true,
+            artifact: {
+              path: '.gsd/S07-T02-PLAN.xml',
+              name: 'S07-T02-PLAN.xml',
+              size: 26,
+              modifiedAt: '2026-04-29T10:30:00.000Z',
+              content: '<task-plan>content</task-plan>'
+            }
+          });
+        }
+      });
+    },
+    setInterval() {
+      return 1;
+    },
+    window: {
+      addEventListener() {}
+    }
+  };
+
+  vm.runInNewContext(source, sandbox);
+  await flushPromises();
+
+  dispatchArtifactClick(root, '.gsd/S07-T02-PLAN.xml', 'Task plan');
+
+  assert.match(root.innerHTML, /dashboard-artifact-drawer/);
+  assert.match(root.innerHTML, /Artifact viewer/);
+  assert.match(root.innerHTML, /Loading artifact/);
+  assert.match(root.innerHTML, /Task plan/);
+
+  await flushPromises();
+
+  assert.match(root.innerHTML, /S07-T02-PLAN\.xml/);
+  assert.match(root.innerHTML, /26 B/);
+  assert.match(root.innerHTML, /&lt;task-plan&gt;content&lt;\/task-plan&gt;/);
+  assert.ok(fetchCalls.some((url) => (
+    /\/api\/artifact\?path=\.gsd%2FS07-T02-PLAN\.xml/.test(url)
+  )));
+
+  dispatchArtifactClick(root, '.gsd/MISSING.md', 'Missing report');
+  await flushPromises();
+
+  assert.match(root.innerHTML, /Artifact missing/);
+  assert.match(root.innerHTML, /Artifact not found/);
+  assert.match(root.innerHTML, /\.gsd\/MISSING\.md/);
+
+  dispatchArtifactClick(root, '.gsd/../SECRET.md', 'Rejected report');
+  await flushPromises();
+
+  assert.match(root.innerHTML, /Artifact request rejected/);
+  assert.match(root.innerHTML, /Artifact path must stay inside \.gsd\//);
+
+  dispatchArtifactClose(root);
+
+  assert.doesNotMatch(root.innerHTML, /dashboard-artifact-drawer/);
+}
+
 async function testStylesExposeConnectionStates() {
   const styles = fs.readFileSync(stylesPath, 'utf8');
 
@@ -1694,6 +1907,10 @@ async function testStylesExposeConnectionStates() {
   assert.match(styles, /\.dashboard-evidence-badge--partial/);
   assert.match(styles, /\.dashboard-evidence-fields/);
   assert.match(styles, /\.dashboard-activity-pill--expanded/);
+  assert.match(styles, /\.dashboard-artifact-drawer/);
+  assert.match(styles, /\.dashboard-artifact-backdrop/);
+  assert.match(styles, /\.dashboard-artifact-content/);
+  assert.match(styles, /\.dashboard-artifact-state--rejected/);
   assert.match(styles, /max-height:\s*min\(680px,\s*72vh\)/);
   assert.match(styles, /overflow-y:\s*auto/);
   assert.match(styles, /\.dashboard-artifact-link/);
@@ -1716,6 +1933,7 @@ async function run() {
   await testSliceRoadmapRendersSelectableProgress();
   await testTaskDetailRendersSelectedTaskPlanData();
   await testEvidencePanelRendersReconciliationOutput();
+  await testArtifactViewerFetchesAndRendersStates();
   await testStylesExposeConnectionStates();
 }
 
