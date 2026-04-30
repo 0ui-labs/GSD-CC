@@ -50,6 +50,13 @@ function setState(field, value) {
   fs.writeFileSync(statePath, content.replace(pattern, field + ': ' + value));
 }
 
+function readState(field) {
+  const statePath = path.join(gsdDir, 'STATE.md');
+  const content = fs.readFileSync(statePath, 'utf8');
+  const match = content.match(new RegExp('^' + field + ':\\\\s*(.*)$', 'm'));
+  return match ? match[1] : '';
+}
+
 let exitCode = 0;
 
 if (prompt.includes('UNIFY_PROMPT')) {
@@ -59,8 +66,9 @@ if (prompt.includes('UNIFY_PROMPT')) {
 } else if (prompt.includes('REASSESS_PROMPT')) {
   writeMarker('reassess.marker');
 } else if (prompt.includes('PLAN_PROMPT')) {
-  writeMarker('S02-plan-dispatched.marker');
-  fs.writeFileSync(path.join(gsdDir, 'S02-PLAN.md'), '# S02\\n');
+  const slice = readState('current_slice') || 'S02';
+  writeMarker(slice + '-plan-dispatched.marker');
+  fs.writeFileSync(path.join(gsdDir, slice + '-PLAN.md'), '# ' + slice + '\\n');
   exitCode = 1;
 } else if (prompt.includes('APPLY_PROMPT')) {
   writeMarker('apply-dispatched.marker');

@@ -48,6 +48,13 @@ function setState(field, value) {
   fs.writeFileSync(statePath, content.replace(pattern, field + ': ' + value));
 }
 
+function readState(field) {
+  const statePath = path.join(gsdDir, 'STATE.md');
+  const content = fs.readFileSync(statePath, 'utf8');
+  const match = content.match(new RegExp('^' + field + ':\\\\s*(.*)$', 'm'));
+  return match ? match[1] : '';
+}
+
 function writeValidTaskPlan(slice, task, acId) {
   fs.writeFileSync(path.join(gsdDir, slice + '-' + task + '-PLAN.xml'), [
     '<task id="' + slice + '-' + task + '" type="auto">',
@@ -85,11 +92,12 @@ if (prompt.includes('APPLY_PROMPT')) {
   fs.writeFileSync(path.join(gsdDir, 'S01-UNIFY.md'), '# Unified\\n');
   setState('phase', 'unified');
 } else if (prompt.includes('PLAN_PROMPT')) {
-  fs.writeFileSync(path.join(gsdDir, 'S02-plan-dispatched.marker'), 'marker\\n');
-  fs.writeFileSync(path.join(gsdDir, 'S02-PLAN.md'), '# S02\\n');
-  writeValidTaskPlan('S02', 'T01', 'AC-1');
-  fs.appendFileSync(path.join(gsdDir, 'S02-T01-PLAN.xml'), '<!-- invalid marker -->\\n');
-  const planPath = path.join(gsdDir, 'S02-T01-PLAN.xml');
+  const slice = readState('current_slice') || 'S02';
+  fs.writeFileSync(path.join(gsdDir, slice + '-plan-dispatched.marker'), 'marker\\n');
+  fs.writeFileSync(path.join(gsdDir, slice + '-PLAN.md'), '# ' + slice + '\\n');
+  writeValidTaskPlan(slice, 'T01', 'AC-1');
+  fs.appendFileSync(path.join(gsdDir, slice + '-T01-PLAN.xml'), '<!-- invalid marker -->\\n');
+  const planPath = path.join(gsdDir, slice + '-T01-PLAN.xml');
   fs.writeFileSync(planPath, fs.readFileSync(planPath, 'utf8').replace('type="auto"', 'type="manual"'));
   setState('phase', 'plan-complete');
 }
