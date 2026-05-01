@@ -143,16 +143,22 @@ log_paths() {
 
 acquire_lock() {
   local lock_dir="${LOCK_FILE}.d"
+  local lock_pid
   local lock_tmp
   if mkdir "$lock_dir" 2>/dev/null; then
     LOCK_ACQUIRED=1
   else
     # Lock exists — check if holder is still alive
     if [[ -f "$LOCK_FILE" ]]; then
-      local lock_pid
       lock_pid=$(jq -r '.pid // empty' "$LOCK_FILE" 2>/dev/null || true)
       if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
         echo "❌ Auto-mode is already running (PID $lock_pid)."
+        exit 1
+      fi
+    elif [[ -f "$lock_dir/pid" ]]; then
+      lock_pid=$(cat "$lock_dir/pid" 2>/dev/null || true)
+      if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+        echo "❌ Auto-mode lock is being initialized (PID $lock_pid)."
         exit 1
       fi
     else
@@ -165,6 +171,13 @@ acquire_lock() {
     mkdir "$lock_dir" 2>/dev/null || { echo "❌ Could not acquire lock."; exit 1; }
     LOCK_ACQUIRED=1
   fi
+
+  printf '%s\n' "$$" > "$lock_dir/pid" || {
+    rm -rf "$lock_dir"
+    LOCK_ACQUIRED=0
+    echo "❌ Could not write lock owner."
+    exit 1
+  }
 
   lock_tmp="$(mktemp "${LOCK_FILE}.XXXXXX")" || {
     rm -rf "$lock_dir"

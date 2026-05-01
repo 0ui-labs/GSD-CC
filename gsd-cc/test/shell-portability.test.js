@@ -209,6 +209,29 @@ function testHalfInitializedAutoLockIsNotReclaimed(binDir) {
   assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'auto.lock')));
 }
 
+function testStaleInitializingAutoLockIsReclaimed(binDir) {
+  const projectDir = createAutoModeProject({
+    unified: true,
+    state: {
+      phase: 'unified',
+      auto_mode_scope: 'slice'
+    }
+  });
+  const lockDir = path.join(projectDir, '.gsd', 'auto.lock.d');
+  fs.mkdirSync(lockDir);
+  fs.writeFileSync(path.join(lockDir, 'pid'), '99999999\n');
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.strictEqual(
+    result.status,
+    0,
+    `stale initializing lock should be reclaimed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+  );
+  assert.match(result.stdout, /Auto \(this slice\) complete/);
+  assert.ok(!fs.existsSync(lockDir), 'owned lock directory should be released');
+}
+
 function testHooksUseConfiguredTmpdir(binDir) {
   const projectDir = createAutoModeProject();
   const tmpDir = makeTempDir('gsd-cc-portable-tmp-');
@@ -302,6 +325,7 @@ const binDir = setupBin();
 
 testAutoLoopDoesNotRequireBsdOrGnuDate(binDir);
 testHalfInitializedAutoLockIsNotReclaimed(binDir);
+testStaleInitializingAutoLockIsReclaimed(binDir);
 testHooksUseConfiguredTmpdir(binDir);
 testStatuslineKeepsBridgeOnWriteFailure(binDir);
 testShellSourcesAvoidNonPortableInlineCommands();
