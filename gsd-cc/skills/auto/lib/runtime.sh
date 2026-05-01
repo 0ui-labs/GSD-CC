@@ -149,19 +149,21 @@ acquire_lock() {
     LOCK_ACQUIRED=1
   else
     # Lock exists — check if holder is still alive
+    if [[ -f "$lock_dir/pid" ]]; then
+      lock_pid=$(cat "$lock_dir/pid" 2>/dev/null || true)
+      if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+        echo "❌ Auto-mode lock is being initialized (PID $lock_pid)."
+        exit 1
+      fi
+    fi
+
     if [[ -f "$LOCK_FILE" ]]; then
       lock_pid=$(jq -r '.pid // empty' "$LOCK_FILE" 2>/dev/null || true)
       if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
         echo "❌ Auto-mode is already running (PID $lock_pid)."
         exit 1
       fi
-    elif [[ -f "$lock_dir/pid" ]]; then
-      lock_pid=$(cat "$lock_dir/pid" 2>/dev/null || true)
-      if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-        echo "❌ Auto-mode lock is being initialized (PID $lock_pid)."
-        exit 1
-      fi
-    else
+    elif [[ ! -f "$lock_dir/pid" ]]; then
       echo "❌ Auto-mode lock is being initialized. Try again in a moment."
       echo "   If this persists, remove $lock_dir."
       exit 1

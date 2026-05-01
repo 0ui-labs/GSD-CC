@@ -209,6 +209,28 @@ function testHalfInitializedAutoLockIsNotReclaimed(binDir) {
   assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'auto.lock')));
 }
 
+function testInitializingAutoLockOwnerBeatsStaleLockFile(binDir) {
+  const projectDir = createAutoModeProject({
+    unified: true,
+    state: {
+      phase: 'unified',
+      auto_mode_scope: 'slice'
+    }
+  });
+  const lockDir = path.join(projectDir, '.gsd', 'auto.lock.d');
+  const lockFile = path.join(projectDir, '.gsd', 'auto.lock');
+  fs.mkdirSync(lockDir);
+  fs.writeFileSync(path.join(lockDir, 'pid'), `${process.pid}\n`);
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 99999999 }));
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.notStrictEqual(result.status, 0, 'live initializer should block auto-mode');
+  assert.match(result.stdout + result.stderr, /lock is being initialized/);
+  assert.ok(fs.existsSync(lockDir), 'active lock directory should not be reclaimed');
+  assert.ok(fs.existsSync(lockFile), 'stale lock file should not override live initializer');
+}
+
 function testStaleInitializingAutoLockIsReclaimed(binDir) {
   const projectDir = createAutoModeProject({
     unified: true,
@@ -325,6 +347,7 @@ const binDir = setupBin();
 
 testAutoLoopDoesNotRequireBsdOrGnuDate(binDir);
 testHalfInitializedAutoLockIsNotReclaimed(binDir);
+testInitializingAutoLockOwnerBeatsStaleLockFile(binDir);
 testStaleInitializingAutoLockIsReclaimed(binDir);
 testHooksUseConfiguredTmpdir(binDir);
 testStatuslineKeepsBridgeOnWriteFailure(binDir);
