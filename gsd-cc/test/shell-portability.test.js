@@ -190,6 +190,25 @@ function testAutoLoopDoesNotRequireBsdOrGnuDate(binDir) {
   }));
 }
 
+function testHalfInitializedAutoLockIsNotReclaimed(binDir) {
+  const projectDir = createAutoModeProject({
+    unified: true,
+    state: {
+      phase: 'unified',
+      auto_mode_scope: 'slice'
+    }
+  });
+  const lockDir = path.join(projectDir, '.gsd', 'auto.lock.d');
+  fs.mkdirSync(lockDir);
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.notStrictEqual(result.status, 0, 'half-initialized lock should block auto-mode');
+  assert.match(result.stdout + result.stderr, /lock is being initialized/);
+  assert.ok(fs.existsSync(lockDir), 'active lock directory should not be reclaimed');
+  assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'auto.lock')));
+}
+
 function testHooksUseConfiguredTmpdir(binDir) {
   const projectDir = createAutoModeProject();
   const tmpDir = makeTempDir('gsd-cc-portable-tmp-');
@@ -282,6 +301,7 @@ function testInvalidAutoPromptsDirReportsMissingSkills(binDir) {
 const binDir = setupBin();
 
 testAutoLoopDoesNotRequireBsdOrGnuDate(binDir);
+testHalfInitializedAutoLockIsNotReclaimed(binDir);
 testHooksUseConfiguredTmpdir(binDir);
 testStatuslineKeepsBridgeOnWriteFailure(binDir);
 testShellSourcesAvoidNonPortableInlineCommands();

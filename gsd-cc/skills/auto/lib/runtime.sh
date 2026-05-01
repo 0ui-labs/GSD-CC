@@ -105,8 +105,11 @@ log() {
 }
 
 cleanup() {
-  rm -f "$LOCK_FILE"
-  rm -rf "${LOCK_FILE}.d"
+  if [[ "${LOCK_ACQUIRED:-0}" == "1" ]]; then
+    rm -f "$LOCK_FILE"
+    rm -rf "${LOCK_FILE}.d"
+    LOCK_ACQUIRED=0
+  fi
   rm -f "$(runtime_tmp_file "gsd-prompt-$$.txt")"
   rm -f "$(runtime_tmp_file "gsd-result-$$.json")"
   rm -f "$(runtime_tmp_file "gsd-stderr-$$.log")"
@@ -141,7 +144,9 @@ log_paths() {
 acquire_lock() {
   local lock_dir="${LOCK_FILE}.d"
   local lock_tmp
-  if ! mkdir "$lock_dir" 2>/dev/null; then
+  if mkdir "$lock_dir" 2>/dev/null; then
+    LOCK_ACQUIRED=1
+  else
     # Lock exists — check if holder is still alive
     if [[ -f "$LOCK_FILE" ]]; then
       local lock_pid
@@ -150,14 +155,20 @@ acquire_lock() {
         echo "❌ Auto-mode is already running (PID $lock_pid)."
         exit 1
       fi
+    else
+      echo "❌ Auto-mode lock is being initialized. Try again in a moment."
+      echo "   If this persists, remove $lock_dir."
+      exit 1
     fi
     # Stale lock — reclaim
     rm -rf "$lock_dir"
     mkdir "$lock_dir" 2>/dev/null || { echo "❌ Could not acquire lock."; exit 1; }
+    LOCK_ACQUIRED=1
   fi
 
   lock_tmp="$(mktemp "${LOCK_FILE}.XXXXXX")" || {
     rm -rf "$lock_dir"
+    LOCK_ACQUIRED=0
     echo "❌ Could not create lock file."
     exit 1
   }
@@ -168,18 +179,23 @@ acquire_lock() {
     "$(iso_now)" > "$lock_tmp" || {
       rm -f "$lock_tmp"
       rm -rf "$lock_dir"
+      LOCK_ACQUIRED=0
       echo "❌ Could not write lock file."
       exit 1
     }
   mv "$lock_tmp" "$LOCK_FILE" || {
     rm -f "$lock_tmp"
     rm -rf "$lock_dir"
+    LOCK_ACQUIRED=0
     echo "❌ Could not install lock file."
     exit 1
   }
 }
 
 release_lock() {
-  rm -f "$LOCK_FILE"
-  rm -rf "${LOCK_FILE}.d"
+  if [[ "${LOCK_ACQUIRED:-0}" == "1" ]]; then
+    rm -f "$LOCK_FILE"
+    rm -rf "${LOCK_FILE}.d"
+    LOCK_ACQUIRED=0
+  fi
 }
