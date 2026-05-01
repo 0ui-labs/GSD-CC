@@ -140,7 +140,7 @@ function runAutoLoop(projectDir, env) {
         GSD_CC_AUTO_PROMPTS_DIR: path.join(projectDir, '.claude', 'skills', 'auto')
       },
       encoding: 'utf8',
-      timeout: 30000
+      timeout: 120000
     }
   );
 }
