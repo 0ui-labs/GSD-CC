@@ -22,7 +22,12 @@ collect_untracked_changes() {
 
 is_auto_runtime_path() {
   case "$1" in
-    "$GSD_DIR/auto.lock"|"$GSD_DIR/auto.log"|"$GSD_DIR/COSTS.jsonl"|"$GSD_DIR/events.jsonl") return 0 ;;
+    "$GSD_DIR/auto.lock"|\
+    "$GSD_DIR/auto.lock.d"|\
+    "$GSD_DIR/auto.lock.d"/*|\
+    "$GSD_DIR/auto.log"|\
+    "$GSD_DIR/COSTS.jsonl"|\
+    "$GSD_DIR/events.jsonl") return 0 ;;
     *) return 1 ;;
   esac
 }
