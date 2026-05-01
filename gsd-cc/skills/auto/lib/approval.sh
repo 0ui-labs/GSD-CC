@@ -203,7 +203,10 @@ write_approval_request() {
   local fingerprint="$6"
   shift 6
 
-  {
+  local tmp_file
+  tmp_file="$(mktemp "$GSD_DIR/APPROVAL-REQUEST.json.XXXXXX")"
+
+  if ! {
     printf '{\n'
     printf '  "slice": "%s",\n' "$(json_escape "$slice")"
     printf '  "task": "%s",\n' "$(json_escape "$task")"
@@ -224,7 +227,15 @@ write_approval_request() {
     printf '\n  ],\n'
     printf '  "created_at": "%s"\n' "$(iso_now)"
     printf '}\n'
-  } > "$GSD_DIR/APPROVAL-REQUEST.json"
+  } > "$tmp_file"; then
+    rm -f "$tmp_file"
+    return 1
+  fi
+
+  mv "$tmp_file" "$GSD_DIR/APPROVAL-REQUEST.json" || {
+    rm -f "$tmp_file"
+    return 1
+  }
 }
 
 ensure_apply_approval() {

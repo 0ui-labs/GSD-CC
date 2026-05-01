@@ -167,6 +167,12 @@ function assertApprovalRequired(projectDir, result, pattern, expectedTask = 'T01
   assert.strictEqual(request.slice, 'S01');
   assert.strictEqual(request.task, expectedTask);
   assert.ok(request.reasons.some((reason) => pattern.test(reason)));
+  assert.deepStrictEqual(
+    fs.readdirSync(path.join(projectDir, '.gsd')).filter((entry) => {
+      return entry.startsWith('APPROVAL-REQUEST.json.');
+    }),
+    []
+  );
 }
 
 function testLowRiskTaskDispatches(binDir) {
