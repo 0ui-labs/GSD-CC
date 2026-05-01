@@ -37,7 +37,7 @@ resolve_claude_bin() {
 resolve_skills_dir() {
   if [[ -n "${GSD_CC_AUTO_PROMPTS_DIR:-}" ]]; then
     PROMPTS_DIR="$GSD_CC_AUTO_PROMPTS_DIR"
-    SKILLS_DIR="$(cd "$PROMPTS_DIR/.." && pwd)"
+    SKILLS_DIR="$(dirname "$PROMPTS_DIR")"
   else
     SKILLS_DIR="$(cd "$AUTO_SCRIPT_DIR/.." && pwd)"
     PROMPTS_DIR="$AUTO_SCRIPT_DIR"

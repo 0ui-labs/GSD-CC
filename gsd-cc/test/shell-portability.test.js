@@ -257,9 +257,29 @@ function testShellSourcesAvoidNonPortableInlineCommands() {
   }
 }
 
+function testInvalidAutoPromptsDirReportsMissingSkills(binDir) {
+  const missingPromptsDir = path.join(makeTempDir('gsd-cc-missing-prompts-'), 'missing', 'auto');
+  const script = [
+    'set -euo pipefail',
+    `source ${JSON.stringify(path.join(packageRoot, 'skills', 'auto', 'lib', 'runtime.sh'))}`,
+    'resolve_skills_dir',
+    ''
+  ].join('\n');
+  const result = spawnSync('bash', ['-c', script], {
+    env: makeEnv(binDir, { GSD_CC_AUTO_PROMPTS_DIR: missingPromptsDir }),
+    encoding: 'utf8'
+  });
+  const output = `${result.stdout}\n${result.stderr}`;
+
+  assert.strictEqual(result.status, 1);
+  assert.match(output, /GSD-CC skills not found/);
+  assert.doesNotMatch(output, /cd:/);
+}
+
 const binDir = setupBin();
 
 testAutoLoopDoesNotRequireBsdOrGnuDate(binDir);
 testHooksUseConfiguredTmpdir(binDir);
 testStatuslineKeepsBridgeOnWriteFailure(binDir);
 testShellSourcesAvoidNonPortableInlineCommands();
+testInvalidAutoPromptsDirReportsMissingSkills(binDir);
