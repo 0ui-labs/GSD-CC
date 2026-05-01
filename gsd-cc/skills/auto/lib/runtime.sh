@@ -140,6 +140,7 @@ log_paths() {
 
 acquire_lock() {
   local lock_dir="${LOCK_FILE}.d"
+  local lock_tmp
   if ! mkdir "$lock_dir" 2>/dev/null; then
     # Lock exists — check if holder is still alive
     if [[ -f "$LOCK_FILE" ]]; then
@@ -154,7 +155,28 @@ acquire_lock() {
     rm -rf "$lock_dir"
     mkdir "$lock_dir" 2>/dev/null || { echo "❌ Could not acquire lock."; exit 1; }
   fi
-  echo "{\"unit\":\"${SLICE:-init}/${TASK:-init}\",\"phase\":\"${PHASE:-init}\",\"pid\":$$,\"started\":\"$(iso_now)\"}" > "$LOCK_FILE"
+
+  lock_tmp="$(mktemp "${LOCK_FILE}.XXXXXX")" || {
+    rm -rf "$lock_dir"
+    echo "❌ Could not create lock file."
+    exit 1
+  }
+  printf '{"unit":"%s","phase":"%s","pid":%s,"started":"%s"}\n' \
+    "${SLICE:-init}/${TASK:-init}" \
+    "${PHASE:-init}" \
+    "$$" \
+    "$(iso_now)" > "$lock_tmp" || {
+      rm -f "$lock_tmp"
+      rm -rf "$lock_dir"
+      echo "❌ Could not write lock file."
+      exit 1
+    }
+  mv "$lock_tmp" "$LOCK_FILE" || {
+    rm -f "$lock_tmp"
+    rm -rf "$lock_dir"
+    echo "❌ Could not install lock file."
+    exit 1
+  }
 }
 
 release_lock() {

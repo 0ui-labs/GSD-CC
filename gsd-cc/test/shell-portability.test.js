@@ -185,6 +185,9 @@ function testAutoLoopDoesNotRequireBsdOrGnuDate(binDir) {
   );
   assert.match(result.stdout, /\[2026-01-01T00:00:00\+0000\]/);
   assert.match(result.stdout, /Auto \(this slice\) complete/);
+  assert.ok(!fs.readdirSync(path.join(projectDir, '.gsd')).some((entry) => {
+    return entry.startsWith('auto.lock.');
+  }));
 }
 
 function testHooksUseConfiguredTmpdir(binDir) {
