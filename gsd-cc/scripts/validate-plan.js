@@ -88,7 +88,7 @@ function stripTaskFileAnnotation(value) {
 
 function normalizeRepoPath(value) {
   let repoPath = trimWhitespace(value);
-  while (repoPath.startsWith('./')) {
+  while (repoPath.startsWith('./') || repoPath.startsWith('.\\')) {
     repoPath = repoPath.slice(2);
   }
 
@@ -96,7 +96,10 @@ function normalizeRepoPath(value) {
     !repoPath ||
     repoPath === '.' ||
     repoPath === '..' ||
+    repoPath.startsWith('//') ||
     repoPath.startsWith('/') ||
+    /^[A-Za-z]:[\\/]/.test(repoPath) ||
+    repoPath.includes('\\') ||
     repoPath.startsWith('~') ||
     repoPath.endsWith('/')
   ) {

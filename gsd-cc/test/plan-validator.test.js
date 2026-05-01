@@ -208,11 +208,25 @@ function testEmptyRiskFails() {
 
 function testInvalidFileEntriesFail() {
   const projectDir = validProject({
-    t01Files: ['src/*.js'],
-    t02Files: ['/tmp/outside.txt']
+    t01Files: ['src/*.js', String.raw`..\outside.js`, String.raw`C:\tmp\outside.js`],
+    t02Files: ['/tmp/outside.txt', String.raw`\\server\share\file.js`]
   });
   const result = runValidator(projectDir, ['.gsd/S01-PLAN.md']);
   assertFail(result, /task\.files\.invalid_path/);
+}
+
+function testUnclosedTaskRootDoesNotProvideAttributes() {
+  const projectDir = validProject();
+  writeFile(path.join(projectDir, '.gsd', 'S01-T01-PLAN.xml'), [
+    '<task id="S01-T01" type="auto">',
+    '  <name>Broken task root</name>',
+    ''
+  ].join('\n'));
+
+  const result = runValidator(projectDir, ['.gsd/S01-T01-PLAN.xml']);
+
+  assertFail(result, /task\.id_mismatch/);
+  assertFail(result, /task\.type_invalid/);
 }
 
 function testTooBroadTaskFails() {
@@ -300,6 +314,7 @@ testMissingRiskFails();
 testInvalidRiskLevelFails();
 testEmptyRiskFails();
 testInvalidFileEntriesFail();
+testUnclosedTaskRootDoesNotProvideAttributes();
 testTooBroadTaskFails();
 testDuplicateOwnershipFailsWithoutDependencies();
 testDuplicateOwnershipPassesWithExplicitDependencies();

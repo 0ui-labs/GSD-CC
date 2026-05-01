@@ -78,9 +78,17 @@ function extractXmlBlock(content, tag) {
   return block && block.closed ? block.body : '';
 }
 
+function isSelfClosingTag(openTag) {
+  return /\/\s*>$/.test(String(openTag || ''));
+}
+
 function extractTagAttr(content, tag, attr) {
   const block = findTag(String(content || ''), tag);
-  return block ? extractAttr(block.openTag, attr) || '' : '';
+  if (!block || (!block.closed && !isSelfClosingTag(block.openTag))) {
+    return '';
+  }
+
+  return extractAttr(block.openTag, attr) || '';
 }
 
 function extractTaskAttr(content, attr) {
