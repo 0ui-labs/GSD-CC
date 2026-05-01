@@ -110,6 +110,7 @@ Canonical topics that must stay synchronized:
 - Install and uninstall behavior, including scope flags
 - Manifest and hook locations
 - Custom project type paths for source vs installed layouts
+- UI language vs commit language configuration
 - Dependency readiness (`jq` for hooks, `jq` + `git` + `claude` for auto-mode)
 - Slice-plan vs task-plan artifact naming (`S{nn}-PLAN.md` vs `S{nn}-T{nn}-PLAN.xml`)
 

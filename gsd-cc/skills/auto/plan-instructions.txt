@@ -21,6 +21,9 @@ Use this XML format in each task plan file:
 <task id="S{nn}-T{nn}" type="auto">
   <name>{descriptive name}</name>
   <files>{list of files to create/modify}</files>
+  <risk level="{low|medium|high}">
+    {why this task has this risk level}
+  </risk>
   <acceptance_criteria>
     <ac id="AC-{n}">
       Given {precondition}
@@ -44,14 +47,15 @@ Use this XML format in each task plan file:
 ## Rules
 
 - Every task MUST have at least 1 AC in Given/When/Then format.
+- Every task MUST have risk level low, medium, or high with a clear reason.
 - Every task MUST have a boundaries section.
-- No "TBD", "TODO", or "later" in action or files.
+- No "TBD", "TODO", or "later" in action, files, or risk.
 - Files from earlier tasks listed as DO NOT CHANGE in later tasks.
 - Tasks ordered by dependency.
 
 ## Files to Write
 
-1. `.gsd/S{nn}-PLAN.md` — slice overview with task table, AC table, boundaries summary, dependency order.
+1. `.gsd/S{nn}-PLAN.md` — slice overview with task table including risk, AC table, boundaries summary, dependency order.
 2. `.gsd/S{nn}-T01-PLAN.xml` through `.gsd/S{nn}-T{last}-PLAN.xml` — one file per task.
 3. `.gsd/M{n}-RESEARCH.md` — append research findings.
 

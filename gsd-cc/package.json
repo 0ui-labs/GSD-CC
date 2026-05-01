@@ -7,6 +7,16 @@
   "bin": {
     "gsd-cc": "./bin/install.js"
   },
+  "files": [
+    "bin/",
+    "checklists/",
+    "dashboard/",
+    "hooks/",
+    "scripts/",
+    "skills/",
+    "templates/",
+    "README.md"
+  ],
   "scripts": {
     "test": "node test/run-tests.js",
     "test:auto": "node test/auto-mode-scope.test.js && node test/auto-mode-git-safety.test.js",

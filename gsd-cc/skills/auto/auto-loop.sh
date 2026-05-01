@@ -7,34 +7,28 @@
 
 set -euo pipefail
 
-# ── macOS compatibility: timeout shim ─────────────────────────────────────────
+AUTO_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/runtime.sh"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/events.sh"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/recovery.sh"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/state.sh"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/task-plan.sh"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/git.sh"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/allowlist.sh"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/approval.sh"
+# shellcheck source=/dev/null
+source "$AUTO_SCRIPT_DIR/lib/dispatch.sh"
 
-if ! command -v timeout &>/dev/null; then
-  if command -v gtimeout &>/dev/null; then
-    timeout() { gtimeout "$@"; }
-  else
-    # Fallback: warn and run without timeout protection
-    echo "⚠ Neither 'timeout' nor 'gtimeout' found. Tasks will run without time limits."
-    echo "  Install coreutils for timeout support: brew install coreutils"
-    timeout() { shift; "$@"; }
-  fi
-fi
-
-# ── Resolve claude CLI path ───────────────────────────────────────────────────
-
-CLAUDE_BIN="$(command -v claude 2>/dev/null || true)"
-if [[ -z "$CLAUDE_BIN" ]]; then
-  # Common locations
-  for p in "/opt/homebrew/bin/claude" "/usr/local/bin/claude" "$HOME/.claude/bin/claude"; do
-    [[ -x "$p" ]] && CLAUDE_BIN="$p" && break
-  done
-fi
-
-if [[ -z "$CLAUDE_BIN" ]]; then
-  echo "❌ Auto-mode unavailable: claude CLI not found."
-  echo "   Install Claude Code and ensure \`claude\` is in your PATH."
-  exit 1
-fi
+setup_timeout
+resolve_claude_bin
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -44,17 +38,7 @@ COSTS_FILE="$GSD_DIR/COSTS.jsonl"
 LOG_FILE="$GSD_DIR/auto.log"
 BUDGET="${GSD_CC_BUDGET:-0}" # 0 = unlimited
 
-# Resolve skills directory (global or local)
-if [[ -d ".claude/skills/auto" ]]; then
-  SKILLS_DIR=".claude/skills"
-elif [[ -d "$HOME/.claude/skills/auto" ]]; then
-  SKILLS_DIR="$HOME/.claude/skills"
-else
-  echo "❌ GSD-CC skills not found. Run 'npx gsd-cc' to install."
-  exit 1
-fi
-
-PROMPTS_DIR="${SKILLS_DIR}/auto"
+resolve_skills_dir
 
 # Parse --budget flag
 while [[ $# -gt 0 ]]; do
@@ -64,997 +48,56 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# ── Prerequisites ──────────────────────────────────────────────────────────────
-
-if ! command -v jq &>/dev/null; then
-  echo "❌ Auto-mode unavailable: jq not found. Install with: brew install jq"
-  echo "   If GSD-CC was installed without jq, rerun the installer to enable hooks."
-  exit 1
-fi
-
-if ! command -v git &>/dev/null; then
-  echo "❌ Auto-mode unavailable: git not found."
-  echo "   Install Git and ensure \`git\` is in your PATH."
-  exit 1
-fi
-
-if [[ ! -f "$GSD_DIR/STATE.md" ]]; then
-  echo "❌ No .gsd/STATE.md found. Run /gsd-cc first to set up a project."
-  exit 1
-fi
-
-# ── Logging ───────────────────────────────────────────────────────────────────
-
-# Tee all output to both stdout and log file. Tests can disable this because
-# some sandboxed shells disallow process substitution through /dev/fd.
-if [[ "${GSD_CC_DISABLE_TEE:-0}" != "1" ]]; then
-  exec > >(tee -a "$LOG_FILE") 2>&1
-fi
-
-iso_now() {
-  if date -Iseconds >/dev/null 2>&1; then
-    date -Iseconds
-  else
-    date '+%Y-%m-%dT%H:%M:%S%z'
-  fi
-}
-
-runtime_tmp_dir() {
-  local dir="${TMPDIR:-/tmp}"
-  dir="${dir%/}"
-  if [[ -z "$dir" ]]; then
-    dir="/tmp"
-  fi
-  printf '%s\n' "$dir"
-}
-
-runtime_tmp_file() {
-  local name="$1"
-  printf '%s/%s\n' "$(runtime_tmp_dir)" "$name"
-}
-
-log() {
-  echo "[$(iso_now)] $*"
-}
-
-# ── Cleanup trap ───────────────────────────────────────────────────────────────
-
-cleanup() {
-  rm -f "$LOCK_FILE"
-  rm -rf "${LOCK_FILE}.d"
-  rm -f "$(runtime_tmp_file "gsd-prompt-$$.txt")"
-  rm -f "$(runtime_tmp_file "gsd-result-$$.json")"
-  rm -f "$(runtime_tmp_file "gsd-stderr-$$.log")"
-}
+require_auto_dependencies
+setup_logging
+auto_recovery_clear
+AUTO_RUN_STARTED_AT="$(iso_now)"
+auto_recovery_capture_start
 trap cleanup EXIT
+trap 'auto_recovery_write "interrupted" "Auto-mode was interrupted by a signal." "Inspect .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume safely."; exit 130' INT
+trap 'auto_recovery_write "interrupted" "Auto-mode was terminated by a signal." "Inspect .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume safely."; exit 143' TERM
 
-# ── Helper functions ───────────────────────────────────────────────────────────
+record_auto_problem_stop() {
+  local reason="$1"
+  local message="$2"
+  local safe_next_action="${3:-Inspect .gsd/AUTO-RECOVERY.md, resolve the listed issue, then run /gsd-cc.}"
 
-read_state_field() {
-  grep "^$1:" "$GSD_DIR/STATE.md" | head -1 | sed "s/^$1:[[:space:]]*//"
+  auto_recovery_write "$reason" "$message" "$safe_next_action"
 }
 
-read_optional_state_field() {
-  grep "^$1:" "$GSD_DIR/STATE.md" | head -1 | sed "s/^$1:[[:space:]]*//" || true
-}
-
-update_state_field() {
-  local field="$1" value="$2"
-  local tmp_file
-  if grep -q "^${field}:" "$GSD_DIR/STATE.md"; then
-    tmp_file="${GSD_DIR}/.STATE.md.$$"
-    awk -v field="$field" -v value="$value" '
-      $0 ~ "^" field ":" {
-        print field ": " value
-        next
-      }
-      { print }
-    ' "$GSD_DIR/STATE.md" > "$tmp_file"
-    mv "$tmp_file" "$GSD_DIR/STATE.md"
-  fi
-}
-
-upsert_state_field() {
-  local field="$1" value="$2"
-  local tmp_file
-
-  if grep -q "^${field}:" "$GSD_DIR/STATE.md"; then
-    update_state_field "$field" "$value"
-    return
-  fi
-
-  tmp_file="${GSD_DIR}/.STATE.md.$$"
-  awk -v field="$field" -v value="$value" '
-    BEGIN { inserted = 0 }
-    /^state_schema_version:/ && !inserted {
-      print
-      print field ": " value
-      inserted = 1
-      next
-    }
-    /^milestone:/ && !inserted {
-      print field ": " value
-      inserted = 1
-    }
-    /^---$/ && NR > 1 && !inserted {
-      print field ": " value
-      inserted = 1
-    }
-    { print }
-    END {
-      if (!inserted) {
-        print field ": " value
-      }
-    }
-  ' "$GSD_DIR/STATE.md" > "$tmp_file"
-  mv "$tmp_file" "$GSD_DIR/STATE.md"
-}
-
-log_cost() {
-  local unit="$1" phase="$2" result_file="$3"
-  if [[ -f "$result_file" ]]; then
-    jq -c "{unit: \"$unit\", phase: \"$phase\", model: .model, usage: .usage, ts: \"$(iso_now)\"}" \
-      "$result_file" >> "$COSTS_FILE" 2>/dev/null || true
-  fi
-}
-
-fail_validation() {
-  local message="$1" hint="${2:-}"
-  log "❌ $message"
-  if [[ -n "$hint" ]]; then
-    log "   $hint"
-  fi
-  exit 1
-}
-
-trim_whitespace() {
-  local value="$1"
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
-  printf '%s' "$value"
-}
-
-state_machine_path() {
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-  local candidates=(
-    ".claude/templates/STATE_MACHINE.json"
-    "$HOME/.claude/templates/STATE_MACHINE.json"
-    "$script_dir/../../templates/STATE_MACHINE.json"
-    "gsd-cc/templates/STATE_MACHINE.json"
-  )
-  local candidate
-
-  for candidate in "${candidates[@]}"; do
-    if [[ -f "$candidate" ]]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-load_phase_spec() {
-  local phase="$1"
-  jq -e --arg phase "$phase" '.phases[$phase] // empty' "$STATE_MACHINE_FILE" >/dev/null
-}
-
-state_field_is_empty() {
-  local value
-  local empty_value
-  value=$(trim_whitespace "${1:-}")
-
-  while IFS= read -r empty_value; do
-    if [[ "$value" == "$empty_value" ]]; then
-      return 0
-    fi
-  done < <(jq -r '.emptyValues[]' "$STATE_MACHINE_FILE")
-
-  return 1
-}
-
-normalize_auto_scope() {
-  local raw
-  raw="$1"
-
-  case "$raw" in
-    ""|"slice") echo "slice" ;;
-    "milestone") echo "milestone" ;;
-    *) return 1 ;;
-  esac
-}
-
-slice_plan_path() {
-  local slice="$1"
-  echo "$GSD_DIR/${slice}-PLAN.md"
-}
-
-task_plan_xml_path() {
-  local slice="$1" task="$2"
-  echo "$GSD_DIR/${slice}-${task}-PLAN.xml"
-}
-
-find_matching_files() {
-  local pattern="$1"
-  compgen -G "$pattern" || true
-}
-
-require_file() {
-  local path="$1" label="$2" hint="$3"
-  if [[ ! -f "$path" ]]; then
-    fail_validation "Missing ${label}: $path" "$hint"
-  fi
-}
-
-require_matching_files() {
-  local pattern="$1" label="$2" hint="$3"
-  if ! compgen -G "$pattern" > /dev/null; then
-    fail_validation "Missing ${label} matching: $pattern" "$hint"
-  fi
-}
-
-assert_no_legacy_task_plan_markdown() {
-  local slice="$1"
-  local hint="Run /gsd-cc-plan to regenerate XML task plans before restarting auto-mode."
-  local legacy_files=()
-  local legacy_file
-
-  while IFS= read -r legacy_file; do
-    [[ -z "$legacy_file" ]] && continue
-    legacy_files+=("$legacy_file")
-  done < <(find_matching_files "$GSD_DIR/${slice}-T*-PLAN.md")
-
-  if [[ ${#legacy_files[@]} -gt 0 ]]; then
-    fail_validation "Legacy task plan detected: ${legacy_files[0]}" "$hint"
-  fi
-}
-
-assert_no_legacy_task_plan_for_phase() {
-  local phase="$1"
-  local slice
-
-  case "$phase" in
-    roadmap-complete|discuss-complete|plan|plan-complete|applying|apply-complete)
-      slice=$(read_optional_state_field "current_slice")
-      if ! state_field_is_empty "$slice"; then
-        assert_no_legacy_task_plan_markdown "$slice"
-      fi
-      ;;
-  esac
-}
-
-expand_artifact_template() {
-  local template="$1"
-  local expanded="$template"
-  local field
-  local value
-
-  while [[ "$expanded" =~ \{([A-Za-z0-9_]+)\} ]]; do
-    field="${BASH_REMATCH[1]}"
-    value=$(read_optional_state_field "$field")
-    expanded="${expanded//\{$field\}/$value}"
-  done
-
-  printf '%s\n' "$expanded"
-}
-
-validate_phase_fields() {
-  local phase="$1"
-  local field
-  local value
-
-  if ! load_phase_spec "$phase"; then
-    fail_validation "Unknown STATE.md phase: ${phase:-missing}" \
-      "Run /gsd-cc to repair project state before restarting auto-mode."
-  fi
-
-  while IFS= read -r field; do
-    [[ -z "$field" ]] && continue
-    value=$(read_optional_state_field "$field")
-    if state_field_is_empty "$value"; then
-      fail_validation "STATE.md phase '$phase' is missing required field: $field" \
-        "Update .gsd/STATE.md or rerun the phase that owns '$field'."
-    fi
-  done < <(jq -r --arg phase "$phase" '.phases[$phase].requiredFields[]?' "$STATE_MACHINE_FILE")
-}
-
-validate_phase_artifacts() {
-  local phase="$1"
-  local artifact_template
-  local artifact_pattern
-  local hint="Run /gsd-cc to repair project state before restarting auto-mode."
-
-  while IFS= read -r artifact_template; do
-    [[ -z "$artifact_template" ]] && continue
-    artifact_pattern=$(expand_artifact_template "$artifact_template")
-
-    if [[ "$artifact_pattern" == *"*"* ]]; then
-      require_matching_files "$artifact_pattern" "state artifact for phase '$phase'" "$hint"
-    else
-      require_file "$artifact_pattern" "state artifact for phase '$phase'" "$hint"
-    fi
-  done < <(jq -r --arg phase "$phase" '.phases[$phase].requiredArtifacts[]?' "$STATE_MACHINE_FILE")
-
-  assert_no_legacy_task_plan_for_phase "$phase"
-}
-
-validate_phase_transition() {
-  local from_phase="$1" to_phase="$2"
-
-  if [[ "$from_phase" == "$to_phase" ]]; then
-    return 0
-  fi
-
-  if ! load_phase_spec "$from_phase"; then
-    fail_validation "Unknown previous phase: ${from_phase:-missing}" \
-      "Run /gsd-cc to repair project state before restarting auto-mode."
-  fi
-
-  if ! load_phase_spec "$to_phase"; then
-    fail_validation "Unknown next phase: ${to_phase:-missing}" \
-      "Run /gsd-cc to repair project state before restarting auto-mode."
-  fi
-
-  if ! jq -e --arg from "$from_phase" --arg to "$to_phase" \
-    '.phases[$from].next | index($to)' "$STATE_MACHINE_FILE" >/dev/null; then
-    fail_validation "Illegal phase transition: $from_phase -> $to_phase" \
-      "Run /gsd-cc to inspect the current state before auto-mode continues."
-  fi
-}
-
-validate_current_state() {
-  local previous_phase="${1:-}"
-  local phase
-
-  phase=$(read_optional_state_field "phase")
-  validate_phase_fields "$phase"
-  validate_phase_artifacts "$phase"
-
-  if [[ -n "$previous_phase" ]]; then
-    validate_phase_transition "$previous_phase" "$phase"
-  fi
-}
-
-transition_phase() {
-  local from_phase="$1" to_phase="$2"
-  validate_phase_transition "$from_phase" "$to_phase"
-  update_state_field "phase" "$to_phase"
-  update_state_field "last_updated" "$(iso_now)"
-}
-
-ensure_auto_phase_ready() {
-  local phase="$1"
-
-  case "$phase" in
-    seed|seed-complete|stack-complete)
-      fail_validation "Auto-mode cannot run before a roadmap and active slice are ready." \
-        "Run /gsd-cc to create the roadmap, then start auto-mode from a planning or execution phase."
-      ;;
-    milestone-complete)
-      fail_validation "Auto-mode cannot run because the milestone is already complete." \
-        "Run /gsd-cc to choose the next project action."
-      ;;
-  esac
-}
-
-strip_task_file_annotation() {
-  local value
-  value=$(trim_whitespace "$1")
-  value=$(printf '%s' "$value" | sed -E \
-    's/[[:space:]]+\([^)]*\)$//;
-     s/[[:space:]]+-[[:space:]].*$//;
-     s/[[:space:]]+#[[:space:]].*$//;
-     s/[[:space:]]+\/\/[[:space:]].*$//;
-     s/^([^[:space:]]+):[[:space:]].*$/\1/')
-  trim_whitespace "$value"
-}
-
-normalize_repo_path() {
-  local path
-  path=$(trim_whitespace "$1")
-
-  while [[ "$path" == ./* ]]; do
-    path="${path#./}"
-  done
-
-  case "$path" in
-    ""|"."|".."|/*|~*|*/ ) return 1 ;;
-  esac
-
-  if [[ "$path" =~ (^|/)\.\.(/|$) ]]; then
-    return 1
-  fi
-
-  printf '%s\n' "$path"
-}
-
-extract_task_name() {
-  awk '
-    /<name>/ {
-      sub(/^.*<name>/, "")
-      sub(/<\/name>.*$/, "")
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-      if ($0 != "") {
-        print
-        exit
-      }
-    }
-  ' "$1"
-}
-
-parse_task_plan_files() {
-  local plan_path="$1"
-  local raw_line
-  local cleaned_line
-  local normalized_path
-  local found=0
-
-  while IFS= read -r raw_line; do
-    cleaned_line=$(printf '%s' "$raw_line" | sed -E 's/<!--.*-->//g')
-    cleaned_line=$(trim_whitespace "$cleaned_line")
-
-    [[ -z "$cleaned_line" ]] && continue
-
-    case "$cleaned_line" in
-      \#*|//*|*:) continue ;;
-    esac
-
-    cleaned_line=$(printf '%s' "$cleaned_line" | sed -E 's/^[-*][[:space:]]+//; s/^[0-9]+[.)][[:space:]]+//')
-    cleaned_line=$(strip_task_file_annotation "$cleaned_line")
-
-    [[ -z "$cleaned_line" ]] && continue
-
-    normalized_path=$(normalize_repo_path "$cleaned_line") || return 1
-    printf '%s\n' "$normalized_path"
-    found=1
-  done < <(
-    awk '
-      /<files>/ {
-        in_files=1
-        sub(/^.*<files>/, "")
-      }
-      in_files {
-        if (/<\/files>/) {
-          sub(/<\/files>.*$/, "")
-          print
-          exit
-        }
-        print
-      }
-    ' "$plan_path"
-  )
-
-  [[ "$found" -eq 1 ]]
-}
-
-extract_summary_status() {
-  awk '
-    /^##[[:space:]]+Status[[:space:]]*$/ {
-      in_status=1
-      next
-    }
-    /^##[[:space:]]+/ && in_status {
-      exit
-    }
-    in_status {
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-      if ($0 != "") {
-        print tolower($0)
-        exit
-      }
-    }
-  ' "$1"
-}
-
-path_in_list() {
-  local needle="$1"
+append_risk_and_approval_summary() {
+  local prompt_file="$1"
   shift
 
-  local candidate
-  for candidate in "$@"; do
-    [[ "$candidate" == "$needle" ]] && return 0
+  local fingerprint
+  local plan_path
+  local risk_level
+  local status
+  local task
+  local task_id
+  local task_slice
+
+  echo "<risk-and-approval>" >> "$prompt_file"
+  echo "## Risk and Approval" >> "$prompt_file"
+
+  if [[ "$#" -eq 0 ]]; then
+    echo "- No task plans found." >> "$prompt_file"
+    echo "</risk-and-approval>" >> "$prompt_file"
+    return 0
+  fi
+
+  for plan_path in "$@"; do
+    [[ -f "$plan_path" ]] || continue
+    task_id=$(task_plan_expected_id "$plan_path")
+    task_slice="${task_id%%-*}"
+    task="${task_id#*-}"
+    risk_level=$(extract_xml_attr "$plan_path" "risk" "level")
+    fingerprint=$(task_plan_fingerprint "$plan_path")
+    status=$(approval_status_for_task "$task_slice" "$task" "$fingerprint")
+    printf '%s\n' "- ${task_slice}/${task}: ${status} (risk: ${risk_level:-unknown}, fingerprint: ${fingerprint})" >> "$prompt_file"
   done
 
-  return 1
-}
-
-collect_tracked_changes() {
-  if git rev-parse --verify HEAD >/dev/null 2>&1; then
-    git diff --name-only HEAD -- 2>/dev/null || true
-  else
-    git status --porcelain | awk '
-      substr($0, 1, 2) != "??" {
-        path = substr($0, 4)
-        sub(/^.* -> /, "", path)
-        if (path != "") {
-          print path
-        }
-      }
-    ' || true
-  fi
-}
-
-collect_untracked_changes() {
-  git ls-files --others --exclude-standard 2>/dev/null || true
-}
-
-is_auto_runtime_path() {
-  case "$1" in
-    "$GSD_DIR/auto.lock"|"$GSD_DIR/auto.log"|"$GSD_DIR/COSTS.jsonl") return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-CLASSIFIED_ALLOWED_TRACKED=()
-CLASSIFIED_ALLOWED_UNTRACKED=()
-CLASSIFIED_DISALLOWED_TRACKED=()
-CLASSIFIED_DISALLOWED_UNTRACKED=()
-
-reset_change_classification() {
-  CLASSIFIED_ALLOWED_TRACKED=()
-  CLASSIFIED_ALLOWED_UNTRACKED=()
-  CLASSIFIED_DISALLOWED_TRACKED=()
-  CLASSIFIED_DISALLOWED_UNTRACKED=()
-}
-
-classify_worktree_changes() {
-  local allowlist=("$@")
-  local tracked_changes=()
-  local untracked_changes=()
-  local path
-
-  reset_change_classification
-
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    tracked_changes+=("$path")
-  done < <(collect_tracked_changes)
-
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    untracked_changes+=("$path")
-  done < <(collect_untracked_changes)
-
-  if [[ ${#tracked_changes[@]} -gt 0 ]]; then
-    for path in "${tracked_changes[@]}"; do
-      [[ -z "$path" ]] && continue
-      if is_auto_runtime_path "$path"; then
-        continue
-      fi
-      if [[ ${#allowlist[@]} -gt 0 ]] && path_in_list "$path" "${allowlist[@]}"; then
-        CLASSIFIED_ALLOWED_TRACKED+=("$path")
-      else
-        CLASSIFIED_DISALLOWED_TRACKED+=("$path")
-      fi
-    done
-  fi
-
-  if [[ ${#untracked_changes[@]} -gt 0 ]]; then
-    for path in "${untracked_changes[@]}"; do
-      [[ -z "$path" ]] && continue
-      if is_auto_runtime_path "$path"; then
-        continue
-      fi
-      if [[ ${#allowlist[@]} -gt 0 ]] && path_in_list "$path" "${allowlist[@]}"; then
-        CLASSIFIED_ALLOWED_UNTRACKED+=("$path")
-      else
-        CLASSIFIED_DISALLOWED_UNTRACKED+=("$path")
-      fi
-    done
-  fi
-}
-
-has_allowed_classified_changes() {
-  [[ "${#CLASSIFIED_ALLOWED_TRACKED[@]}" -gt 0 || "${#CLASSIFIED_ALLOWED_UNTRACKED[@]}" -gt 0 ]]
-}
-
-has_disallowed_classified_changes() {
-  [[ "${#CLASSIFIED_DISALLOWED_TRACKED[@]}" -gt 0 || "${#CLASSIFIED_DISALLOWED_UNTRACKED[@]}" -gt 0 ]]
-}
-
-log_paths() {
-  local path
-  for path in "$@"; do
-    log "   - $path"
-  done
-}
-
-warn_if_dirty_worktree() {
-  local tracked_changes=()
-  local untracked_changes=()
-  local path
-
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    tracked_changes+=("$path")
-  done < <(collect_tracked_changes)
-
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    untracked_changes+=("$path")
-  done < <(collect_untracked_changes)
-
-  if [[ "${#tracked_changes[@]}" -gt 0 || "${#untracked_changes[@]}" -gt 0 ]]; then
-    log "⚠ Git worktree is already dirty."
-    log "   Auto-mode will only create fallback commits when the remaining"
-    log "   changes are limited to the current task's owned files."
-  fi
-}
-
-is_inside_git_worktree() {
-  [[ "$(git rev-parse --is-inside-work-tree 2>/dev/null || true)" == "true" ]]
-}
-
-normalize_branch_value() {
-  local value
-  value=$(trim_whitespace "${1:-}")
-  value="${value#\"}"
-  value="${value%\"}"
-  value="${value#\'}"
-  value="${value%\'}"
-
-  case "$value" in
-    ""|"-"|"—") return 0 ;;
-  esac
-
-  printf '%s\n' "$value"
-}
-
-read_config_field() {
-  local field="$1"
-
-  if [[ ! -f "$GSD_DIR/CONFIG.md" ]]; then
-    return 0
-  fi
-
-  grep "^$field:" "$GSD_DIR/CONFIG.md" | head -1 | sed "s/^$field:[[:space:]]*//" || true
-}
-
-local_branch_exists() {
-  local branch="$1"
-  git show-ref --verify --quiet "refs/heads/$branch"
-}
-
-validate_base_branch_name() {
-  local branch="$1"
-  git check-ref-format --branch "$branch" >/dev/null 2>&1
-}
-
-current_branch_is_gsd_slice() {
-  case "$1" in
-    gsd/M*/S*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-detect_base_branch() {
-  local candidate
-  local current_branch
-  local remote_head
-  local common_branch
-
-  candidate=$(normalize_branch_value "$(read_optional_state_field "base_branch")")
-  if [[ -n "$candidate" ]]; then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-
-  candidate=$(normalize_branch_value "$(read_config_field "base_branch")")
-  if [[ -n "$candidate" ]]; then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-
-  candidate=$(normalize_branch_value "${GSD_CC_BASE_BRANCH:-}")
-  if [[ -n "$candidate" ]]; then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-
-  remote_head=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)
-  remote_head="${remote_head#origin/}"
-  candidate=$(normalize_branch_value "$remote_head")
-  if [[ -n "$candidate" ]]; then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-
-  current_branch=$(git branch --show-current 2>/dev/null || true)
-  candidate=$(normalize_branch_value "$current_branch")
-  if [[ -n "$candidate" ]] && ! current_branch_is_gsd_slice "$candidate"; then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-
-  for common_branch in main master trunk develop; do
-    if local_branch_exists "$common_branch"; then
-      printf '%s\n' "$common_branch"
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-ensure_base_branch_recorded() {
-  local base_branch
-
-  if ! is_inside_git_worktree; then
-    return 0
-  fi
-
-  base_branch=$(detect_base_branch) || {
-    fail_validation "Could not detect a Git base branch." \
-      "Set base_branch in .gsd/STATE.md or export GSD_CC_BASE_BRANCH."
-  }
-
-  if ! validate_base_branch_name "$base_branch"; then
-    fail_validation "Invalid base_branch: $base_branch" \
-      "Use a valid local branch name, for example main, master, trunk, or develop."
-  fi
-
-  upsert_state_field "base_branch" "$base_branch"
-  printf '%s\n' "$base_branch"
-}
-
-assert_clean_for_branch_switch() {
-  local allowlist=("$@")
-
-  classify_worktree_changes "${allowlist[@]}"
-  if ! has_disallowed_classified_changes; then
-    return 0
-  fi
-
-  log "❌ Cannot prepare planning branch: worktree has unrelated changes."
-  log "   Commit, stash, or clean these paths before auto-mode switches branches:"
-  if [[ ${#CLASSIFIED_DISALLOWED_TRACKED[@]} -gt 0 ]]; then
-    log_paths "${CLASSIFIED_DISALLOWED_TRACKED[@]}"
-  fi
-  if [[ ${#CLASSIFIED_DISALLOWED_UNTRACKED[@]} -gt 0 ]]; then
-    log_paths "${CLASSIFIED_DISALLOWED_UNTRACKED[@]}"
-  fi
-  return 1
-}
-
-switch_to_branch() {
-  local branch="$1"
-
-  git switch "$branch" 2>/dev/null || git checkout "$branch"
-}
-
-create_branch_from_current() {
-  local branch="$1"
-
-  git switch -c "$branch" 2>/dev/null || git checkout -b "$branch"
-}
-
-prepare_planning_branch() {
-  local milestone="$1"
-  local slice="$2"
-  local base_branch
-  local slice_branch
-
-  if ! is_inside_git_worktree; then
-    log "⚠ Not inside a Git worktree; skipping base branch preparation."
-    return 0
-  fi
-
-  base_branch=$(ensure_base_branch_recorded)
-  if [[ -z "$base_branch" ]]; then
-    return 0
-  fi
-
-  if ! local_branch_exists "$base_branch"; then
-    fail_validation "Configured base_branch '$base_branch' does not exist locally." \
-      "Create or fetch the local base branch before planning a slice."
-  fi
-
-  if ! assert_clean_for_branch_switch "$GSD_DIR/STATE.md"; then
-    exit 1
-  fi
-
-  slice_branch="gsd/${milestone}/${slice}"
-
-  if local_branch_exists "$slice_branch"; then
-    if ! git merge-base --is-ancestor "$base_branch" "$slice_branch" 2>/dev/null; then
-      fail_validation "Existing slice branch '$slice_branch' is not based on '$base_branch'." \
-        "Inspect the branch ancestry before continuing planning."
-    fi
-    switch_to_branch "$slice_branch"
-  else
-    switch_to_branch "$base_branch"
-    create_branch_from_current "$slice_branch"
-  fi
-
-  log "  Base branch: $base_branch"
-  log "  Slice branch: $slice_branch"
-}
-
-run_apply_fallback_commit() {
-  local slice="$1"
-  local task="$2"
-  local task_plan
-  local summary_path
-  local task_files_output
-  local summary_status
-  local task_name
-  local commit_subject
-  local commit_body
-  local allowlist=()
-  local stage_paths=()
-  local path
-
-  task_plan=$(task_plan_xml_path "$slice" "$task")
-  summary_path="$GSD_DIR/${slice}-${task}-SUMMARY.md"
-
-  if [[ ! -f "$task_plan" ]]; then
-    log "❌ Fallback commit aborted: missing task plan $task_plan."
-    log "   Auto-mode stops instead of guessing which files belong to ${slice}/${task}."
-    return 1
-  fi
-
-  task_files_output=$(parse_task_plan_files "$task_plan") || {
-    log "❌ Fallback commit aborted: could not parse <files> in $task_plan."
-    log "   Auto-mode stops instead of guessing which files belong to ${slice}/${task}."
-    return 1
-  }
-
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    if [[ ${#allowlist[@]} -eq 0 ]] || ! path_in_list "$path" "${allowlist[@]}"; then
-      allowlist+=("$path")
-    fi
-  done <<< "$task_files_output"
-
-  for path in "$summary_path" "$GSD_DIR/STATE.md"; do
-    if [[ ${#allowlist[@]} -eq 0 ]] || ! path_in_list "$path" "${allowlist[@]}"; then
-      allowlist+=("$path")
-    fi
-  done
-
-  classify_worktree_changes "${allowlist[@]}"
-
-  if ! has_allowed_classified_changes; then
-    if has_disallowed_classified_changes; then
-      log "ℹ No fallback commit needed for ${slice}/${task}; unrelated worktree changes remain untouched."
-    fi
-    return 0
-  fi
-
-  if has_disallowed_classified_changes; then
-    log "❌ Fallback commit aborted: unrelated changes detected."
-    log "   Current task: ${slice}/${task}"
-    log "   Unrelated files:"
-    if [[ ${#CLASSIFIED_DISALLOWED_TRACKED[@]} -gt 0 ]]; then
-      log_paths "${CLASSIFIED_DISALLOWED_TRACKED[@]}"
-    fi
-    if [[ ${#CLASSIFIED_DISALLOWED_UNTRACKED[@]} -gt 0 ]]; then
-      log_paths "${CLASSIFIED_DISALLOWED_UNTRACKED[@]}"
-    fi
-    log "   Resolve or stash unrelated worktree changes before restarting auto-mode."
-    return 1
-  fi
-
-  if [[ ! -f "$summary_path" ]]; then
-    log "❌ Fallback commit aborted: missing task summary $summary_path."
-    log "   Auto-mode only fallback-commits tasks with a recorded complete status."
-    return 1
-  fi
-
-  summary_status=$(extract_summary_status "$summary_path")
-  if [[ "$summary_status" != "complete" ]]; then
-    log "❌ Fallback commit aborted: ${summary_path} status is '${summary_status:-missing}'."
-    log "   Auto-mode only fallback-commits tasks with status 'complete'."
-    return 1
-  fi
-
-  task_name=$(extract_task_name "$task_plan")
-  if [[ -z "$task_name" ]]; then
-    log "❌ Fallback commit aborted: could not parse <name> in $task_plan."
-    log "   Auto-mode stops instead of inventing a vague commit message."
-    return 1
-  fi
-
-  if [[ ${#CLASSIFIED_ALLOWED_TRACKED[@]} -gt 0 ]]; then
-    for path in "${CLASSIFIED_ALLOWED_TRACKED[@]}"; do
-      stage_paths+=("$path")
-    done
-  fi
-
-  if [[ ${#CLASSIFIED_ALLOWED_UNTRACKED[@]} -gt 0 ]]; then
-    for path in "${CLASSIFIED_ALLOWED_UNTRACKED[@]}"; do
-      stage_paths+=("$path")
-    done
-  fi
-
-  for path in "${stage_paths[@]}"; do
-    git add -- "$path"
-  done
-
-  if git diff --cached --quiet 2>/dev/null; then
-    log "❌ Fallback commit aborted: no staged task-scoped changes were produced."
-    log "   Inspect the git worktree before restarting auto-mode."
-    return 1
-  fi
-
-  commit_subject="feat(${slice}/${task}): ${task_name}"
-  commit_body=$'Auto-mode applied fallback Git handling after the task\ncompleted without creating its own commit.\n\nOnly task-scoped files from the plan, summary, and\nSTATE metadata were staged.'
-
-  if ! git commit -m "$commit_subject" -m "$commit_body"; then
-    log "❌ Fallback commit failed for ${slice}/${task}."
-    log "   Inspect the git worktree before restarting auto-mode."
-    return 1
-  fi
-
-  log "✓ Fallback committed task-scoped changes for ${slice}/${task}."
-  log_paths "${stage_paths[@]}"
-  return 0
-}
-
-# Acquire lock atomically using mkdir (atomic on all filesystems)
-acquire_lock() {
-  local lock_dir="${LOCK_FILE}.d"
-  if ! mkdir "$lock_dir" 2>/dev/null; then
-    # Lock exists — check if holder is still alive
-    if [[ -f "$LOCK_FILE" ]]; then
-      local lock_pid
-      lock_pid=$(jq -r '.pid // empty' "$LOCK_FILE" 2>/dev/null || true)
-      if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-        echo "❌ Auto-mode is already running (PID $lock_pid)."
-        exit 1
-      fi
-    fi
-    # Stale lock — reclaim
-    rm -rf "$lock_dir"
-    mkdir "$lock_dir" 2>/dev/null || { echo "❌ Could not acquire lock."; exit 1; }
-  fi
-  echo "{\"unit\":\"${SLICE:-init}/${TASK:-init}\",\"phase\":\"${PHASE:-init}\",\"pid\":$$,\"started\":\"$(iso_now)\"}" > "$LOCK_FILE"
-}
-
-release_lock() {
-  rm -f "$LOCK_FILE"
-  rm -rf "${LOCK_FILE}.d"
-}
-
-# Find the next slice that needs work (no PLAN or no UNIFY)
-# Returns slice name (e.g. "S03") or empty if milestone is complete
-find_next_slice() {
-  local roadmap
-  roadmap=$(ls "$GSD_DIR"/M*-ROADMAP.md 2>/dev/null | head -1)
-  if [[ -z "$roadmap" ]]; then
-    return
-  fi
-
-  # Extract slice IDs from roadmap (### S01, ### S02, etc.)
-  grep -oE '### S[0-9]+' "$roadmap" | sed 's/### //' | while read -r slice; do
-    if [[ ! -f "$GSD_DIR/${slice}-UNIFY.md" ]]; then
-      echo "$slice"
-      return
-    fi
-  done
-}
-
-# Dispatch a claude -p call with prompt from file, stderr captured to log
-dispatch_claude() {
-  local prompt_file="$1" result_file="$2" allowed_tools="$3" max_turns="$4" timeout_secs="$5"
-  local stderr_file
-  stderr_file="$(runtime_tmp_file "gsd-stderr-$$.log")"
-
-  timeout "$timeout_secs" "$CLAUDE_BIN" -p "$(cat "$prompt_file")" \
-    --allowedTools "$allowed_tools" \
-    --output-format json \
-    --max-turns "$max_turns" > "$result_file" 2>"$stderr_file"
-  local exit_code=$?
-
-  # Append stderr to log if non-empty
-  if [[ -s "$stderr_file" ]]; then
-    log "stderr from claude -p:"
-    cat "$stderr_file" >> "$LOG_FILE"
-  fi
-
-  return $exit_code
+  echo "</risk-and-approval>" >> "$prompt_file"
 }
 
 # ── Main loop ──────────────────────────────────────────────────────────────────
@@ -1096,6 +139,22 @@ fi
 
 RETRY_COUNT=0
 MAX_RETRIES=2
+AUTO_EVENT_LAST_SLICE=""
+
+emit_slice_started_once() {
+  if [[ -z "${SLICE:-}" || "$SLICE" == "-" || "$SLICE" == "—" ]]; then
+    return 0
+  fi
+
+  if [[ "$AUTO_EVENT_LAST_SLICE" == "$SLICE" ]]; then
+    return 0
+  fi
+
+  AUTO_EVENT_LAST_SLICE="$SLICE"
+  auto_event_slice_started "scope=$AUTO_SCOPE"
+}
+
+auto_event_auto_started "scope=$AUTO_SCOPE" "budget=$BUDGET"
 
 while true; do
   # ── 1. Read state ──────────────────────────────────────────────────────────
@@ -1105,6 +164,8 @@ while true; do
   TASK=$(read_optional_state_field "current_task")
   RIGOR=$(read_optional_state_field "rigor")
   MILESTONE=$(read_optional_state_field "milestone")
+  DISPATCH_PHASE=""
+  TASK_ATTEMPT=1
 
   if [[ "$AUTO_SCOPE" == "slice" && "$SLICE" != "$START_SLICE" ]]; then
     log "Auto (this slice) complete for $START_SLICE."
@@ -1114,6 +175,8 @@ while true; do
 
   validate_current_state
   ensure_auto_phase_ready "$PHASE"
+  emit_slice_started_once
+  auto_event_phase_started "scope=$AUTO_SCOPE"
 
   # ── 2. UNIFY enforcement ───────────────────────────────────────────────────
 
@@ -1122,6 +185,7 @@ while true; do
     UNIFY_FILE="$GSD_DIR/${SLICE}-UNIFY.md"
     if [[ ! -f "$UNIFY_FILE" ]]; then
       log "⚠ Running mandatory UNIFY for $SLICE..."
+      DISPATCH_PHASE="unify"
 
       # Build UNIFY prompt
       PROMPT_FILE="$(runtime_tmp_file "gsd-prompt-$$.txt")"
@@ -1171,18 +235,26 @@ while true; do
         echo "</decisions>" >> "$PROMPT_FILE"
       fi
 
+      append_risk_and_approval_summary "$PROMPT_FILE" "${TASK_PLAN_FILES[@]}"
+
       cat "$PROMPTS_DIR/unify-instructions.txt" >> "$PROMPT_FILE"
 
       RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"
+      auto_event_dispatch_started "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
       dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" \
         "Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git merge *),Bash(git commit *)" \
         15 600 || {
+        auto_event_dispatch_failed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE" "exit_code=$?"
         log "❌ UNIFY dispatch failed. Check $LOG_FILE for details."
+        record_auto_problem_stop "dispatch_failed" \
+          "UNIFY dispatch failed for $SLICE." \
+          "Inspect $LOG_FILE and .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume."
         break
       }
 
       log_cost "$SLICE" "unify" "$RESULT_FILE"
       validate_current_state "$PHASE"
+      auto_event_phase_completed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
 
       if [[ "$AUTO_SCOPE" == "slice" ]]; then
         log "✓ UNIFY complete for $START_SLICE."
@@ -1218,9 +290,12 @@ while true; do
       cat "$PROMPTS_DIR/reassess-instructions.txt" >> "$PROMPT_FILE"
 
       RESULT_FILE="$(runtime_tmp_file "gsd-result-$$.json")"
+      DISPATCH_PHASE="reassess"
+      auto_event_dispatch_started "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
       dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" \
         "Read,Write,Edit,Glob,Grep" \
         10 300 || {
+        auto_event_dispatch_failed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE" "exit_code=$?"
         log "⚠ REASSESS dispatch failed (non-critical). Continuing..."
       }
 
@@ -1235,6 +310,7 @@ while true; do
 
   # Check if milestone is complete (all slices unified)
   if [[ "$AUTO_SCOPE" == "slice" && "$PHASE" == "unified" ]]; then
+    auto_event_phase_completed "scope=$AUTO_SCOPE"
     log "Auto (this slice) complete for $START_SLICE."
     log "   Run /gsd-cc to review and choose the next step."
     break
@@ -1245,10 +321,12 @@ while true; do
 
     if [[ -z "$NEXT_SLICE" ]]; then
       echo ""
+      auto_event_phase_completed "scope=$AUTO_SCOPE"
       log "✅ Milestone $MILESTONE complete. All slices planned, executed, and unified."
       break
     fi
 
+    auto_event_phase_completed "scope=$AUTO_SCOPE"
     SLICE="$NEXT_SLICE"
     TASK="T01"
 
@@ -1266,6 +344,8 @@ while true; do
     PHASE="$NEXT_PHASE"
     validate_current_state
     log "▶ Moving to next slice: $SLICE ($PHASE)"
+    emit_slice_started_once
+    auto_event_phase_started "scope=$AUTO_SCOPE"
   fi
 
   # ── 4. Budget check ────────────────────────────────────────────────────────
@@ -1274,7 +354,11 @@ while true; do
     TOTAL=$(jq -s '[.[].usage // {} | (.input_tokens // 0) + (.output_tokens // 0)] | add // 0' "$COSTS_FILE" 2>/dev/null || echo 0)
     if [[ "$TOTAL" -gt "$BUDGET" ]]; then
       echo ""
+      auto_event_budget_reached "scope=$AUTO_SCOPE" "total_tokens=$TOTAL" "budget=$BUDGET"
       log "💰 Budget reached (${TOTAL} tokens). Stopping auto-mode."
+      record_auto_problem_stop "budget_reached" \
+        "Token budget reached at ${TOTAL} tokens." \
+        "Review token usage, raise or clear the budget if appropriate, then run /gsd-cc."
       break
     fi
   fi
@@ -1334,6 +418,9 @@ while true; do
 
     *)
       log "⚠ Unknown phase: $PHASE. Stopping."
+      record_auto_problem_stop "validation_failed" \
+        "Auto-mode stopped on unknown phase: $PHASE." \
+        "Run /gsd-cc to inspect and repair the current state."
       break
       ;;
   esac
@@ -1357,15 +444,34 @@ while true; do
   if [[ "$DISPATCH_PHASE" == "plan" ]]; then
     ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(git switch *),Bash(git checkout *),Bash(git branch *),Bash(git add *),Bash(git commit *)"
   else
-    ALLOWED_TOOLS="Read,Write,Edit,Glob,Grep,Bash(npm *),Bash(npx *),Bash(git add *),Bash(git commit *),Bash(node *),Bash(python3 *)"
+    TASK_ATTEMPT=$((RETRY_COUNT + 1))
+    if ! ensure_apply_approval "$SLICE" "$TASK" "$TASK_PLAN"; then
+      break
+    fi
+    auto_event_task_started \
+      "scope=$AUTO_SCOPE" \
+      "attempt=$TASK_ATTEMPT" \
+      "task_plan=$TASK_PLAN" \
+      "artifact=$TASK_PLAN"
+    build_apply_allowed_tools "$TASK_PLAN"
+    ALLOWED_TOOLS="$APPLY_ALLOWED_TOOLS"
+    log_apply_allowlist
   fi
 
+  auto_event_dispatch_started "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
   dispatch_claude "$PROMPT_FILE" "$RESULT_FILE" "$ALLOWED_TOOLS" "$MAX_TURNS" "$TIMEOUT" || {
     EXIT_CODE=$?
+    auto_event_dispatch_failed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE" "exit_code=$EXIT_CODE"
     if [[ $EXIT_CODE -eq 124 ]]; then
       log "⏰ Timeout after ${TIMEOUT}s on ${SLICE}/${TASK}. Stopping."
+      record_auto_problem_stop "timeout" \
+        "Dispatch timed out after ${TIMEOUT}s on ${SLICE}/${TASK}." \
+        "Inspect the partial work and consider splitting the task before running /gsd-cc."
     else
       log "❌ Dispatch failed (exit $EXIT_CODE) on ${SLICE}/${TASK}. Check $LOG_FILE for stderr."
+      record_auto_problem_stop "dispatch_failed" \
+        "Dispatch failed with exit $EXIT_CODE on ${SLICE}/${TASK}." \
+        "Inspect $LOG_FILE and .gsd/AUTO-RECOVERY.md, then run /gsd-cc to resume."
     fi
     log_cost "${SLICE}/${TASK}" "$DISPATCH_PHASE" "$RESULT_FILE"
     break
@@ -1388,6 +494,9 @@ while true; do
       RETRY_COUNT=$((RETRY_COUNT + 1))
       if [[ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]]; then
         log "🔄 ${SLICE}/${TASK} stuck after $MAX_RETRIES attempts. Stopping."
+        record_auto_problem_stop "stuck_missing_summary" \
+          "Expected summary $EXPECTED_SUMMARY was not created after $MAX_RETRIES attempts." \
+          "Inspect the task output and worktree, then run /gsd-cc to retry or repair."
         break
       fi
       log "⚠ Expected $EXPECTED_SUMMARY not found. Retry $RETRY_COUNT/$MAX_RETRIES..."
@@ -1402,6 +511,9 @@ while true; do
       RETRY_COUNT=$((RETRY_COUNT + 1))
       if [[ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]]; then
         log "🔄 Planning ${SLICE} stuck after $MAX_RETRIES attempts. Stopping."
+        record_auto_problem_stop "stuck_missing_plan" \
+          "Expected plan $EXPECTED_PLAN was not created after $MAX_RETRIES attempts." \
+          "Inspect the planning output and worktree, then run /gsd-cc to retry or repair."
         break
       fi
       log "⚠ Expected $EXPECTED_PLAN not found. Retry $RETRY_COUNT/$MAX_RETRIES..."
@@ -1415,12 +527,22 @@ while true; do
   if [[ "$DISPATCH_PHASE" == "apply" ]]; then
     if ! run_apply_fallback_commit "$SLICE" "$TASK"; then
       log "🛑 Stopping auto-mode so the git worktree can be inspected safely."
+      record_auto_problem_stop "git_safety_stop" \
+        "Auto-mode stopped because fallback Git handling could not safely commit task-scoped changes." \
+        "Inspect the uncommitted files, resolve unrelated changes, then run /gsd-cc."
       break
     fi
+    auto_event_task_completed \
+      "scope=$AUTO_SCOPE" \
+      "attempt=$TASK_ATTEMPT" \
+      "task_plan=$TASK_PLAN" \
+      "summary=$EXPECTED_SUMMARY" \
+      "artifact=$EXPECTED_SUMMARY"
   fi
 
   # ── 13. Release lock ──────────────────────────────────────────────────────
 
+  auto_event_phase_completed "scope=$AUTO_SCOPE" "dispatch_phase=$DISPATCH_PHASE"
   release_lock
 
   log "✓ ${SLICE}/${TASK} complete."
@@ -1435,4 +557,9 @@ done
 
 release_lock
 echo ""
+MILESTONE=$(read_optional_state_field "milestone")
+SLICE=$(read_optional_state_field "current_slice")
+TASK=$(read_optional_state_field "current_task")
+PHASE=$(read_optional_state_field "phase")
+auto_event_auto_finished "scope=${AUTO_SCOPE:-unknown}" "budget=$BUDGET"
 log "Auto-mode finished."

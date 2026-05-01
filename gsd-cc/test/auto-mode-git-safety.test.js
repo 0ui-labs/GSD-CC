@@ -75,7 +75,7 @@ console.log(JSON.stringify({
   return binDir;
 }
 
-function createGitProject(summaryStatus = 'complete') {
+function createGitProject(summaryStatus = 'complete', taskName = 'Fixture task') {
   const projectDir = createAutoModeProject({
     state: {
       phase: 'plan-complete',
@@ -87,6 +87,12 @@ function createGitProject(summaryStatus = 'complete') {
     phase: 'plan-complete',
     auto_mode_scope: 'slice'
   });
+  const taskPlanPath = path.join(projectDir, '.gsd', 'S01-T01-PLAN.xml');
+  fs.writeFileSync(
+    taskPlanPath,
+    fs.readFileSync(taskPlanPath, 'utf8')
+      .replace('<name>Fixture task</name>', `<name>${taskName}</name>`)
+  );
   writeFile(path.join(projectDir, 'src', 'fixture.txt'), 'baseline\n');
   writeFile(path.join(projectDir, 'docs', 'unrelated.md'), 'baseline\n');
   writeFile(path.join(projectDir, '.gsd', 'S01-T01-SUMMARY.md'), [
@@ -140,6 +146,14 @@ function lastCommitFiles(projectDir) {
     .filter(Boolean);
 }
 
+function lastCommitSubject(projectDir) {
+  return runGit(projectDir, ['log', '-1', '--format=%s']).stdout.trim();
+}
+
+function lastCommitBody(projectDir) {
+  return runGit(projectDir, ['log', '-1', '--format=%b']).stdout.trim();
+}
+
 function assertAutoLoopSucceeded(result) {
   assert.ifError(result.error);
   assert.strictEqual(
@@ -170,12 +184,14 @@ function testUnrelatedDirtyWorktreeAborts(binDir) {
 }
 
 function testCompleteTaskCanFallbackCommit(binDir) {
-  const projectDir = createGitProject('complete');
+  const projectDir = createGitProject('complete', 'Deutsche Aufgabe');
   const result = runAutoLoop(projectDir, makeEnv(binDir));
 
   assertAutoLoopSucceeded(result);
   assert.strictEqual(commitCount(projectDir), 2);
   assert.match(result.stdout, /Fallback committed task-scoped changes/);
+  assert.strictEqual(lastCommitSubject(projectDir), 'feat(S01/T01): apply task');
+  assert.match(lastCommitBody(projectDir), /Auto-mode applied fallback Git handling/);
 
   const committedFiles = lastCommitFiles(projectDir);
   assert.ok(committedFiles.includes('src/fixture.txt'));

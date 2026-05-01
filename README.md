@@ -120,6 +120,7 @@ npx gsd-cc --local --language Deutsch
 npx gsd-cc --uninstall            # Remove detected installs safely
 npx gsd-cc --uninstall --global   # Remove only the global install
 npx gsd-cc --uninstall --local    # Remove only the local install
+npx gsd-cc dashboard --no-open    # Start the local dashboard
 ```
 
 ### Install Safety
@@ -130,11 +131,13 @@ npx gsd-cc --uninstall --local    # Remove only the local install
 - `npx gsd-cc --uninstall` checks both install roots. Add `--global` or
   `--local` to limit cleanup to one scope.
 - Reinstall and update runs preserve the existing `GSD-CC language` setting.
-  Use `--language <name>` to set it explicitly.
+  Use `--language <name>` to set the UI language explicitly.
+- Commit messages use a separate `GSD-CC commit language` setting, defaulting
+  to English. Change it with `/gsd-cc-config`; `--language` does not change it.
 - Use `--yes` for automation. If no scope is provided in prompt-free mode,
   the installer chooses the global install.
 - Uninstall removes only manifest-tracked assets, GSD-CC-owned hook entries,
-  and the managed language block in `CLAUDE.md`.
+  and the managed GSD-CC config block in `CLAUDE.md`.
 - If a target file already exists and GSD-CC cannot prove ownership, install
   stops instead of overwriting it.
 - Hook scripts live under `~/.claude/hooks/gsd-cc/` for global installs and
@@ -184,6 +187,24 @@ Come back hours later:
 > /gsd-cc           → "Welcome back. M001 — 4 of 6 slices complete."
 ```
 
+### Dashboard
+
+GSD-CC includes a local dashboard for checking project progress without asking
+Claude to summarize state every time:
+
+```bash
+npx gsd-cc dashboard
+npx gsd-cc dashboard --no-open
+npx gsd-cc dashboard --host 127.0.0.1 --port 4766
+```
+
+You can also launch it inside Claude Code with `/gsd-cc-dashboard`.
+
+The dashboard server binds to `127.0.0.1` by default and reads only the current
+repository's `.gsd/` files plus the installed dashboard assets. V1 is read-only:
+it shows state, progress, auto-mode events, costs, and safe `.gsd/` artifact
+previews, but it does not edit files or run workflow actions.
+
 ### Commands
 
 You only need `/gsd-cc` — it routes automatically. Power users can jump directly:
@@ -200,6 +221,7 @@ You only need `/gsd-cc` — it routes automatically. Power users can jump direct
 | `/gsd-cc-auto` | Auto-mode | Autonomous execution via `claude -p` |
 | `/gsd-cc-profile` | Setup | Build your decision profile for auto-mode |
 | `/gsd-cc-status` | Overview | Progress, ACs, token usage, auto-mode state |
+| `/gsd-cc-dashboard` | Overview | Launch the local read-only dashboard |
 | `/gsd-cc-config` | Settings | Change language and preferences |
 | `/gsd-cc-help` | Reference | All commands, project files, and tips |
 | `/gsd-cc-tutorial` | Learning | Guided walkthrough with a sample project |

@@ -19,6 +19,9 @@ Check ALL items before allowing execution to start. If any item fails, fix the p
 
 - [ ] No "TBD", "TODO", "later", or "tbd" in `<action>` or `<files>` fields
 - [ ] Every `<files>` section lists concrete file paths, not placeholders
+- [ ] Every task has a `<risk level="low|medium|high">` section
+- [ ] Every `<risk>` section explains why that level applies
+- [ ] Slice task table shows the risk level for every task
 - [ ] Every `<action>` section has numbered, concrete steps
 - [ ] Every `<verify>` references at least one AC by ID
 - [ ] Each task is independently verifiable — after completing T{nn}, its ACs can be proven before starting T{nn+1}

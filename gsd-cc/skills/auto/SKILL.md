@@ -48,6 +48,13 @@ If execution is about to start, also verify the current slice has
 "Legacy task plans detected. Run /gsd-cc-plan to regenerate XML task plans
 before starting auto-mode."
 
+The auto-loop machine-validates all XML task plans in the current slice before
+apply starts. It stops before dispatch if a plan is not auto-compatible:
+filename/id mismatch, `type` other than `auto`, missing required sections,
+invalid `<files>` paths, duplicate or malformed ACs, verify references to
+unknown ACs, or a `<verify>` command that is neither recognized nor explicitly
+allowed via `auto_apply_allowed_bash`.
+
 ### jq is installed
 ```bash
 command -v jq
@@ -66,6 +73,36 @@ command -v claude || which claude
 ```
 If not found: "Auto-mode unavailable: claude CLI not found. Install Claude Code and ensure `claude` is in your PATH."
 Note: The auto-loop.sh script resolves the full path to claude automatically, so PATH issues in subprocesses are handled.
+
+### Apply Bash allowlist
+
+During apply, auto-mode always grants the Git commands needed for atomic
+commits (`git add *` and `git commit *`). Other Bash commands are limited to
+patterns derived from the current task's `<verify>` command plus explicit
+project overrides. To allow additional project-specific verification commands,
+add comma-separated command patterns to `.gsd/CONFIG.md`:
+
+```yaml
+auto_apply_allowed_bash: pnpm lint *, npm run typecheck *, playwright test *
+```
+
+Do not include `Bash(...)` wrappers in the config value. Broad patterns such as
+`python3 *` are allowed only when the project chooses them explicitly here.
+
+### Approval rules
+
+Auto-mode stops before apply dispatch when the current task matches approval
+policy. Built-in approval rules cover high-risk tasks plus sensitive paths and
+terms. Projects can add rules in `.gsd/CONFIG.md`:
+
+```yaml
+approval_required_paths: package.json, .github/workflows/*, migrations/*
+approval_required_terms: auth, billing, payment, secret, token, deployment
+approval_required_risk: high
+```
+
+`approval_required_risk` defaults to `high`; use `none` to disable risk-level
+approval while keeping path and term rules active.
 
 ### No stale lock file
 ```
@@ -150,6 +187,16 @@ Auto-mode stops when:
 - **Stuck** — a task failed twice
 - **Timeout** — a single task exceeded its time limit
 - **Error** — claude -p failed
+
+Problem stops write recovery artifacts:
+- `.gsd/AUTO-RECOVERY.md` — human-readable report with the running unit,
+  stop reason, Git changes, commits since auto-mode started, log path, and
+  safest next action
+- `.gsd/auto-recovery.json` — machine-readable summary used by
+  `/gsd-cc` and `/gsd-cc-status`
+
+Successful slice or milestone completion does not create a recovery report.
+Starting auto-mode clears stale recovery artifacts from previous problem stops.
 
 After it stops, read `.gsd/STATE.md` and report:
 

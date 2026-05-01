@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GSD-CC Dashboard</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="dashboard-shell" data-dashboard-root>
+      <header class="dashboard-topbar">
+        <div class="dashboard-title-group">
+          <p class="dashboard-kicker">GSD-CC</p>
+          <h1>Dashboard loading</h1>
+        </div>
+      </header>
+      <div class="dashboard-workspace">
+        <nav class="dashboard-sidebar" aria-label="Dashboard sections"></nav>
+        <main class="dashboard-main" aria-live="polite">
+          <section class="dashboard-region">
+            <div class="dashboard-empty-state">
+              <strong>Dashboard loading</strong>
+              <p>Project state will appear here shortly.</p>
+            </div>
+          </section>
+        </main>
+        <aside class="dashboard-context" aria-label="Context panel"></aside>
+      </div>
+    </div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>

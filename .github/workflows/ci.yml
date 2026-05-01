@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Node ${{ matrix.node-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: gsd-cc
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node-version: 16.x
+          - os: ubuntu-latest
+            node-version: 20.x
+          - os: macos-latest
+            node-version: 20.x
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run tests
+        run: npm test
+
+      - name: Validate package contents
+        run: |
+          npm pack --dry-run --json > pack.json
+          node -e "const fs = require('fs'); const report = JSON.parse(fs.readFileSync('pack.json', 'utf8'))[0]; const files = report.files.map((entry) => entry.path); const forbidden = [/^test\\//, /^\\.github\\//, /^assets\\//, /(^|\\/)\\.DS_Store$/]; const blocked = files.filter((file) => forbidden.some((pattern) => pattern.test(file))); if (blocked.length) { console.error('Forbidden package files:\\n' + blocked.join('\\n')); process.exit(1); } const required = ['bin/install.js', 'bin/install/cli.js', 'bin/install/dashboard.js', 'scripts/dashboard-server.js', 'dashboard/index.html', 'dashboard/app.js', 'dashboard/styles.css', 'hooks/gsd-boundary-guard.sh', 'skills/auto/auto-loop.sh', 'skills/auto/lib/runtime.sh', 'templates/STATE.md', 'checklists/planning-ready.md']; const missing = required.filter((file) => !files.includes(file)); if (missing.length) { console.error('Missing package files:\\n' + missing.join('\\n')); process.exit(1); }"

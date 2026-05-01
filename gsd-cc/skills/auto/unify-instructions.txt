@@ -6,6 +6,7 @@ The context files are inlined above in XML tags:
 - <task-plans> — all XML task plans for this slice (`.gsd/S{nn}-T{nn}-PLAN.xml`)
 - <summaries> — all task summaries for this slice
 - <decisions> — DECISIONS.md
+- <risk-and-approval> — per-task approval status resolved against current fingerprints
 
 ## Your Task
 
@@ -19,16 +20,64 @@ The context files are inlined above in XML tags:
 
 ## Step-by-Step
 
+### Summary
+
+Start with a compact trust summary:
+- Status: complete, partial, or failed
+- Slice and outcome
+- Acceptance criteria counts
+- Boundary violation count
+- One recommendation for the next slice
+
 ### Plan vs. Actual
 
 For each task, compare <task-plans> with <summaries>:
 - Was it completed as planned, expanded, partial, or skipped?
+- Include a brief note for expanded, partial, or skipped tasks.
 
 ### Acceptance Criteria
 
 For each AC in all task plans, find the corresponding result in summaries:
 - Status: Pass / Partial / Fail
 - Evidence from the summary
+
+### Implemented Work
+
+Summarize what actually shipped, grouped by product or technical area.
+
+### Not Implemented
+
+List planned work that did not ship. If all planned work shipped, write
+`None.`.
+
+### Extra Work Added
+
+List useful unplanned work. Extra work is not a failure unless it violates
+boundaries or approval expectations. If there was no extra work, write
+`None.`.
+
+### Deviations
+
+List meaningful differences from the plan, including scope, implementation,
+verification, or sequencing differences. If there were no deviations, write
+`None.`.
+
+### Risks Introduced
+
+List only risks created or revealed during this slice. Do not list generic
+project risks. If no new risks were introduced or revealed, write `None.`.
+
+### Risk and Approval
+
+For each task plan, read `<risk level="...">`. List high-risk tasks and whether
+an approval grant exists in <risk-and-approval> for the current fingerprint. If
+no high-risk tasks exist, write
+`No high-risk tasks in this slice.`.
+
+### Tests and Evidence
+
+Summarize verification separately from the AC table. Include commands or
+manual methods, results, and the AC IDs or areas covered.
 
 ### Boundary Violations
 
@@ -46,12 +95,34 @@ Append them to `.gsd/DECISIONS.md` under a heading for this slice.
 ### Deferred Issues
 
 Collect all issues from summaries that were pushed to later.
+If nothing was deferred, write `None.`.
 
 ### Reassessment
 
 Read the roadmap. Based on what was learned:
 - Is the remaining roadmap still valid?
 - Or does it need changes? (describe what and why)
+
+Do not modify roadmap files during UNIFY. REASSESS is the only auto-full step
+that may update the roadmap.
+
+### Recommendation for Next Slice
+
+End the UNIFY report with exactly one of these shapes:
+
+```markdown
+Continue as planned with {slice}.
+```
+
+```markdown
+Continue, but address: {specific concern}.
+```
+
+```markdown
+Pause before next slice: {specific blocker/risk}.
+```
+
+This recommendation is advisory. Do not modify roadmap files from UNIFY.
 
 ## File to Write
 
@@ -64,17 +135,58 @@ date: {now ISO}
 status: {complete|partial|failed}
 ---
 
+## Summary
+
+- Status: {complete|partial|failed}
+- Slice: S{nn} — {slice name}
+- Outcome: {one-sentence result}
+- Acceptance Criteria: {passed}/{total} passed, {partial} partial, {failed} failed
+- Boundary Violations: {none|count}
+- Recommendation: {one-sentence next-slice recommendation}
+
 ## Plan vs. Actual
 
-| Task | Planned | Actual | Status |
-|------|---------|--------|--------|
-| T01 | {from plan} | {from summary} | ✅ as planned |
+| Task | Planned | Actual | Status | Notes |
+|------|---------|--------|--------|-------|
+| T01 | {from plan} | {from summary} | as planned | {brief explanation} |
 
 ## Acceptance Criteria
 
 | AC | Task | Status | Evidence |
 |----|------|--------|----------|
-| AC-1 | T01 | ✅ Pass | {evidence} |
+| AC-1 | T01 | Pass | {evidence} |
+
+## Implemented Work
+
+| Area | What shipped | Evidence |
+|------|--------------|----------|
+| {area} | {implemented work} | {summary or test evidence} |
+
+## Not Implemented
+
+{None. | list of planned work that did not ship}
+
+## Extra Work Added
+
+{None. | table or list of useful unplanned work}
+
+## Deviations
+
+{None. | table or list of meaningful plan differences}
+
+## Risks Introduced
+
+{None. | table or list of new risks created or revealed}
+
+## Risk and Approval
+
+{No high-risk tasks in this slice. | table of high-risk tasks and approval status}
+
+## Tests and Evidence
+
+| Check | Command or Method | Result | Covers |
+|-------|-------------------|--------|--------|
+| {check} | {command or manual method} | Pass/Partial/Fail | {AC IDs or area} |
 
 ## Decisions Made
 
@@ -86,11 +198,19 @@ status: {complete|partial|failed}
 
 ## Deferred
 
-- [ ] {issue} → {target}
+{None. | list of deferred issues with target slice or later}
 
 ## Reassessment
 
 {Roadmap still valid. | Roadmap needs update: {reason}}
+
+## Vision Alignment
+
+{Vision alignment table, or "Skipped — no VISION.md."}
+
+## Recommendation for Next Slice
+
+{Continue as planned with S{nn}. | Continue, but address: {concern}. | Pause before next slice: {blocker/risk}.}
 ```
 
 Status in frontmatter:
@@ -99,6 +219,11 @@ Status in frontmatter:
 - `failed` — critical issues
 
 ## Git
+
+Resolve commit language from `commit_language` in `.gsd/STATE.md`,
+`commit_language` in `.gsd/CONFIG.md`, or `GSD-CC commit language:` in
+CLAUDE.md. If none is configured, use English. Do not infer commit language
+from the UI language used in UNIFY reports.
 
 Use `base_branch` from <state>. Preflight before merging:
 
@@ -115,6 +240,9 @@ git switch {base_branch}
 git merge --squash gsd/M{n}/S{nn}
 git commit -m "feat(M{n}/S{nn}): {slice name}"
 ```
+
+Write the squash commit subject and body in the resolved commit language. The
+example above is English because English is the default commit language.
 
 Do NOT delete the slice branch.
 

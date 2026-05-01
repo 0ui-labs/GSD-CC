@@ -28,6 +28,7 @@ npx gsd-cc --local --language Deutsch
 npx gsd-cc --uninstall            # Remove detected installs safely
 npx gsd-cc --uninstall --global   # Remove only the global install
 npx gsd-cc --uninstall --local    # Remove only the local install
+npx gsd-cc dashboard --no-open    # Start the local dashboard
 ```
 
 GSD-CC tracks installed assets in `~/.claude/gsd-cc/install-manifest.json`
@@ -40,11 +41,12 @@ Installed layout:
 - Custom types: `~/.claude/skills/seed/types/<your-type>/` or `./.claude/skills/seed/types/<your-type>/`
 - Scope-specific uninstall: `--global` or `--local`
 - Prompt-free installs: `--yes`
-- Explicit language: `--language <name>`
+- Explicit UI language: `--language <name>`
 
-Reinstall and update runs preserve the existing `GSD-CC language` setting by
-default. In non-interactive mode, missing language defaults to English and
-missing scope defaults to a global install.
+Reinstall and update runs preserve existing `GSD-CC language` and
+`GSD-CC commit language` settings by default. In non-interactive mode, missing
+UI language defaults to English and missing scope defaults to a global install.
+Commit language defaults to English and can be changed with `/gsd-cc-config`.
 
 ## Usage
 
@@ -62,6 +64,24 @@ Auto-mode runs tasks autonomously via `claude -p` on your Max Plan.
 Artifact convention:
 - Slice overview: `.gsd/S{nn}-PLAN.md`
 - Per-task plans: `.gsd/S{nn}-T{nn}-PLAN.xml`
+
+## Dashboard
+
+The dashboard gives you a browser view of the current repository's GSD state:
+
+```bash
+npx gsd-cc dashboard
+npx gsd-cc dashboard --no-open
+npx gsd-cc dashboard --host 127.0.0.1 --port 4766
+```
+
+Inside Claude Code, run `/gsd-cc-dashboard` for the same launcher guidance.
+
+The server is local-only by default: it binds to `127.0.0.1`, reads `.gsd/`
+from the current project, and serves dashboard assets from the installed
+package. V1 is read-only. It shows project progress, auto-mode events, token
+costs, and safe `.gsd/` artifact previews, but it does not write files or run
+workflow actions.
 
 ## Requirements
 
@@ -82,6 +102,17 @@ From this package directory:
 ```bash
 npm test
 ```
+
+For dashboard integration sweeps, also launch the read-only Web App from a
+project that has `.gsd/` state:
+
+```bash
+npx gsd-cc dashboard --no-open
+```
+
+The dashboard is optional for auto-mode. Auto-mode writes `.gsd/events.jsonl`
+and other artifacts directly, so it continues to work when the dashboard
+server is not running.
 
 The suite uses temporary homes, projects, fake `claude`/`jq` binaries, and
 temporary Git repositories. It must not touch the developer's real

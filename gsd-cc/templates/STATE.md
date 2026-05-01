@@ -10,6 +10,7 @@ unify_required: false
 rigor: standard
 project_type: application
 language: English
+commit_language: English
 auto_mode: false
 auto_mode_scope: slice
 last_updated: {{ISO_DATE}}
@@ -30,7 +31,7 @@ last_updated: {{ISO_DATE}}
 
 ## Boundaries Active
 
-<!-- Copied from current slice plan, enforced by /gsd-cc-apply -->
+<!-- Copied from current slice plan; files, dirs, and globs are enforced -->
 
 ## Decisions This Slice
 

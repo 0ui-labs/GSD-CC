@@ -33,6 +33,8 @@ PHASE COMMANDS (power users)
 
 INFO & MANAGEMENT
   /gsd-cc-status          Show project progress and AC tracking
+  /gsd-cc-status explain  Explain project state in plain language
+  /gsd-cc-dashboard       Launch the local read-only dashboard
   /gsd-cc-update          Update GSD-CC to the latest version
   /gsd-cc-help            This help screen
   /gsd-cc-tutorial        Guided walkthrough with a sample project
@@ -58,6 +60,11 @@ PROJECT FILES
   .gsd/COSTS.jsonl        Token usage tracking (auto-mode)
 
 Per-task plans use `.xml`. Only the slice overview stays in Markdown.
+
+DASHBOARD
+  Run /gsd-cc-dashboard for a local browser view of project progress,
+  auto-mode state, costs, and artifacts. V1 is read-only and uses the local
+  127.0.0.1 server launched by `npx gsd-cc dashboard`.
 
 TIPS
   • You only need /gsd-cc — it always knows what to do next

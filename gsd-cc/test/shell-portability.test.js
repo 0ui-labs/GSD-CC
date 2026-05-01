@@ -69,6 +69,45 @@ for arg in "$@"; do
 done
 
 exec ${JSON.stringify(realSed)} "$@"
+	`);
+}
+
+function writeJqThatFailsBridgeWrites(binDir) {
+  return writeExecutable(binDir, 'jq', `#!/usr/bin/env node
+const fs = require('fs');
+
+const args = process.argv.slice(2);
+if (args.includes('-n')) {
+  process.exit(42);
+}
+
+const positional = [];
+for (let index = 0; index < args.length; index += 1) {
+  const arg = args[index];
+  if (arg === '-r' || arg === '-e' || arg === '-c' || arg === '-s') {
+    continue;
+  }
+  if (arg === '--arg') {
+    index += 2;
+    continue;
+  }
+  positional.push(arg);
+}
+
+const expression = positional[0] || '';
+const raw = fs.readFileSync(0, 'utf8');
+const data = raw.trim() ? JSON.parse(raw) : {};
+
+if (expression === '.cwd') {
+  console.log(data.cwd || '');
+  process.exit(0);
+}
+
+if (expression.includes('// empty')) {
+  process.exit(0);
+}
+
+console.log('null');
 `);
 }
 
@@ -93,10 +132,35 @@ function runHook(hookName, input, env) {
   });
 }
 
+function runStatuslineTenTimes(projectDir, env) {
+  for (let index = 0; index < 10; index += 1) {
+    const result = runHook('gsd-statusline.sh', { cwd: projectDir }, env);
+    assert.strictEqual(
+      result.status,
+      0,
+      `statusline hook failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+    );
+    assert.strictEqual(result.stdout, '');
+    assert.strictEqual(result.stderr, '');
+  }
+}
+
+function findBridgeFile(tmpDir) {
+  const bridgeEntry = fs.readdirSync(tmpDir).find((entry) => {
+    return entry.startsWith('gsd-cc-bridge-') && entry.endsWith('.json');
+  });
+  assert.ok(bridgeEntry, 'statusline bridge file should exist');
+  return path.join(tmpDir, bridgeEntry);
+}
+
 function shellRuntimeFiles() {
   const hooksDir = path.join(packageRoot, 'hooks');
+  const autoLibDir = path.join(packageRoot, 'skills', 'auto', 'lib');
   return [
     path.join(packageRoot, 'skills', 'auto', 'auto-loop.sh'),
+    ...fs.readdirSync(autoLibDir)
+      .filter((entry) => entry.endsWith('.sh'))
+      .map((entry) => path.join(autoLibDir, entry)),
     ...fs.readdirSync(hooksDir)
       .filter((entry) => entry.endsWith('.sh'))
       .map((entry) => path.join(hooksDir, entry))
@@ -121,6 +185,73 @@ function testAutoLoopDoesNotRequireBsdOrGnuDate(binDir) {
   );
   assert.match(result.stdout, /\[2026-01-01T00:00:00\+0000\]/);
   assert.match(result.stdout, /Auto \(this slice\) complete/);
+  assert.ok(!fs.readdirSync(path.join(projectDir, '.gsd')).some((entry) => {
+    return entry.startsWith('auto.lock.');
+  }));
+}
+
+function testHalfInitializedAutoLockIsNotReclaimed(binDir) {
+  const projectDir = createAutoModeProject({
+    unified: true,
+    state: {
+      phase: 'unified',
+      auto_mode_scope: 'slice'
+    }
+  });
+  const lockDir = path.join(projectDir, '.gsd', 'auto.lock.d');
+  fs.mkdirSync(lockDir);
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.notStrictEqual(result.status, 0, 'half-initialized lock should block auto-mode');
+  assert.match(result.stdout + result.stderr, /lock is being initialized/);
+  assert.ok(fs.existsSync(lockDir), 'active lock directory should not be reclaimed');
+  assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'auto.lock')));
+}
+
+function testInitializingAutoLockOwnerBeatsStaleLockFile(binDir) {
+  const projectDir = createAutoModeProject({
+    unified: true,
+    state: {
+      phase: 'unified',
+      auto_mode_scope: 'slice'
+    }
+  });
+  const lockDir = path.join(projectDir, '.gsd', 'auto.lock.d');
+  const lockFile = path.join(projectDir, '.gsd', 'auto.lock');
+  fs.mkdirSync(lockDir);
+  fs.writeFileSync(path.join(lockDir, 'pid'), `${process.pid}\n`);
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 99999999 }));
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.notStrictEqual(result.status, 0, 'live initializer should block auto-mode');
+  assert.match(result.stdout + result.stderr, /lock is being initialized/);
+  assert.ok(fs.existsSync(lockDir), 'active lock directory should not be reclaimed');
+  assert.ok(fs.existsSync(lockFile), 'stale lock file should not override live initializer');
+}
+
+function testStaleInitializingAutoLockIsReclaimed(binDir) {
+  const projectDir = createAutoModeProject({
+    unified: true,
+    state: {
+      phase: 'unified',
+      auto_mode_scope: 'slice'
+    }
+  });
+  const lockDir = path.join(projectDir, '.gsd', 'auto.lock.d');
+  fs.mkdirSync(lockDir);
+  fs.writeFileSync(path.join(lockDir, 'pid'), '99999999\n');
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assert.strictEqual(
+    result.status,
+    0,
+    `stale initializing lock should be reclaimed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+  );
+  assert.match(result.stdout, /Auto \(this slice\) complete/);
+  assert.ok(!fs.existsSync(lockDir), 'owned lock directory should be released');
 }
 
 function testHooksUseConfiguredTmpdir(binDir) {
@@ -128,14 +259,7 @@ function testHooksUseConfiguredTmpdir(binDir) {
   const tmpDir = makeTempDir('gsd-cc-portable-tmp-');
   const env = makeEnv(binDir, { TMPDIR: tmpDir });
 
-  for (let index = 0; index < 10; index += 1) {
-    const result = runHook('gsd-statusline.sh', { cwd: projectDir }, env);
-    assert.strictEqual(
-      result.status,
-      0,
-      `statusline hook failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
-    );
-  }
+  runStatuslineTenTimes(projectDir, env);
 
   const transcript = path.join(projectDir, 'transcript.jsonl');
   fs.writeFileSync(transcript, `${'{}\n'.repeat(1001)}`);
@@ -155,6 +279,37 @@ function testHooksUseConfiguredTmpdir(binDir) {
   assert.ok(tmpEntries.some((entry) => entry.startsWith('gsd-cc-statusline-')));
   assert.ok(tmpEntries.some((entry) => entry.startsWith('gsd-cc-bridge-')));
   assert.ok(tmpEntries.some((entry) => entry.startsWith('gsd-cc-ctx-monitor-')));
+
+  const bridge = JSON.parse(fs.readFileSync(findBridgeFile(tmpDir), 'utf8'));
+  assert.strictEqual(bridge.total_slices, 0);
+  assert.strictEqual(bridge.done_slices, 0);
+}
+
+function testStatuslineKeepsBridgeOnWriteFailure(binDir) {
+  const projectDir = createAutoModeProject();
+  const tmpDir = makeTempDir('gsd-cc-portable-tmp-');
+  const env = makeEnv(binDir, { TMPDIR: tmpDir });
+
+  runStatuslineTenTimes(projectDir, env);
+
+  const bridgePath = findBridgeFile(tmpDir);
+  const bridgeEntry = path.basename(bridgePath);
+  const previousBridge = {
+    phase: 'previous',
+    position: 'previous',
+    total_slices: 99,
+    done_slices: 98
+  };
+  fs.writeFileSync(bridgePath, JSON.stringify(previousBridge));
+
+  writeJqThatFailsBridgeWrites(binDir);
+  runStatuslineTenTimes(projectDir, env);
+
+  const bridge = JSON.parse(fs.readFileSync(bridgePath, 'utf8'));
+  assert.deepStrictEqual(bridge, previousBridge);
+  assert.ok(!fs.readdirSync(tmpDir).some((entry) => {
+    return entry.startsWith(`${bridgeEntry}.`) && entry.endsWith('.tmp');
+  }));
 }
 
 function testShellSourcesAvoidNonPortableInlineCommands() {
@@ -169,8 +324,32 @@ function testShellSourcesAvoidNonPortableInlineCommands() {
   }
 }
 
+function testInvalidAutoPromptsDirReportsMissingSkills(binDir) {
+  const missingPromptsDir = path.join(makeTempDir('gsd-cc-missing-prompts-'), 'missing', 'auto');
+  const script = [
+    'set -euo pipefail',
+    `source ${JSON.stringify(path.join(packageRoot, 'skills', 'auto', 'lib', 'runtime.sh'))}`,
+    'resolve_skills_dir',
+    ''
+  ].join('\n');
+  const result = spawnSync('bash', ['-c', script], {
+    env: makeEnv(binDir, { GSD_CC_AUTO_PROMPTS_DIR: missingPromptsDir }),
+    encoding: 'utf8'
+  });
+  const output = `${result.stdout}\n${result.stderr}`;
+
+  assert.strictEqual(result.status, 1);
+  assert.match(output, /GSD-CC skills not found/);
+  assert.doesNotMatch(output, /cd:/);
+}
+
 const binDir = setupBin();
 
 testAutoLoopDoesNotRequireBsdOrGnuDate(binDir);
+testHalfInitializedAutoLockIsNotReclaimed(binDir);
+testInitializingAutoLockOwnerBeatsStaleLockFile(binDir);
+testStaleInitializingAutoLockIsReclaimed(binDir);
 testHooksUseConfiguredTmpdir(binDir);
+testStatuslineKeepsBridgeOnWriteFailure(binDir);
 testShellSourcesAvoidNonPortableInlineCommands();
+testInvalidAutoPromptsDirReportsMissingSkills(binDir);

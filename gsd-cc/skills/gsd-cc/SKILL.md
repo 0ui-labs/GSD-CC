@@ -36,9 +36,10 @@ Check what exists on disk:
 4. Does .gsd/PLANNING.md exist?
 5. Does .gsd/M001-ROADMAP.md exist? (check for any M*-ROADMAP.md)
 6. Does .gsd/auto.lock exist? (crash/interrupt)
-7. Which S*-PLAN.md files exist?
-8. Which S*-UNIFY.md files exist?
-9. Which S*-T*-SUMMARY.md files exist?
+7. Does .gsd/auto-recovery.json exist? (last problem stop)
+8. Which S*-PLAN.md files exist?
+9. Which S*-UNIFY.md files exist?
+10. Which S*-T*-SUMMARY.md files exist?
 ```
 
 Use `Glob` to check for file patterns. Use `Read` for STATE.md.
@@ -89,14 +90,60 @@ position context whenever branch actions are next.
 
 Follow this decision tree **top to bottom**. Take the FIRST match:
 
-### Crash Recovery
+### Approval Required
+```text
+IF .gsd/APPROVAL-REQUEST.json exists:
+  → Read the request.
+  → Show:
+      S{nn}/T{nn} needs approval before auto-mode can continue.
+      Risk: {risk_level} — {risk_reason}
+      Reasons:
+      - {reason}
+  → Use AskUserQuestion:
+    Question: "How do you want to proceed?"
+    Header: "Approval"
+    Options:
+      - label: "Approve once"
+        description: "Allow this exact task plan fingerprint to run in auto-mode."
+      - label: "Run manually"
+        description: "Execute the task with you present instead of granting auto-mode approval."
+      - label: "Replan task"
+        description: "Return to planning so the task can be split or made safer."
+
+  → "Approve once":
+    Append one JSON line to .gsd/APPROVALS.jsonl:
+      {"slice":"{slice}","task":"{task}","fingerprint":"{fingerprint}","status":"approved","approved_at":"{now ISO}"}
+    Delete .gsd/APPROVAL-REQUEST.json.
+    Delegate to /gsd-cc-auto so auto-mode can resume.
+  → "Run manually":
+    Delete .gsd/APPROVAL-REQUEST.json.
+    Delegate to /gsd-cc-apply for the current task.
+  → "Replan task":
+    Delete .gsd/APPROVAL-REQUEST.json.
+    Delegate to /gsd-cc-plan for this task/slice.
 ```
+
+### Crash Recovery
+```text
 IF .gsd/auto.lock exists:
   → Read the lock file.
   → Check if the task's SUMMARY.md exists.
     - If SUMMARY exists: "S{nn}/T{nn} finished but auto-mode was interrupted. Clean up and continue?"
     - If no SUMMARY: "S{nn}/T{nn} was interrupted mid-execution. Resume or restart this task?"
   → Wait for user confirmation, then delete auto.lock and proceed.
+```
+
+### Last Auto-Mode Problem Stop
+```text
+IF .gsd/auto-recovery.json exists AND no live .gsd/auto.lock exists:
+  → Read .gsd/auto-recovery.json.
+  → Summarize:
+      - reason
+      - unit
+      - stopped_at
+      - safe_next_action
+  → Point to .gsd/AUTO-RECOVERY.md for full details.
+  → Recommend the safe_next_action before continuing normal routing.
 ```
 
 ### No Project

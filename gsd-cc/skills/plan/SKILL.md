@@ -89,6 +89,21 @@ Prefer bare repo-relative paths, one per line. Auto-mode derives fallback Git
 ownership from this section, so it must stay machine-readable. If you need a
 short note, keep the path first on the line and the note trailing it.
 
+#### `<risk>`
+**MANDATORY.** Assign one of `low`, `medium`, or `high` and explain why.
+
+```xml
+<risk level="medium">
+  Touches shared request validation but has focused tests and no migrations.
+</risk>
+```
+
+Use:
+- `low` for isolated file changes with narrow behavior and easy verification.
+- `medium` for multiple files, shared interfaces, or non-trivial tests.
+- `high` for auth, payments, database migrations, deployment, destructive
+  scripts, security-sensitive behavior, or broad refactors.
+
 #### `<acceptance_criteria>`
 **MANDATORY.** At least one AC per task. Every AC uses BDD format:
 
@@ -109,12 +124,15 @@ Good ACs are:
 Step-by-step instructions. Numbered list. Concrete enough that Claude Code can execute them without guessing. Reference the ACs: "Write tests covering AC-1 and AC-2."
 
 #### `<boundaries>`
-**MANDATORY.** List files that this task MUST NOT change:
+**MANDATORY.** List files, directories, or globs that this task MUST NOT change.
+Directory entries protect all children recursively:
 
 ```xml
 <boundaries>
   DO NOT CHANGE:
   - src/types.ts (read-only, owned by T01)
+  - src/generated/ (generated output owned by build step)
+  - src/**/*.generated.ts (generated files)
   - package.json (no new deps without approval)
   - .gsd/ (do not modify state files during execution)
 </boundaries>
@@ -148,10 +166,10 @@ Overview of the entire slice:
 
 ## Tasks
 
-| Task | Name | Files | ACs |
-|------|------|-------|-----|
-| T01  | {name} | {count} files | {count} ACs |
-| T02  | {name} | {count} files | {count} ACs |
+| Task | Name | Risk | Files | ACs |
+|------|------|------|-------|-----|
+| T01  | {name} | medium | {count} files | {count} ACs |
+| T02  | {name} | low | {count} files | {count} ACs |
 ...
 
 ## All Acceptance Criteria
@@ -186,6 +204,10 @@ overview file `.gsd/S{nn}-PLAN.md`.
   <files>
     {file list}
   </files>
+
+  <risk level="{low|medium|high}">
+    {why this task has this risk level}
+  </risk>
 
   <acceptance_criteria>
     <ac id="AC-{n}">
@@ -225,7 +247,28 @@ Verify ALL items from the checklist. Do not cherry-pick — every item must pass
 
 If any check fails, fix it before proceeding. Do not skip the quality gate.
 
-## Step 6: Create Git Branch
+## Step 6: Machine-Validate Plan
+
+Run the standalone validator before marking the slice plan complete. Resolve
+the script path from the first location that exists:
+
+- `./.claude/scripts/validate-plan.js`
+- `~/.claude/scripts/validate-plan.js`
+- `./gsd-cc/scripts/validate-plan.js` (source repo fallback)
+
+Then run:
+
+```bash
+node {script path} .gsd/S{nn}-PLAN.md
+```
+
+If the validator reports errors, fix the slice plan and task XML files, then
+rerun it. Do not set `phase: plan-complete` until validation passes.
+
+If Node is unavailable, stop and tell the user that plan validation requires
+Node before execution can start.
+
+## Step 7: Create Git Branch
 
 Resolve `base_branch` from `.gsd/STATE.md`. If it is missing, run the router's
 base branch detection before continuing and write the result to
@@ -247,15 +290,15 @@ If the slice branch already exists (resuming), switch to it instead of
 recreating it. Verify it is based on `{base_branch}` before continuing; if it
 is not, warn the user and stop so the branch ancestry can be inspected.
 
-## Step 7: Update STATE.md
+## Step 8: Update STATE.md
 
-```
+```yaml
 current_slice: S{nn}
 current_task: T01
 phase: plan-complete
 ```
 
-## Step 8: Confirm and End Session
+## Step 9: Confirm and End Session
 
 ```
 ✓ Planning complete for S{nn}: {slice name}

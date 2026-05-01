@@ -20,11 +20,11 @@ The context files are inlined above in XML tags:
 
 Before writing ANY code, read the <boundaries> section.
 
-For each file listed as DO NOT CHANGE:
+For each file, directory, or glob listed as DO NOT CHANGE:
 - Do NOT Edit it.
 - Do NOT Write to it.
 - You MAY Read it for reference.
-- If you must modify a boundary file to complete the task, STOP. Write in the summary that a boundary violation was necessary and why.
+- If you must modify a boundary path to complete the task, STOP. Write in the summary that a boundary violation was necessary and why.
 
 ## Execution
 
@@ -75,11 +75,19 @@ If an AC fails:
 
 ## Git
 
+Resolve commit language from `commit_language` in `.gsd/STATE.md`,
+`commit_language` in `.gsd/CONFIG.md`, or `GSD-CC commit language:` in
+CLAUDE.md. If none is configured, use English. Do not infer commit language
+from the UI language used in summaries.
+
 Stage and commit only the files this task changed:
 ```bash
 git add {specific files}
 git commit -m "feat(S{nn}/T{nn}): {task name}"
 ```
+
+Write the commit subject and body in the resolved commit language. The example
+above is English because English is the default commit language.
 
 Do NOT use `git add -A`.
 
