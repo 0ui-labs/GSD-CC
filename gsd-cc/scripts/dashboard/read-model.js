@@ -1012,6 +1012,8 @@ function buildTaskProgress(gsdDir, taskPlans, summaries) {
     };
   }));
   const completed = items.filter((item) => item.artifacts.summary).length;
+  const total = items.length;
+  const planned = items.filter((item) => item.artifacts.plan).length;
   const statusCounts = summarizeTaskStatus(
     items
       .filter((item) => item.artifacts.summary)
@@ -1019,10 +1021,10 @@ function buildTaskProgress(gsdDir, taskPlans, summaries) {
   );
 
   return {
-    total: taskPlans.length,
-    planned: taskPlans.length,
+    total,
+    planned,
     completed,
-    pending: Math.max(taskPlans.length - completed, 0),
+    pending: Math.max(total - completed, 0),
     ...statusCounts,
     risk: summarizeTaskRisk(items),
     items
@@ -1347,7 +1349,14 @@ function describeCurrentUnit(current, includeTask = true) {
   }
 
   if (includeTask && isKnown(current.task)) {
-    parts.push(current.task);
+    const taskPlanId = resolveCurrentTaskPlanId(current);
+    const slicePrefix = isKnown(current.slice) ? `${current.slice}-` : '';
+    const taskLabel = taskPlanId && slicePrefix
+      && taskPlanId.toUpperCase().startsWith(slicePrefix.toUpperCase())
+      ? taskPlanId.slice(slicePrefix.length)
+      : taskPlanId || current.task;
+
+    parts.push(taskLabel);
   }
 
   return parts.length > 0 ? parts.join('/') : 'the current work';

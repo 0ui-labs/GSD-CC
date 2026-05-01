@@ -330,6 +330,21 @@ function testStateFieldsTakePrecedenceOverConfig() {
   assert.strictEqual(model.automation.scope, 'slice');
 }
 
+function testFullCurrentTaskIdsDoNotDuplicateSliceInActions() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: S01-T02',
+    'phase: applying',
+    ''
+  ].join('\n'));
+
+  const model = buildDashboardModel(projectRoot);
+
+  assert.match(model.current.next_action, /S01\/T02/);
+  assert.doesNotMatch(model.current.next_action, /S01\/S01-T02/);
+}
+
 function testMissingStateFieldsRemainUnknown() {
   const projectRoot = createProjectWithState([
     'phase: applying',
@@ -757,6 +772,34 @@ function testArtifactOnlySlicesAreIncludedWhenRoadmapIsMissing() {
   assert.strictEqual(model.progress.slices[0].name, 'unknown');
   assert.strictEqual(model.progress.slices[0].status, 'planned');
   assert.strictEqual(model.progress.slices[0].artifacts.roadmap, null);
+}
+
+function testTaskProgressCountsSummaryOnlyTasks() {
+  const projectRoot = createProjectWithState([
+    'milestone: M001',
+    'current_slice: S01',
+    'current_task: T01',
+    'phase: apply-complete',
+    ''
+  ].join('\n'));
+
+  writeSlicePlan(projectRoot, 'S01');
+  writeTaskSummary(projectRoot, 'S01', 'T01', 'complete');
+
+  const model = buildDashboardModel(projectRoot);
+  const [slice] = model.progress.slices;
+
+  assert.strictEqual(slice.tasks.total, 1);
+  assert.strictEqual(slice.tasks.planned, 0);
+  assert.strictEqual(slice.tasks.completed, 1);
+  assert.strictEqual(slice.tasks.pending, 0);
+  assert.deepStrictEqual(slice.tasks.items.map((item) => [
+    item.id,
+    item.artifacts.plan,
+    item.artifacts.summary
+  ]), [
+    ['T01', null, '.gsd/S01-T01-SUMMARY.md']
+  ]);
 }
 
 function testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence() {
@@ -1469,10 +1512,12 @@ function run() {
   testStateFixturesPopulateCurrentPosition();
   testConfigFallbackPopulatesProjectFields();
   testStateFieldsTakePrecedenceOverConfig();
+  testFullCurrentTaskIdsDoNotDuplicateSliceInActions();
   testMissingStateFieldsRemainUnknown();
   testCurrentTaskPlanPopulatesCurrentTask();
   testProgressDiscoversRoadmapSlicesAndArtifacts();
   testArtifactOnlySlicesAreIncludedWhenRoadmapIsMissing();
+  testTaskProgressCountsSummaryOnlyTasks();
   testAcceptanceCriteriaProgressUsesSummaryAndUnifyEvidence();
   testLatestUnifyEvidencePopulatesModel();
   testLiveAutoLockPopulatesAutomationState();
