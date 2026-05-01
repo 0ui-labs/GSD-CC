@@ -19,6 +19,9 @@ const {
   writeFakeJq
 } = require('./helpers/fake-bin');
 const {
+  packageRoot
+} = require('./helpers/package-fixture');
+const {
   makeTempDir
 } = require('./helpers/temp');
 
@@ -339,6 +342,38 @@ function testAutoModeClearsStaleRecovery() {
   assertNoRecovery(projectDir);
 }
 
+function testRecoveryHelpersWorkWithoutRuntimeTimestampFunction() {
+  const binDir = setupBin();
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'plan-complete',
+      auto_mode_scope: 'slice'
+    }
+  });
+  const script = [
+    'set -euo pipefail',
+    `GSD_DIR=${JSON.stringify(path.join(projectDir, '.gsd'))}`,
+    `source ${JSON.stringify(path.join(packageRoot, 'skills', 'auto', 'lib', 'recovery.sh'))}`,
+    'auto_recovery_capture_start',
+    'auto_recovery_write "manual_stop" "Manual recovery test."',
+    ''
+  ].join('\n');
+
+  const result = spawnSync('bash', ['-c', script], {
+    env: makeEnv(binDir),
+    encoding: 'utf8'
+  });
+
+  assert.strictEqual(
+    result.status,
+    0,
+    `recovery helper failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+  );
+  const recovery = assertRecovery(projectDir, 'manual_stop');
+  assert.strictEqual(recovery.started_at, '2026-01-01T00:00:00+00:00');
+  assert.strictEqual(recovery.stopped_at, '2026-01-01T00:00:00+00:00');
+}
+
 testDispatchFailureWritesRecovery();
 testTimeoutWritesRecovery();
 testMissingSummaryWritesRecovery();
@@ -348,3 +383,4 @@ testGitSafetyStopWritesRecovery();
 testInvalidStateWritesValidationRecovery();
 testSuccessfulSliceDoesNotWriteRecovery();
 testAutoModeClearsStaleRecovery();
+testRecoveryHelpersWorkWithoutRuntimeTimestampFunction();

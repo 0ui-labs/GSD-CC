@@ -109,8 +109,26 @@ auto_recovery_json_lines() {
   fi
 }
 
+auto_recovery_iso_now() {
+  local now
+
+  if declare -F iso_now >/dev/null 2>&1; then
+    now="$(iso_now 2>/dev/null || true)"
+    if [[ -n "$now" ]]; then
+      printf '%s\n' "$now"
+      return 0
+    fi
+  fi
+
+  if date -Iseconds >/dev/null 2>&1; then
+    date -Iseconds
+  else
+    date '+%Y-%m-%dT%H:%M:%S%z'
+  fi
+}
+
 auto_recovery_capture_start() {
-  AUTO_RUN_STARTED_AT="${AUTO_RUN_STARTED_AT:-$(iso_now)}"
+  AUTO_RUN_STARTED_AT="${AUTO_RUN_STARTED_AT:-$(auto_recovery_iso_now)}"
   AUTO_RUN_START_BRANCH="$(auto_recovery_current_branch)"
   AUTO_RUN_START_HEAD="$(auto_recovery_current_head)"
 }
@@ -164,7 +182,7 @@ auto_recovery_write() {
   markdown_path="$(auto_recovery_markdown_path)"
   json_path="$(auto_recovery_json_path)"
   log_file="${LOG_FILE:-}"
-  stopped_at="$(iso_now)"
+  stopped_at="$(auto_recovery_iso_now)"
   scope="${AUTO_SCOPE:-$(auto_recovery_read_state_field "auto_mode_scope")}"
   milestone="${MILESTONE:-$(auto_recovery_read_state_field "milestone")}"
   slice="${SLICE:-$(auto_recovery_read_state_field "current_slice")}"
