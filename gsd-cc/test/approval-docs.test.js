@@ -27,8 +27,10 @@ function testUnifyDocumentsRiskAndApproval() {
   const autoInstructions = read('skills/auto/unify-instructions.txt');
 
   assert.match(unify, /Risk and Approval/);
+  assert.match(unify, /current fingerprint/);
   assert.match(template, /Risk and Approval/);
-  assert.match(autoInstructions, /<approvals>/);
+  assert.match(autoInstructions, /<risk-and-approval>/);
+  assert.doesNotMatch(autoInstructions, /<approvals>/);
 }
 
 testRouterDocumentsApprovalRequest();

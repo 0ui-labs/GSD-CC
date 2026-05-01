@@ -70,7 +70,8 @@ project risks. If no new risks were introduced or revealed, write `None.`.
 ### Risk and Approval
 
 For each task plan, read `<risk level="...">`. List high-risk tasks and whether
-an approval grant exists in <approvals>. If no high-risk tasks exist, write
+an approval grant exists in <risk-and-approval> for the current fingerprint. If
+no high-risk tasks exist, write
 `No high-risk tasks in this slice.`.
 
 ### Tests and Evidence

@@ -210,8 +210,9 @@ If no new risks were introduced or revealed, write `None.`.
 ### Risk and Approval
 
 For each task plan, read `<risk level="...">`. If the level is `high`, check
-whether `.gsd/APPROVALS.jsonl` contains a matching grant for the same slice and
-task. Include:
+whether `.gsd/APPROVALS.jsonl` contains a matching grant for the same slice,
+task, and current fingerprint. Treat missing or different fingerprints as no
+matching approval. Include:
 
 ```markdown
 ## Risk and Approval
