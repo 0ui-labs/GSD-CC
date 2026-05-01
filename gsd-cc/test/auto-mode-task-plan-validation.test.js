@@ -349,6 +349,30 @@ function testDuplicateOwnershipStopsWithoutSequencing(binDir) {
   assert.ok(!fs.existsSync(path.join(projectDir, '.gsd', 'apply-dispatched.marker')));
 }
 
+function testDuplicateOwnershipAllowsUnicodeArrowSequencing(binDir) {
+  const projectDir = createAutoModeProject({
+    state: {
+      phase: 'plan-complete',
+      auto_mode_scope: 'slice'
+    }
+  });
+  writeFile(path.join(projectDir, '.gsd', 'S01-PLAN.md'), [
+    '# S01',
+    '',
+    '## Dependencies',
+    '',
+    'T01 → T02',
+    ''
+  ].join('\n'));
+  writeTaskPlan(projectDir, { task: 'T01', acId: 'AC-1', files: ['src/shared.txt'] });
+  writeTaskPlan(projectDir, { task: 'T02', acId: 'AC-2', files: ['src/shared.txt'] });
+
+  const result = runAutoLoop(projectDir, makeEnv(binDir));
+
+  assertAutoLoopSucceeded(result);
+  assert.ok(fs.existsSync(path.join(projectDir, '.gsd', 'apply-dispatched.marker')));
+}
+
 function testMilestoneModeValidatesAfterPlanDispatch(binDir) {
   const projectDir = createAutoModeProject({
     unified: true,
@@ -383,4 +407,5 @@ testUnresolvedActionStopsBeforeDispatch(binDir);
 testInvalidRiskStopsBeforeDispatch(binDir);
 testTooBroadTaskStopsBeforeDispatch(binDir);
 testDuplicateOwnershipStopsWithoutSequencing(binDir);
+testDuplicateOwnershipAllowsUnicodeArrowSequencing(binDir);
 testMilestoneModeValidatesAfterPlanDispatch(binDir);

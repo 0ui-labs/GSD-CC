@@ -450,7 +450,7 @@ dependencies_sequence_tasks() {
   local left_pattern
   local line
   local right_pattern
-  local sequencing_pattern="(->|=>|before|after|depends( on)?|then)"
+  local sequencing_pattern="(→|->|=>|before|after|depends( on)?|then)"
 
   [[ -n "$dependencies_text" ]] || return 1
 
